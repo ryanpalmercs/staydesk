@@ -18,10 +18,10 @@ CREATE TABLE guests
     phone_number VARCHAR(10)    NOT NULL
         CONSTRAINT check_only_digits
             CHECK (phone_number ~ '^[0-9]+$'
-        AND LENGTH (phone_number) = 10,
+        AND LENGTH (phone_number) = 10
+) ,
     created_at   TIMESTAMPTZ    NOT NULL,
     updated_at   TIMESTAMPTZ    NOT NULL
-)
     );
 
 CREATE TABLE reservations
@@ -76,6 +76,8 @@ CREATE TABLE time_entries
 (
     id          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     employee_id INT REFERENCES employees (id) NOT NULL,
+    clock_in    TIMESTAMPTZ                   NOT NULL,
+    clock_out   TIMESTAMPTZ                   NOT NULL,
     date        DATE                          NOT NULL,
     hours       DECIMAL(4, 2)                 NOT NULL,
     notes       VARCHAR,
