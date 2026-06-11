@@ -63,3 +63,14 @@ GUSTO_CLIENT_SECRET=...
 - Walk-in only or online reservations?
 - Card on file vs pay at checkout?
 - Number of employees / payroll frequency?
+
+## Branching Strategy
+
+master ← beta ← develop ← feature/issue-number-description
+
+- `master` — production
+- `beta` — pre-production staging
+- `develop` — integration branch, all feature work merges here first
+- `feature/*` — named `feature/14-short-description` (issue number + description)
+
+All three persistent branches are protected — no direct pushes, PRs required to merge. Source branch enforcement is handled via GitHub Actions (only `feature/*` → `develop`, only `develop` → `beta`, only `beta` → `master`).
