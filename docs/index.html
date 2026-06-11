@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StayDesk — Motel Management, Simplified</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --rust: #C04A1E;
+      --rust-light: #E8694A;
+      --cream: #FDF6ED;
+      --warm-white: #FFFAF4;
+      --tan: #F0E0C8;
+      --brown: #7A4E2D;
+      --charcoal: #2C1F14;
+      --muted: #8C6B50;
+      --yellow: #F5A623;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--cream);
+      color: var(--charcoal);
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: var(--charcoal);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 56px;
+      border-bottom: 2px solid var(--rust);
+    }
+
+    .nav-logo {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.35rem;
+      color: var(--cream);
+      letter-spacing: 0.02em;
+    }
+
+    .nav-logo span {
+      color: var(--yellow);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: rgba(253, 246, 237, 0.65);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover {
+      color: var(--cream);
+    }
+
+    .nav-gh {
+      background: var(--rust) !important;
+      color: var(--cream) !important;
+      padding: 0.35rem 0.9rem;
+      border-radius: 4px;
+      font-weight: 600 !important;
+    }
+
+    .nav-gh:hover {
+      background: var(--rust-light) !important;
+    }
+
+    /* HERO */
+    .hero {
+      background: var(--charcoal);
+      padding: 7rem 2rem 4rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(90deg,
+          rgba(192, 74, 30, 0.04) 0px,
+          rgba(192, 74, 30, 0.04) 1px,
+          transparent 1px,
+          transparent 60px);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--yellow);
+      margin-bottom: 1rem;
+    }
+
+    .hero h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      color: var(--cream);
+      line-height: 1.15;
+      max-width: 640px;
+      margin: 0 auto 1rem;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--rust-light);
+    }
+
+    .hero-sub {
+      font-size: 1rem;
+      color: rgba(253, 246, 237, 0.6);
+      max-width: 480px;
+      margin: 0 auto 2rem;
+      line-height: 1.75;
+    }
+
+    .hero-btns {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 3rem;
+    }
+
+    .btn-primary {
+      background: var(--rust);
+      color: var(--cream);
+      padding: 0.65rem 1.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+
+    .btn-primary:hover {
+      background: var(--rust-light);
+    }
+
+    .btn-secondary {
+      border: 1px solid rgba(253, 246, 237, 0.25);
+      color: var(--cream);
+      padding: 0.65rem 1.5rem;
+      border-radius: 4px;
+      font-weight: 500;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: border-color 0.15s;
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(253, 246, 237, 0.6);
+    }
+
+    /* ROOM GRID */
+    .room-grid-wrap {
+      background: var(--warm-white);
+      border: 1px solid var(--tan);
+      border-radius: 8px;
+      max-width: 620px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    .room-grid-header {
+      background: var(--brown);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1.1rem;
+    }
+
+    .room-grid-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(253, 246, 237, 0.7);
+    }
+
+    .room-grid-date {
+      font-size: 0.75rem;
+      color: var(--yellow);
+      font-weight: 600;
+    }
+
+    .room-grid {
+      display: grid;
+      grid-template-columns: 56px repeat(7, 1fr);
+    }
+
+    .day-hdr {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: center;
+      padding: 0.55rem 0.2rem;
+      border-bottom: 1px solid var(--tan);
+      background: var(--warm-white);
+    }
+
+    .room-lbl {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--brown);
+      padding: 0 0.6rem;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid var(--tan);
+      border-right: 1px solid var(--tan);
+      background: var(--cream);
+    }
+
+    .cell {
+      border-bottom: 1px solid var(--tan);
+      border-right: 1px solid var(--tan);
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px;
+    }
+
+    .cell-occ {
+      background: rgba(192, 74, 30, 0.15);
+      border-radius: 2px;
+      width: 100%;
+      height: 100%;
+      min-height: 28px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 1.25rem;
+      padding: 0.65rem 1.1rem;
+      border-top: 1px solid var(--tan);
+      background: var(--warm-white);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    .swatch-occ {
+      background: rgba(192, 74, 30, 0.35);
+      border: 1px solid rgba(192, 74, 30, 0.5);
+    }
+
+    .swatch-free {
+      background: transparent;
+      border: 1px solid var(--tan);
+    }
+
+    /* FEATURES */
+    .features {
+      padding: 5rem 2rem;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .section-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--rust);
+      margin-bottom: 0.6rem;
+    }
+
+    .section-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+      color: var(--charcoal);
+      line-height: 1.25;
+      max-width: 500px;
+      margin-bottom: 2.5rem;
+    }
+
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .feat-card {
+      background: var(--warm-white);
+      border: 1px solid var(--tan);
+      border-top: 3px solid var(--rust);
+      border-radius: 8px;
+      padding: 1.4rem;
+    }
+
+    .feat-icon {
+      font-size: 1.35rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .feat-card h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.05rem;
+      color: var(--charcoal);
+      margin-bottom: 0.4rem;
+    }
+
+    .feat-card p {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* OSS BAND */
+    .oss-band {
+      background: var(--brown);
+      padding: 5rem 2rem;
+      text-align: center;
+    }
+
+    .oss-band .section-eyebrow {
+      color: var(--yellow);
+    }
+
+    .oss-band .section-title {
+      color: var(--cream);
+      margin: 0 auto 1rem;
+      text-align: center;
+    }
+
+    .oss-band p {
+      color: rgba(253, 246, 237, 0.65);
+      max-width: 480px;
+      margin: 0 auto 1.75rem;
+      font-size: 0.95rem;
+      line-height: 1.75;
+    }
+
+    .license-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(245, 166, 35, 0.15);
+      border: 1px solid rgba(245, 166, 35, 0.35);
+      color: var(--yellow);
+      padding: 0.3rem 0.85rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+      display: block;
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* FOOTER */
+    footer {
+      background: var(--charcoal);
+      border-top: 2px solid var(--rust);
+      padding: 1.5rem 2rem;
+      text-align: center;
+    }
+
+    footer p {
+      font-size: 0.78rem;
+      color: rgba(253, 246, 237, 0.35);
+    }
+
+    footer a {
+      color: var(--yellow);
+      text-decoration: none;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 600px) {
+      .nav-links a:not(.nav-gh) {
+        display: none;
+      }
+
+      .room-grid {
+        grid-template-columns: 44px repeat(7, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav>
+    <div class="nav-logo">Stay<span>Desk</span></div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#oss">Open source</a>
+      <a href="https://github.com/ryanpalmercs/staydesk" class="nav-gh">GitHub</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <p class="eyebrow">Open source · Free to self-host</p>
+    <h1>Motel management built for <em>Main Street,</em> not the Marriott.</h1>
+    <p class="hero-sub">StayDesk keeps it simple — reservations, check-in, folios, and payroll for small independent
+      properties. No enterprise contracts, no bloat.</p>
+    <div class="hero-btns">
+      <a href="https://github.com/ryanpalmercs/staydesk" class="btn-primary">View on GitHub</a>
+      <a href="#features" class="btn-secondary">See what's included</a>
+    </div>
+
+    <div class="room-grid-wrap">
+      <div class="room-grid-header">
+        <span class="room-grid-title">Room availability</span>
+        <span class="room-grid-date">June 2026</span>
+      </div>
+      <div class="room-grid">
+        <div class="day-hdr"></div>
+        <div class="day-hdr">Mon</div>
+        <div class="day-hdr">Tue</div>
+        <div class="day-hdr">Wed</div>
+        <div class="day-hdr">Thu</div>
+        <div class="day-hdr">Fri</div>
+        <div class="day-hdr">Sat</div>
+        <div class="day-hdr">Sun</div>
+
+        <div class="room-lbl">101</div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+
+        <div class="room-lbl">102</div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+
+        <div class="room-lbl">103</div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+
+        <div class="room-lbl">104</div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+
+        <div class="room-lbl">105</div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+        <div class="cell">
+          <div class="cell-occ"></div>
+        </div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+      </div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="swatch swatch-occ"></div> Occupied
+        </div>
+        <div class="legend-item">
+          <div class="swatch swatch-free"></div> Available
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <p class="section-eyebrow">What's included</p>
+    <h2 class="section-title">Everything a small property needs. Nothing it doesn't.</h2>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <span class="feat-icon">🛏</span>
+        <h3>Guest management</h3>
+        <p>Rooms, reservations, check-in and check-out, and per-stay folios with itemized charges.</p>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">💳</span>
+        <h3>Payments via Stripe</h3>
+        <p>Collect payment at checkout or hold a card on file. Stripe handles the complexity.</p>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">👥</span>
+        <h3>Payroll via Gusto</h3>
+        <p>Track employee hours and run payroll through Gusto's API. No spreadsheets required.</p>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">📊</span>
+        <h3>Simple dashboard</h3>
+        <p>Today's arrivals, departures, and occupancy at a glance. The info you actually need.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="oss-band" id="oss">
+    <p class="section-eyebrow">Free & open source</p>
+    <h2 class="section-title">Built in the open. Free to use.</h2>
+    <div class="license-badge">GPL v3 licensed</div>
+    <p>Self-host it for free, contribute to it, or fork it for your own property. The code is yours to inspect, trust,
+      and build on.</p>
+    <a href="https://github.com/ryanpalmercs/staydesk" class="btn-primary">View the source on GitHub</a>
+  </section>
+
+  <footer>
+    <p>StayDesk is open source software licensed under the <a
+        href="https://github.com/ryanpalmercs/staydesk/blob/master/LICENSE">GNU GPL v3</a>. Built by <a
+        href="https://github.com/ryanpalmercs">Ryan Palmer</a>.</p>
+  </footer>
+
+</body>
+
+</html>
