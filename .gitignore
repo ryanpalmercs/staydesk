@@ -5,8 +5,8 @@ target/
 *.war
 
 # Spring
-application-local.properties
-application-secrets.properties
+application-local.yml
+application-secrets.yml
 
 # Node
 node_modules/
