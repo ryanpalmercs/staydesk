@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: staydesk
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWK_SET_URI:https://dmishzzcabozbbbjzlsb.supabase.co/auth/v1/.well-known/jwks.json}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Stripe
+stripe:
+  api-key: ${STRIPE_API_KEY}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+# Gusto
+gusto:
+  api-base-url: https://api.gusto.com
+  client-id: ${GUSTO_CLIENT_ID}
+  client-secret: ${GUSTO_CLIENT_SECRET}
+
+supabase:
+  url: https://dmishzzcabozbbbjzlsb.supabase.co
+  
