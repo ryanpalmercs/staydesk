@@ -16,7 +16,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${SUPABASE_JWKS_URI}
+          jwk-set-uri: https://dmishzzcabozbbbjzlsb.supabase.co/auth/v1/.well-known/jwks.json
 
 management:
   endpoints:
@@ -34,3 +34,6 @@ gusto:
   api-base-url: https://api.gusto.com
   client-id: ${GUSTO_CLIENT_ID}
   client-secret: ${GUSTO_CLIENT_SECRET}
+
+supabase:
+  url: https://dmishzzcabozbbbjzlsb.supabase.co
