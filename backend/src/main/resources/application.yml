@@ -16,7 +16,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: https://dmishzzcabozbbbjzlsb.supabase.co/auth/v1/.well-known/jwks.json
+          jwk-set-uri: ${JWK_SET_URI:https://dmishzzcabozbbbjzlsb.supabase.co/auth/v1/.well-known/jwks.json}
 
 management:
   endpoints:
@@ -37,3 +37,4 @@ gusto:
 
 supabase:
   url: https://dmishzzcabozbbbjzlsb.supabase.co
+  
