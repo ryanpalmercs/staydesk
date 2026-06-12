@@ -1,0 +1,35 @@
+name: Branch protection
+
+on:
+  pull_request:
+    branches: [develop, beta, master]
+
+jobs:
+  check-source-branch:
+    name: Enforce source branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check allowed source branch
+        run: |
+          TARGET="${{ github.base_ref }}"
+          SOURCE="${{ github.head_ref }}"
+
+          echo "PR: $SOURCE → $TARGET"
+
+          if [[ "$TARGET" == "develop" && ! "$SOURCE" =~ ^feature/ ]]; then
+            echo "Error: PRs targeting 'develop' must come from a 'feature/*' branch (got '$SOURCE')"
+            exit 1
+          fi
+
+          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" ]]; then
+            echo "Error: PRs targeting 'beta' must come from 'develop' (got '$SOURCE')"
+            exit 1
+          fi
+
+          if [[ "$TARGET" == "master" && "$SOURCE" != "beta" ]]; then
+            echo "Error: PRs targeting 'master' must come from 'beta' (got '$SOURCE')"
+            exit 1
+          fi
+
+          echo "Source branch '$SOURCE' is allowed to merge into '$TARGET'"
