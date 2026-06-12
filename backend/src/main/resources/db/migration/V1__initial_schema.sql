@@ -5,8 +5,8 @@ CREATE TABLE rooms
     type         VARCHAR       NOT NULL,
     nightly_rate DECIMAL(5, 2) NOT NULL,
     status       VARCHAR       NOT NULL,
-    created_at   TIMESTAMPTZ   NOT NULL,
-    updated_at   TIMESTAMPTZ   NOT NULL
+    created_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE guests
@@ -18,11 +18,11 @@ CREATE TABLE guests
     phone_number VARCHAR(10)    NOT NULL
         CONSTRAINT check_only_digits
             CHECK (phone_number ~ '^[0-9]+$'
-        AND LENGTH (phone_number) = 10
-) ,
+                AND LENGTH(phone_number) = 10
+                ),
     created_at   TIMESTAMPTZ    NOT NULL,
     updated_at   TIMESTAMPTZ    NOT NULL
-    );
+);
 
 CREATE TABLE reservations
 (
@@ -84,3 +84,18 @@ CREATE TABLE time_entries
     created_at  TIMESTAMPTZ                   NOT NULL,
     updated_at  TIMESTAMPTZ                   NOT NULL
 );
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+    RETURNS TRIGGER AS
+$$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER rooms_updated_at
+    BEFORE UPDATE
+    ON rooms
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
