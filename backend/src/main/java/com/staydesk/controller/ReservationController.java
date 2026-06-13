@@ -2,7 +2,6 @@ package com.staydesk.controller;
 
 import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.DateConflictException;
-import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
@@ -106,6 +105,7 @@ public class ReservationController {
         } catch (AlreadyCheckedInException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (Exception e) {
+            LOGGER.error("An error occurred while checking reservation in with id {}", id, e);
             return ResponseEntity.badRequest().build();
         }
     }
