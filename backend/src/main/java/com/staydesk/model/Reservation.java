@@ -8,6 +8,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Table("reservations")
-public record Reservation(@Id int id, int guestId, int roomId, LocalDate checkInDate, LocalDate checkOutDate, String status,
-                          @Nullable LocalDateTime checkedInAt, @Nullable LocalDateTime checkedOutAt, LocalDateTime createdAt, LocalDateTime updatedAt) {
+public record Reservation(@Id int id, int guestId, int roomId, LocalDate checkInDate, LocalDate checkOutDate,
+                          ReservationStatus status, @Nullable LocalDateTime checkedInAt,
+                          @Nullable LocalDateTime checkedOutAt, LocalDateTime createdAt, LocalDateTime updatedAt) {
+
+    public enum ReservationStatus {
+        CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED
+    }
 }

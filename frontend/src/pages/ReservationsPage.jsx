@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { getReservations, deleteReservation } from "../api/reservationApi"
+import { getReservations, deleteReservation, checkIn } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
 
@@ -10,6 +10,7 @@ function ReservationsPage() {
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedReservation, setSelectedReservation] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '' })
+    const [error, setError] = useState(null)
 
     useEffect(() => {
         Promise.all([fetchReservations(), getRooms().then(res => setRooms(res.data))])
@@ -44,6 +45,20 @@ function ReservationsPage() {
 
     function handleFilterChange(e) {
         setFilters({ ...filters, [e.target.name]: e.target.value })
+    }
+
+    async function handleCheckIn(id) {
+        try {
+        await checkIn(id)
+        fetchReservations()
+        } catch (err) {
+            if (err.response?.status === 409) {
+                setError('Guest is already checked in.')
+            } else {
+                setError('Something went wrong.')
+            }
+        }
+
     }
 
     const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
@@ -109,6 +124,7 @@ function ReservationsPage() {
                                 <td className="py-3">{res.checkOutDate}</td>
                                 <td className="py-3">{res.status}</td>
                                 <td className="py-3 flex gap-3 justify-end">
+                                    <button onClick={() => handleCheckIn(res.id)} className="text-sm text-green-600 hover:underline">Check In</button>
                                     <button onClick={() => openEdit(res)} className="text-sm text-blue-600 hover:underline">Edit</button>
                                     <button onClick={() => handleDelete(res.id)} className="text-sm text-red-600 hover:underline">Delete</button>
                                 </td>
@@ -122,6 +138,8 @@ function ReservationsPage() {
                 <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
             )
             }
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
         </div >
     )
 }
