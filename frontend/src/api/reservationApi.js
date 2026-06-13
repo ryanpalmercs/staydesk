@@ -10,7 +10,7 @@ export function getReservation(id) {
 
 export function createReservation(reservation) {
     return api.post(`/reservations`, reservation, {
-        headers: { 'Content-Type': 'application/json'}
+        headers: { 'Content-Type': 'application/json' }
     })
 }
 
@@ -20,4 +20,8 @@ export function updateReservation(id, reservation) {
 
 export function deleteReservation(id) {
     return api.delete(`/reservations/${id}`)
+}
+
+export function checkIn(id) {
+    return api.post(`/reservations/${id}/check-in`)
 }
