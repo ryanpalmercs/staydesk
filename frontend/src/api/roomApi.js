@@ -9,8 +9,6 @@ export function getRoom(id) {
 }
 
 export function createRoom(room) {
-    console.log('form type:', Object.prototype.toString.call(room))
-    console.log('form keys:', Object.keys(room))
     return api.post('/rooms', room, {
         headers: { 'Content-Type': 'application/json' }
     })
