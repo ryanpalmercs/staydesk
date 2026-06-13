@@ -31,13 +31,13 @@ public class RoomController {
     }
 
     @GetMapping
-    public List<Room> findAll() {
+    public List<Room> getRooms() {
         LOGGER.info("Finding all rooms");
         return roomRepository.findAll();
     }
 
     @GetMapping("{id}")
-    public ResponseEntity<Room> findById(@PathVariable int id) {
+    public ResponseEntity<Room> getRoom(@PathVariable Integer id) {
         LOGGER.info("Finding room by id {}", id);
 
         return roomRepository.findById(id)
@@ -46,7 +46,7 @@ public class RoomController {
     }
 
     @PostMapping
-    public ResponseEntity<Room> save(@RequestBody Room room) {
+    public ResponseEntity<Room> createRoom(@RequestBody Room room) {
         LOGGER.info("Saving room {}", room);
         LocalDateTime now = LocalDateTime.now();
         Room savedRoom = new Room(0, room.roomNumber(), room.type(), room.nightlyRate(), room.status(), now, now);
@@ -56,20 +56,20 @@ public class RoomController {
     }
 
     @PutMapping("{id}")
-    public ResponseEntity<Room> update(@PathVariable Integer id, @RequestBody Room room) {
+    public ResponseEntity<Room> updateRoom(@PathVariable Integer id, @RequestBody Room room) {
         LOGGER.info("Updating room {}", room);
 
         if (checkRoomDoesNotExist(id)) {
             return ResponseEntity.notFound().build();
         }
 
-        Room updatedRoom = new Room(id, room.roomNumber(), room.type(), room.nightlyRate(), room.status(), room.createdAt(), room.updatedAt());
+        Room updatedRoom = new Room(id, room.roomNumber(), room.type(), room.nightlyRate(), room.status(), room.createdAt(), LocalDateTime.now());
 
         return ResponseEntity.ok(roomRepository.save(updatedRoom));
     }
 
     @DeleteMapping("{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteRoom(@PathVariable Integer id) {
         LOGGER.info("Deleting room {}", id);
 
         if (checkRoomDoesNotExist(id)) {
