@@ -1,6 +1,7 @@
 package com.staydesk.service;
 
 import com.staydesk.exception.DateConflictException;
+import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
@@ -26,32 +27,59 @@ public class ReservationService {
 
     @Transactional
     public Reservation createReservation(Reservation reservation) {
+        LocalDateTime now = LocalDateTime.now();
+
         Room room = roomRepository.findById(reservation.roomId())
                                   .orElseThrow(RoomNotFoundException::new);
 
-        if (room.status() == Room.RoomStatus.RESERVED || room.status() == Room.RoomStatus.MAINTENANCE) {
+        if (room.status() == Room.RoomStatus.MAINTENANCE) {
             throw new RoomUnavailableException();
         }
 
-        if (!reservationRepository.findOverlapping(reservation.roomId(), reservation.checkInDate(), reservation.checkOutDate()).isEmpty()) {
+        if (!reservation.checkOutDate().isAfter(reservation.checkInDate())) {
+            throw new InvalidReservationException();
+        }
+
+        if (!reservationRepository.findOverlapping(reservation.roomId(), reservation.checkOutDate(), reservation.checkInDate()).isEmpty()) {
             throw new DateConflictException();
         }
 
-        roomRepository.save(new Room(room.id(), room.roomNumber(), room.type(), room.nightlyRate(),
-                Room.RoomStatus.RESERVED, room.createdAt(), LocalDateTime.now()));
+        Reservation savedReservation = new Reservation(0, reservation.guestId(), reservation.roomId(),
+                reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
+                reservation.checkedOutAt(), now, now);
 
-        return reservationRepository.save(reservation);
+        return reservationRepository.save(savedReservation);
+    }
+
+    @Transactional
+    public Reservation updateReservation(int id, Reservation reservation) {
+        reservationRepository.findById(id)
+                             .orElseThrow(ReservationNotFoundException::new);
+
+        boolean hasOverlap = reservationRepository.findOverlapping(reservation.roomId(), reservation.checkOutDate(), reservation.checkInDate())
+                                                  .stream()
+                                                  .anyMatch(r -> r.id() != id);
+
+        if (hasOverlap) {
+            throw new DateConflictException();
+        }
+
+        if (!reservation.checkOutDate().isAfter(reservation.checkInDate())) {
+            throw new InvalidReservationException();
+        }
+
+        Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
+                reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
+                reservation.createdAt(), LocalDateTime.now());
+
+        return reservationRepository.save(updated);
     }
 
     @Transactional
     public void deleteReservation(int id) {
-        Reservation reservation = reservationRepository.findById(id)
-                                                       .orElseThrow(ReservationNotFoundException::new);
+        reservationRepository.findById(id)
+                             .orElseThrow(ReservationNotFoundException::new);
 
         reservationRepository.deleteById(id);
-
-        roomRepository.findById(reservation.roomId())
-                      .ifPresent(room -> roomRepository.save(new Room(room.id(), room.roomNumber(), room.type(),
-                              room.nightlyRate(), Room.RoomStatus.AVAILABLE, room.createdAt(), LocalDateTime.now())));
     }
 }

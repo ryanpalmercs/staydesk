@@ -5,9 +5,7 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
 import com.staydesk.model.Reservation;
-import com.staydesk.model.Room;
 import com.staydesk.repository.ReservationRepository;
-import com.staydesk.repository.RoomRepository;
 import com.staydesk.service.ReservationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,9 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/reservations")
@@ -33,12 +29,10 @@ public class ReservationController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ReservationController.class);
 
     private final ReservationRepository reservationRepository;
-    private final RoomRepository roomRepository;
     private final ReservationService reservationService;
 
-    public ReservationController(ReservationRepository reservationRepository, RoomRepository roomRepository, ReservationService reservationService) {
+    public ReservationController(ReservationRepository reservationRepository, ReservationService reservationService) {
         this.reservationRepository = reservationRepository;
-        this.roomRepository = roomRepository;
         this.reservationService = reservationService;
     }
 
@@ -77,16 +71,13 @@ public class ReservationController {
                                                          @RequestBody Reservation reservation) {
         LOGGER.info("Updating reservation {}", reservation);
 
-        if (!reservationRepository.existsById(id)) {
-            LOGGER.warn("Reservation with id {} does not exist", id);
+        try {
+            return ResponseEntity.ok(reservationService.updateReservation(id, reservation));
+        } catch (ReservationNotFoundException e) {
             return ResponseEntity.notFound().build();
+        } catch (DateConflictException e) {
+            return ResponseEntity.badRequest().build();
         }
-
-        Reservation updatedReservation = new Reservation(id, reservation.guestId(), reservation.roomId(),
-                reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.createdAt(), LocalDateTime.now());
-
-        return ResponseEntity.ok(reservationRepository.save(updatedReservation));
     }
 
     @DeleteMapping("{id}")

@@ -15,6 +15,6 @@ public record Room(@Id int id, int roomNumber, RoomType type, BigDecimal nightly
     }
 
     public enum RoomStatus {
-        AVAILABLE, OCCUPIED, MAINTENANCE, RESERVED
+        AVAILABLE, OCCUPIED, MAINTENANCE
     }
 }
