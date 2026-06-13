@@ -1,6 +1,8 @@
 package com.staydesk.controller;
 
+import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.DateConflictException;
+import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
@@ -9,6 +11,7 @@ import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -89,6 +92,21 @@ public class ReservationController {
             return ResponseEntity.noContent().build();
         } catch (ReservationNotFoundException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("{id}/check-in")
+    public ResponseEntity<Reservation> checkIn(@PathVariable Integer id) {
+        LOGGER.info("Checking reservation in with id {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.checkIn(id));
+        } catch (RoomNotFoundException | ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AlreadyCheckedInException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 }
