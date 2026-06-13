@@ -20,8 +20,8 @@ CREATE TABLE guests
             CHECK (phone_number ~ '^[0-9]+$'
                 AND LENGTH(phone_number) = 10
                 ),
-    created_at   TIMESTAMPTZ    NOT NULL,
-    updated_at   TIMESTAMPTZ    NOT NULL
+    created_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE reservations
@@ -34,8 +34,8 @@ CREATE TABLE reservations
     status         VARCHAR                    NOT NULL,
     checked_in_at  TIMESTAMPTZ,
     checked_out_at TIMESTAMPTZ,
-    created_at     TIMESTAMPTZ                NOT NULL,
-    updated_at     TIMESTAMPTZ                NOT NULL
+    created_at     TIMESTAMPTZ                NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ                NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE folios
@@ -44,8 +44,8 @@ CREATE TABLE folios
     reservation_id INT REFERENCES reservations (id) NOT NULL,
     status         VARCHAR                          NOT NULL,
     total          DECIMAL(8, 2)                    NOT NULL,
-    created_at     TIMESTAMPTZ                      NOT NULL,
-    updated_at     TIMESTAMPTZ                      NOT NULL
+    created_at     TIMESTAMPTZ                      NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ                      NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE folio_items
@@ -55,8 +55,8 @@ CREATE TABLE folio_items
     description VARCHAR                    NOT NULL,
     amount      DECIMAL(8, 2)              NOT NULL,
     type        VARCHAR                    NOT NULL,
-    created_at  TIMESTAMPTZ                NOT NULL,
-    updated_at  TIMESTAMPTZ                NOT NULL
+    created_at  TIMESTAMPTZ                NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ                NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE employees
@@ -68,8 +68,8 @@ CREATE TABLE employees
     pay_rate   DECIMAL(5, 2) NOT NULL,
     hire_date  DATE          NOT NULL,
     active     BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ   NOT NULL,
-    updated_at TIMESTAMPTZ   NOT NULL
+    created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE time_entries
@@ -81,8 +81,8 @@ CREATE TABLE time_entries
     date        DATE                          NOT NULL,
     hours       DECIMAL(4, 2)                 NOT NULL,
     notes       VARCHAR,
-    created_at  TIMESTAMPTZ                   NOT NULL,
-    updated_at  TIMESTAMPTZ                   NOT NULL
+    created_at  TIMESTAMPTZ                   NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ                   NOT NULL DEFAULT NOW()
 );
 
 CREATE OR REPLACE FUNCTION set_updated_at()
@@ -97,5 +97,41 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER rooms_updated_at
     BEFORE UPDATE
     ON rooms
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER guests_updated_at
+    BEFORE UPDATE
+    ON guests
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER reservations_updated_at
+    BEFORE UPDATE
+    ON reservations
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER folios_updated_at
+    BEFORE UPDATE
+    ON folios
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER folio_items_updated_at
+    BEFORE UPDATE
+    ON folio_items
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER employees_updated_at
+    BEFORE UPDATE
+    ON employees
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER time_entries_updated_at
+    BEFORE UPDATE
+    ON time_entries
     FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
