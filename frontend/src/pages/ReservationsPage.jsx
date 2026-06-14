@@ -11,7 +11,7 @@ function ReservationsPage() {
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedReservation, setSelectedReservation] = useState(null)
-    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '' })
+    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
     const [error, setError] = useState(null)
 
     useEffect(() => {
@@ -73,9 +73,23 @@ function ReservationsPage() {
     const guestMap = Object.fromEntries(guests.map(g => [g.id, g]))
 
     const filtered = reservations.filter(res => {
-        if (filters.roomId && res.roomId !== Number(filters.roomId)) return false
-        if (filters.dateFrom && res.checkOutDate < filters.dateFrom) return false
-        if (filters.dateTo && res.checkInDate > filters.dateTo) return false
+        if (filters.roomId && res.roomId !== Number(filters.roomId)) {
+            return false
+        }
+        if (filters.dateFrom && res.checkOutDate < filters.dateFrom) {
+            return false
+        }
+        if (filters.dateTo && res.checkInDate > filters.dateTo) {
+            return false
+        }
+        if (filters.guestName) {
+            const fullName = guestMap[res.guestId]
+                ? `${guestMap[res.guestId].firstName} ${guestMap[res.guestId].lastName}`.toLowerCase()
+                : ''
+            if (!fullName.includes(filters.guestName.toLowerCase())) {
+                return false
+            }
+        }
         return true
     })
 
@@ -105,6 +119,10 @@ function ReservationsPage() {
                             <option key={room.id} value={room.id}>Room {room.roomNumber}</option>
                         ))}
                     </select>
+                </div>
+                <div>
+                    <label className="block text-xs text-gray-500 mb-1">Guest</label>
+                    <input name="guestName" value={filters.guestName} onChange={handleFilterChange} className="border rounded px-3 py-2 text-sm" />
                 </div>
             </div>
 
