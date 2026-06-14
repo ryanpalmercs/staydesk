@@ -9,9 +9,7 @@ export function getRoom(id) {
 }
 
 export function createRoom(room) {
-    return api.post('/rooms', room, {
-        headers: { 'Content-Type': 'application/json' }
-    })
+    return api.post('/rooms', room)
 }
 
 export function updateRoom(id, room) {
