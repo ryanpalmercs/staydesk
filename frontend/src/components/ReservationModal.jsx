@@ -1,29 +1,50 @@
 import { useEffect, useState } from "react"
 import { createReservation, updateReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
+import { createGuest, getGuests } from "../api/guestApi"
 
 function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
 
     const [rooms, setRooms] = useState([])
-    const [form, setForm] = useState({
+    const [guests, setGuests] = useState([])
+    const [guestMode, setGuestMode] = useState('search')
+    let [form, setForm] = useState({
         guestId: reservation?.guestId ?? '',
         roomId: reservation?.roomId ?? '',
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED'
     })
+
+    const [guestForm, setGuestForm] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phoneNumber: ''
+    })
+
     const [error, setError] = useState(null)
 
     useEffect(() => {
-        getRooms().then(res => setRooms(res.data ?? []))
+        getRooms().then(res => setRooms(res.data ?? [])),
+            getGuests().then(res => setGuests(res.data ?? []))
     }, [])
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
     }
 
+    function handleGuestFieldChange(e) {
+        setGuestForm({ ...guestForm, [e.target.name]: e.target.value })
+    }
+
+    function onGuestModeChange() {
+        setGuestMode(guestMode === 'search' ? 'create' : 'search')
+    }
+
     async function handleSubmit(e) {
+        console.log(guestMode)
         e.preventDefault()
 
         setError(null)
@@ -33,12 +54,41 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
+        let submittedForm = { ...form }
+
+        if (guestMode === 'create') {
+            console.log('Creating guest')
+
+            try {
+                const res = await createGuest(guestForm)
+                submittedForm = { ...form, guestId: res.data.id }
+                setGuestMode('search')
+                const guestsRes = await getGuests()
+                setGuests(guestsRes.data)
+                setForm({ ...form, guestId: res.data.id })
+            } catch (err) {
+                if (err.response?.status === 400) {
+                    setError('Phone number must be 10 digits.')
+                } else if (err.response?.status === 409) {
+                    setError('A guest with that email already exists.')
+                } else {
+                    console.log(err)
+                    setError('Failed to create guest.')
+                }
+
+                return
+            }
+        }
+
+        console.log(submittedForm)
+
         try {
             if (isEditing) {
-                await updateReservation(reservation.id, { ...reservation, ...form })
+                await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
-                await createReservation(form)
+                await createReservation(submittedForm)
             }
+
             onSaved()
         } catch (err) {
             if (err.response?.status === 400) {
@@ -60,8 +110,27 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Guest ID</label>
-                        <input type="number" name="guestId" value={form.guestId} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                        <label className="block text-sm text-gray-600 mb-1">Guest</label>
+                        {guestMode === 'search' ? (
+                            <select name="guestId" value={form.guestId} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" required>
+                                <option value="">Select a guest</option>
+                                {guests.map(guest => (
+                                    <option key={guest.id} value={guest.id}>
+                                        {guest.firstName} {guest.lastName}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                                <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                                <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                                <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                            </div>
+                        )}
+                        <button type="button" onClick={onGuestModeChange} className="px-4 py-2 text-sm text-blue-600 hover:underline">
+                            {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
+                        </button>
                     </div>
 
                     <div>

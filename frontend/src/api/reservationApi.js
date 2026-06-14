@@ -9,9 +9,7 @@ export function getReservation(id) {
 }
 
 export function createReservation(reservation) {
-    return api.post(`/reservations`, reservation, {
-        headers: { 'Content-Type': 'application/json' }
-    })
+    return api.post(`/reservations`, reservation)
 }
 
 export function updateReservation(id, reservation) {

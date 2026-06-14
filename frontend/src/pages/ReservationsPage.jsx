@@ -2,10 +2,12 @@ import { useState, useEffect } from "react"
 import { getReservations, deleteReservation, checkIn } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
+import { getGuests } from "../api/guestApi"
 
 function ReservationsPage() {
     const [reservations, setReservations] = useState([])
     const [rooms, setRooms] = useState([])
+    const [guests, setGuests] = useState([])
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedReservation, setSelectedReservation] = useState(null)
@@ -13,7 +15,11 @@ function ReservationsPage() {
     const [error, setError] = useState(null)
 
     useEffect(() => {
-        Promise.all([fetchReservations(), getRooms().then(res => setRooms(res.data))])
+        Promise.all([
+            fetchReservations(),
+            getRooms().then(res => setRooms(res.data)),
+            getGuests().then(res => setGuests(res.data))
+        ])
     }, [])
 
     async function fetchReservations() {
@@ -41,6 +47,7 @@ function ReservationsPage() {
     function handleSaved() {
         setModalOpen(false)
         fetchReservations()
+        getGuests().then(res => setGuests(res.data))
     }
 
     function handleFilterChange(e) {
@@ -49,8 +56,8 @@ function ReservationsPage() {
 
     async function handleCheckIn(id) {
         try {
-        await checkIn(id)
-        fetchReservations()
+            await checkIn(id)
+            fetchReservations()
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked in.')
@@ -62,6 +69,8 @@ function ReservationsPage() {
     }
 
     const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
+
+    const guestMap = Object.fromEntries(guests.map(g => [g.id, g]))
 
     const filtered = reservations.filter(res => {
         if (filters.roomId && res.roomId !== Number(filters.roomId)) return false
@@ -105,7 +114,7 @@ function ReservationsPage() {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b text-sm text-gray-500">
-                            <th className="pb-2">Guest ID</th>
+                            <th className="pb-2">Guest</th>
                             <th className="pb-2">Room</th>
                             <th className="pb-2">Check-in</th>
                             <th className="pb-2">Check-out</th>
@@ -116,7 +125,9 @@ function ReservationsPage() {
                     <tbody>
                         {filtered.map(res => (
                             <tr key={res.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3">{res.guestId}</td>
+                                <td className="py-3">
+                                    {guestMap[res.guestId] ? `${guestMap[res.guestId].firstName} ${guestMap[res.guestId].lastName}` : res.guestId}
+                                </td>
                                 <td className="py-3">
                                     {roomMap[res.roomId] ? `Room ${roomMap[res.roomId].roomNumber}` : res.roomId}
                                 </td>
