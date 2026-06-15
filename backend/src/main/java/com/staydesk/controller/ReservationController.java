@@ -4,6 +4,7 @@ import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
+import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
@@ -106,6 +107,8 @@ public class ReservationController {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation in with id {}", id, e);
             return ResponseEntity.internalServerError().build();
@@ -122,6 +125,8 @@ public class ReservationController {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedOutException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
             return ResponseEntity.internalServerError().build();
