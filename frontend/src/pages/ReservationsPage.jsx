@@ -3,6 +3,7 @@ import { getReservations, deleteReservation, checkIn, checkOut, cancelReservatio
 import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
+import StatusBadge from "../components/StatusBadge"
 
 function ReservationsPage() {
     const [reservations, setReservations] = useState([])
@@ -120,26 +121,26 @@ function ReservationsPage() {
     })
 
     return (
-        <div className="p-8">
+        <div>
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-semibold">Reservations</h1>
-                <button onClick={openCreate} className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800">
+                <h1 className="section-title">Reservations</h1>
+                <button onClick={openCreate} className="btn btn-primary">
                     New Reservation
                 </button>
             </div>
 
             <div className="flex gap-4 mb-6">
                 <div>
-                    <label className="block text-xs text-gray-500 mb-1">From</label>
-                    <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="border rounded px-3 py-2 text-sm" />
+                    <label className="text-muted block text-xs mb-1">From</label>
+                    <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="filter-input" />
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-500 mb-1">To</label>
-                    <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} className="border rounded px-3 py-2 text-sm" />
+                    <label className="text-muted block text-xs mb-1">To</label>
+                    <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} className="filter-input" />
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-500 mb-1">Room</label>
-                    <select name="roomId" value={filters.roomId} onChange={handleFilterChange} className="border rounded px-3 py-2 text-sm">
+                    <label className="text-muted block text-xs mb-1">Room</label>
+                    <select name="roomId" value={filters.roomId} onChange={handleFilterChange} className="filter-input">
                         <option value="">All rooms</option>
                         {rooms.map(room => (
                             <option key={room.id} value={room.id}>Room {room.roomNumber}</option>
@@ -147,56 +148,56 @@ function ReservationsPage() {
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-500 mb-1">Guest</label>
-                    <input name="guestName" value={filters.guestName} onChange={handleFilterChange} className="border rounded px-3 py-2 text-sm" />
+                    <label className="text-muted block text-xs mb-1">Guest</label>
+                    <input name="guestName" value={filters.guestName} onChange={handleFilterChange} className="filter-input" />
                 </div>
             </div>
 
             {loading ? (
                 <p className="text-gray-500">Loading...</p>
             ) : (
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="border-b text-sm text-gray-500">
-                            <th className="pb-2">Guest</th>
-                            <th className="pb-2">Room</th>
-                            <th className="pb-2">Check-in</th>
-                            <th className="pb-2">Check-out</th>
-                            <th className="pb-2">Status</th>
-                            <th className="pb-2" />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.map(res => (
-                            <tr key={res.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3">
-                                    {guestMap[res.guestId] ? `${guestMap[res.guestId].firstName} ${guestMap[res.guestId].lastName}` : res.guestId}
-                                </td>
-                                <td className="py-3">
-                                    {roomMap[res.roomId] ? `Room ${roomMap[res.roomId].roomNumber}` : res.roomId}
-                                </td>
-                                <td className="py-3">{res.checkInDate}</td>
-                                <td className="py-3">{res.checkOutDate}</td>
-                                <td className="py-3">{res.status}</td>
-                                <td className="py-3 flex gap-3 justify-end">
-                                    {res.status === 'CONFIRMED' && (
-                                        <button onClick={() => handleCheckIn(res.id)} className="text-sm text-green-600 hover:underline">Check In</button>
-                                    )}
-                                    {res.status === 'CHECKED_IN' && (
-                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm text-green-600 hover:underline">Check Out</button>
-                                    )}
-                                    <button onClick={() => openEdit(res)} className="text-sm text-blue-600 hover:underline">Edit</button>
-                                    {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
-                                        <button onClick={() => handleDelete(res.id)} className="text-sm text-red-600 hover:underline">Delete</button>
-                                    )}
-                                    {res.status === ('CONFIRMED') && (
-                                        <button onClick={() => handleCancel(res.id)} className="text-sm text-red-600 hover:underline">Cancel</button>
-                                    )}
-                                </td>
+                <div className="feat-card">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b text-sm text-gray-500">
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Guest</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Room</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Check-in</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Check-out</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Status</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3" />
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {filtered.map(res => (
+                                <tr key={res.id} className="hover:bg-tan/30 border-b border-tan">
+                                    <td className="px-6 py-4">{guestMap[res.guestId] ? `${guestMap[res.guestId].firstName} ${guestMap[res.guestId].lastName}` : res.guestId}</td>
+                                    <td className="px-6 py-4">{roomMap[res.roomId] ? `Room ${roomMap[res.roomId].roomNumber}` : res.roomId}</td>
+                                    <td className="px-6 py-4">{res.checkInDate}</td>
+                                    <td className="px-6 py-4">{res.checkOutDate}</td>
+                                    <td className="px-6 py-4"><StatusBadge status={res.status} /></td>
+                                    <td className="px-6 py-4 w-48">
+                                        <div className="flex gap-3 justify-end whitespace-nowrap">
+                                            {res.status === 'CONFIRMED' && (
+                                                <button onClick={() => handleCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light w-14 text-right">Check In</button>
+                                            )}
+                                            {res.status === 'CHECKED_IN' && (
+                                                <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light w-14 text-right">Check Out</button>
+                                            )}
+                                            <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust w-14 text-right">Edit</button>
+                                            {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
+                                                <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust w-14 text-right">Delete</button>
+                                            )}
+                                            {res.status === ('CONFIRMED') && (
+                                                <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust w-14 text-right">Cancel</button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )
             }
 
