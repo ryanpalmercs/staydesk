@@ -2,6 +2,7 @@ package com.staydesk.controller;
 
 import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.AlreadyCheckedOutException;
+import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
@@ -129,6 +130,22 @@ public class ReservationController {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("{id}/cancel")
+    public ResponseEntity<Reservation> cancelReservation(@PathVariable Integer id) {
+        LOGGER.info("Canceling reservation with id {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.cancelReservation(id));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (CannotCancelException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            LOGGER.error("An error occurred while canceling reservation with id {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
     }

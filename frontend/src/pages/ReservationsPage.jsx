@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { getReservations, deleteReservation, checkIn, checkOut } from "../api/reservationApi"
+import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
@@ -42,6 +42,19 @@ function ReservationsPage() {
     async function handleDelete(id) {
         await deleteReservation(id)
         await fetchReservations()
+    }
+
+    async function handleCancel(id) {
+        try {
+            await cancelReservation(id)
+            await fetchReservations()
+        } catch (err) {
+            if (err.response?.status === 409) {
+                setError('Guest is already checked in.')
+            } else {
+                setError('Something went wrong.')
+            }
+        }
     }
 
     async function handleSaved() {
@@ -173,17 +186,24 @@ function ReservationsPage() {
                                         <button onClick={() => handleCheckOut(res.id)} className="text-sm text-green-600 hover:underline">Check Out</button>
                                     )}
                                     <button onClick={() => openEdit(res)} className="text-sm text-blue-600 hover:underline">Edit</button>
-                                    <button onClick={() => handleDelete(res.id)} className="text-sm text-red-600 hover:underline">Delete</button>
+                                    {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
+                                        <button onClick={() => handleDelete(res.id)} className="text-sm text-red-600 hover:underline">Delete</button>
+                                    )}
+                                    {res.status === ('CONFIRMED') && (
+                                        <button onClick={() => handleCancel(res.id)} className="text-sm text-red-600 hover:underline">Cancel</button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-            )}
-
-            {modalOpen && (
-                <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
             )
+            }
+
+            {
+                modalOpen && (
+                    <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
+                )
             }
 
             {error && <p className="text-sm text-red-600">{error}</p>}
