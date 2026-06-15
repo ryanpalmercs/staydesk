@@ -2,6 +2,7 @@ package com.staydesk.service;
 
 import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.AlreadyCheckedOutException;
+import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
@@ -169,5 +170,22 @@ public class ReservationService {
 
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    @Transactional
+    public Reservation cancelReservation(int id) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+        
+        if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_OUT) || reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new CannotCancelException();
+        }
+
+        folioRepository.getFolioByReservationId(reservation.id())
+                       .ifPresent(f -> folioRepository.closeFolio(f.id()));
+
+        return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
+                reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
+                reservation.createdAt(), LocalDateTime.now()));
     }
 }
