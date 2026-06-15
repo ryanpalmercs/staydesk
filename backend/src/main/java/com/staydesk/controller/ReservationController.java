@@ -1,7 +1,10 @@
 package com.staydesk.controller;
 
 import com.staydesk.exception.AlreadyCheckedInException;
+import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.DateConflictException;
+import com.staydesk.exception.FolioNotFoundException;
+import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
@@ -104,9 +107,29 @@ public class ReservationController {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation in with id {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("{id}/check-out")
+    public ResponseEntity<Reservation> checkOut(@PathVariable Integer id) {
+        LOGGER.info("Checking reservation out with id {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.checkOut(id));
+        } catch (ReservationNotFoundException | RoomNotFoundException | FolioNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AlreadyCheckedOutException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
             return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

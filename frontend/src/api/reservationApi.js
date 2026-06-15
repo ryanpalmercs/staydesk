@@ -23,3 +23,7 @@ export function deleteReservation(id) {
 export function checkIn(id) {
     return api.post(`/reservations/${id}/check-in`)
 }
+
+export function checkOut(id) {
+    return api.post(`/reservations/${id}/check-out`)
+}

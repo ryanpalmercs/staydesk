@@ -1,7 +1,9 @@
 package com.staydesk.service;
 
 import com.staydesk.exception.AlreadyCheckedInException;
+import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.DateConflictException;
+import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
@@ -17,7 +19,11 @@ import com.staydesk.repository.RoomRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class ReservationService {
@@ -107,11 +113,11 @@ public class ReservationService {
         }
 
         Room room = roomRepository.findById(reservation.roomId())
-                                          .orElseThrow(RoomNotFoundException::new);
+                                  .orElseThrow(RoomNotFoundException::new);
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.OCCUPIED);
 
-        reservationRepository.updateReservationToCheckedIn(id);
+        reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, room.nightlyRate(), now, now);
 
@@ -120,6 +126,47 @@ public class ReservationService {
         FolioItem folioItem = new FolioItem(0, folio.id(), "GUEST ROOM", room.nightlyRate(), FolioItem.FolioItemType.CHARGE, now, now);
 
         folioItemRepository.save(folioItem);
+
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    @Transactional
+    public Reservation checkOut(int id) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_OUT)) {
+            throw new AlreadyCheckedOutException();
+        } else if (!reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new InvalidReservationException();
+        }
+
+        Room room = roomRepository.findById(reservation.roomId())
+                                  .orElseThrow(RoomNotFoundException::new);
+
+        reservationRepository.updateReservationStatusToCheckedOut(id);
+
+        roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id())
+                                     .orElseThrow(FolioNotFoundException::new);
+
+        long daysStayed = reservation.checkInDate().until(reservation.checkOutDate(), ChronoUnit.DAYS) - 1;
+
+        List<FolioItem> folioItems = new ArrayList<>();
+
+        for (long i = 0; i < daysStayed; i++) {
+            folioItems.add(new FolioItem(0, folio.id(), "GUEST ROOM", room.nightlyRate(), FolioItem.FolioItemType.CHARGE, now, now));
+        }
+
+        folioItemRepository.saveAll(folioItems);
+
+        BigDecimal totalCost = folio.total().add(room.nightlyRate().multiply(BigDecimal.valueOf(daysStayed)));
+
+        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.createdAt(), now));
+
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }

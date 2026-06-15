@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { getReservations, deleteReservation, checkIn } from "../api/reservationApi"
+import { getReservations, deleteReservation, checkIn, checkOut } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
@@ -41,12 +41,12 @@ function ReservationsPage() {
 
     async function handleDelete(id) {
         await deleteReservation(id)
-        fetchReservations()
+        await fetchReservations()
     }
 
-    function handleSaved() {
+    async function handleSaved() {
         setModalOpen(false)
-        fetchReservations()
+        await fetchReservations()
         getGuests().then(res => setGuests(res.data))
     }
 
@@ -57,7 +57,7 @@ function ReservationsPage() {
     async function handleCheckIn(id) {
         try {
             await checkIn(id)
-            fetchReservations()
+            await fetchReservations()
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked in.')
@@ -66,6 +66,19 @@ function ReservationsPage() {
             }
         }
 
+    }
+
+    async function handleCheckOut(id) {
+        try {
+            await checkOut(id)
+            await fetchReservations()
+        } catch (err) {
+            if (err.response?.status === 409) {
+                setError('Guest is already checked out')
+            } else {
+                setError('Something went wrong')
+            }
+        }
     }
 
     const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
@@ -153,7 +166,12 @@ function ReservationsPage() {
                                 <td className="py-3">{res.checkOutDate}</td>
                                 <td className="py-3">{res.status}</td>
                                 <td className="py-3 flex gap-3 justify-end">
-                                    <button onClick={() => handleCheckIn(res.id)} className="text-sm text-green-600 hover:underline">Check In</button>
+                                    {res.status === 'CONFIRMED' && (
+                                        <button onClick={() => handleCheckIn(res.id)} className="text-sm text-green-600 hover:underline">Check In</button>
+                                    )}
+                                    {res.status === 'CHECKED_IN' && (
+                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm text-green-600 hover:underline">Check Out</button>
+                                    )}
                                     <button onClick={() => openEdit(res)} className="text-sm text-blue-600 hover:underline">Edit</button>
                                     <button onClick={() => handleDelete(res.id)} className="text-sm text-red-600 hover:underline">Delete</button>
                                 </td>
