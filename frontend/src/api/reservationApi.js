@@ -27,3 +27,7 @@ export function checkIn(id) {
 export function checkOut(id) {
     return api.post(`/reservations/${id}/check-out`)
 }
+
+export function cancelReservation(id) {
+    return api.post(`/reservations/${id}/cancel`)
+}
