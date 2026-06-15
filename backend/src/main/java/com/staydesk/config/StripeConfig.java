@@ -11,13 +11,9 @@ public class StripeConfig {
     @Value("${stripe.api-key}")
     private String stripeApiKey;
 
-    @Value("${strpie.client-id}")
-    private String stripeClientId;
-
     @PostConstruct
     public void init() {
         Stripe.apiKey = stripeApiKey;
-        Stripe.clientId = stripeClientId;
     }
 
 }
