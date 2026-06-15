@@ -62,10 +62,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             try {
                 const res = await createGuest(guestForm)
                 submittedForm = { ...form, guestId: res.data.id }
-                setGuestMode('search')
-                const guestsRes = await getGuests()
-                setGuests(guestsRes.data)
-                setForm({ ...form, guestId: res.data.id })
+        setGuestMode('search')
+        const guestsRes = await getGuests()
+        setGuests(guestsRes.data)
+        setForm({ ...form, guestId: res.data.id })
             } catch (err) {
                 if (err.response?.status === 400) {
                     setError('Phone number must be 10 digits.')
