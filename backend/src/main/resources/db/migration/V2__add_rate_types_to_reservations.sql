@@ -8,8 +8,16 @@ CREATE TABLE IF NOT EXISTS rates
     rate_type   VARCHAR       NOT NULL,
     guest_count INT           NOT NULL,
     amount      DECIMAL(6, 2) NOT NULL,
+    created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     UNIQUE (rate_type, guest_count)
 );
+
+CREATE TRIGGER rates_updated_at
+    BEFORE UPDATE
+    ON rates
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
 
 INSERT INTO rates (rate_type, guest_count, amount)
 VALUES ('NIGHTLY', 1, 64.17),
