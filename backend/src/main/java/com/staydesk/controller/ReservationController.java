@@ -108,7 +108,7 @@ public class ReservationController {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation in with id {}", id, e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.internalServerError().build();
         }
     }
 
@@ -124,7 +124,7 @@ public class ReservationController {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.internalServerError().build();
         }
     }
 }
