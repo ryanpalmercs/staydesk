@@ -36,18 +36,19 @@ body {
 }
 
 .btn-secondary {
-    border: 1px solid rgba(253, 246, 237, 0.25);
-    color: var(--color-cream);
+    border: 1px solid var(--color-tan);
+    color: var(--color-muted);
     padding: 0.65rem 1.5rem;
     border-radius: 4px;
     font-weight: 500;
     font-size: 0.9rem;
     text-decoration: none;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, color 0.15s;
 }
 
 .btn-secondary:hover {
-    border-color: rgba(253, 246, 237, 0.6);
+    border-color: var(--color-muted);
+    color: var(--color-charcoal);
 }
 
 .feat-card {

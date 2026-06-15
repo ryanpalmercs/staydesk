@@ -62,10 +62,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             try {
                 const res = await createGuest(guestForm)
                 submittedForm = { ...form, guestId: res.data.id }
-        setGuestMode('search')
-        const guestsRes = await getGuests()
-        setGuests(guestsRes.data)
-        setForm({ ...form, guestId: res.data.id })
+                setGuestMode('search')
+                const guestsRes = await getGuests()
+                setGuests(guestsRes.data)
+                setForm({ ...form, guestId: res.data.id })
             } catch (err) {
                 if (err.response?.status === 400) {
                     setError('Phone number must be 10 digits.')
@@ -103,16 +103,21 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
-                <h2 className="text-lg font-semibold mb-4">
+            <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
+                <h2 className="text-lg text-charcoal font-semibold mb-4">
                     {isEditing ? 'Edit Reservation' : 'New Reservation'}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Guest</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="text-sm text-muted">Guest</label>
+                            <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
+                                {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
+                            </button>
+                        </div>
                         {guestMode === 'search' ? (
-                            <select name="guestId" value={form.guestId} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" required>
+                            <select name="guestId" value={form.guestId} onChange={handleChange} className="filter-input" required>
                                 <option value="">Select a guest</option>
                                 {guests.map(guest => (
                                     <option key={guest.id} value={guest.id}>
@@ -122,20 +127,17 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </select>
                         ) : (
                             <div className="flex flex-col gap-2">
-                                <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
-                                <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
-                                <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
-                                <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                                <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
                             </div>
                         )}
-                        <button type="button" onClick={onGuestModeChange} className="px-4 py-2 text-sm text-blue-600 hover:underline">
-                            {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
-                        </button>
                     </div>
 
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Room</label>
-                        <select name="roomId" value={form.roomId} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" required>
+                        <label className="block text-sm text-muted mb-1">Room</label>
+                        <select name="roomId" value={form.roomId} onChange={handleChange} className="filter-input" required>
                             <option value="">Select a room</option>
                             {rooms.map(room => (
                                 <option key={room.id} value={room.id}>
@@ -146,32 +148,32 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                     </div>
 
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Check-in</label>
-                        <input type="date" name="checkInDate" value={form.checkInDate} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                        <label className="block text-sm text-muted mb-1">Check-in</label>
+                        <input type="date" name="checkInDate" value={form.checkInDate} onChange={handleChange} className="filter-input" required />
                     </div>
 
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Check-out</label>
-                        <input type="date" name="checkOutDate" value={form.checkOutDate} min={form.checkInDate || undefined} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                        <label className="block text-sm text-muted mb-1">Check-out</label>
+                        <input type="date" name="checkOutDate" value={form.checkOutDate} min={form.checkInDate || undefined} onChange={handleChange} className="filter-input" required />
                     </div>
 
                     {isEditing && (
                         <div>
-                            <label className="block text-sm text-gray-600 mb-1">Status</label>
-                            <select name="status" value={form.status} onChange={handleChange} className="w-full border rounded px-3 py-2 text-sm" >
+                            <label className="block text-sm text-muted mb-1">Status</label>
+                            <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
                                 <option value="CONFIRMED">Confirmed</option>
                                 <option value="CANCELLED">Cancelled</option>
                             </select>
                         </div>
                     )}
 
-                    {error && <p className="text-sm text-red-600">{error}</p>}
+                    {error && <p className="text-sm text-rust">{error}</p>}
 
                     <div className="flex justify-end gap-3 mt-2">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-black">
+                        <button type="button" onClick={onClose} className="btn btn-secondary">
                             Cancel
                         </button>
-                        <button type="submit" className="px-4 py-2 text-sm bg-black text-white rounded hover:bg-gray-800">
+                        <button type="submit" className="btn btn-primary">
                             {isEditing ? 'Save' : 'Create'}
                         </button>
                     </div>
