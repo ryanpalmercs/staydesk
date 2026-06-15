@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getRooms, deleteRoom } from '../api/roomApi'
 import RoomModal from '../components/RoomModal'
+import StatusBadge from "../components/StatusBadge";
 
 function RoomsPage() {
     const [rooms, setRooms] = useState([])
@@ -15,7 +16,6 @@ function RoomsPage() {
     async function fetchRooms() {
         setLoading(true)
         const response = await getRooms()
-        console.log(import.meta.env.VITE_API_BASE_URL)
         setRooms(response.data)
         setLoading(false)
     }
@@ -41,40 +41,42 @@ function RoomsPage() {
     }
 
     return (
-        <div className="p-8">
+        <div>
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2x1 font-semibold">Rooms</h1>
-                <button onClick={openCreate} className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800">Add Room</button>
+                <h1 className="section-title">Rooms</h1>
+                <button onClick={openCreate} className="btn btn-primary">Add Room</button>
             </div>
 
             {loading ? (
                 <p className="text-gray-500">Loading...</p>
             ) : (
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="border-b text-sm text-gray-500">
-                            <th className="pb-2">Room #</th>
-                            <th className="pb-2">Type</th>
-                            <th className="pb-2">Nightly Rate</th>
-                            <th className="pb-2">Status</th>
-                            <th className="pb-2" />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rooms.map(room => (
-                            <tr key={room.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3">{room.roomNumber}</td>
-                                <td className="py-3">{room.type}</td>
-                                <td className="py-3">${room.nightlyRate}</td>
-                                <td className="py-3">{room.status}</td>
-                                <td className="py-3 flex gap-3 justify-end">
-                                    <button onClick={() => openEdit(room)} className="text-sm text-blue-600 hover:underline">Edit</button>
-                                    <button onClick={() => handleDelete(room.id)} className="text-sm text-red-600 hover:underline">Delete</button>
-                                </td>
+                <div className="bg-warm-white rounded-lg border-t-4 border-rust shadow-sm overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b text-sm text-gray-500">
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Room #</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Type</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Nightly Rate</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Status</th>
+                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3" />
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {rooms.map(room => (
+                                <tr key={room.id} className="hover:bg-tan/30 border-b border-tan">
+                                    <td className="px-6 py-4">{room.roomNumber}</td>
+                                    <td className="px-6 py-4">{room.type}</td>
+                                    <td className="px-6 py-4">${room.nightlyRate}</td>
+                                    <td className="px-6 py-4"><StatusBadge status={room.status} /></td>
+                                    <td className="px-6 py-4 flex gap-3 justify-end">
+                                        <button onClick={() => openEdit(room)} className="text-brown hover:text-rust text-sm font-medium">Edit</button>
+                                        <button onClick={() => handleDelete(room.id)} className="text-muted hover:text-rust text-sm font-medium">Delete</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
 
             {modalOpen && (
