@@ -1,0 +1,16 @@
+.nav-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.35rem;
+    color: var(--color-cream);
+    letter-spacing: 0.02em;
+}
+
+.nav-logo span {
+    color: var(--color-warm-yellow);
+}
+
+.nav-links {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
