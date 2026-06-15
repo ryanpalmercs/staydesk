@@ -27,13 +27,7 @@ Lightweight motel management app for small independent properties. Built for Mar
 - [ ] Incidental hold at check-in via Stripe (separate PaymentIntent — flat buffer amount, TBD with client, suggested $50-75)
 - [ ] Final capture at checkout against both holds — settle actuals, release remainder
 
-### Restaurant & POS
-- [ ] Menu item management (categories, items, prices)
-- [ ] Order taking and ticket management
-- [ ] JavaFX desktop POS terminal (cash drawer support via receipt printer)
-- [ ] Charge to room (post restaurant charges directly to guest folio)
-- [ ] Restaurant revenue tracking separate from room revenue
-- [ ] Kitchen ticket printing
+### Employee & Payroll
 - [ ] Employee records (name, role, pay_rate, hire_date, active)
 - [ ] Clock-in / clock-out time tracking (built into StayDesk)
 - [ ] Manual hours entry as fallback
@@ -81,6 +75,16 @@ All tables include `created_at` and `updated_at` audit columns.
 | POST | /payroll/sync | Push hours to Gusto |
 | GET | /payroll/timesheets/export | Export timesheets (CSV/PDF) |
 | POST | /webhooks/stripe | Stripe event handler |
+
+## Backlog — Post v1.x
+
+### Restaurant & POS
+- [ ] Menu item management (categories, items, prices)
+- [ ] Order taking and ticket management
+- [ ] JavaFX desktop POS terminal (cash drawer support via receipt printer)
+- [ ] Charge to room (post restaurant charges directly to guest folio)
+- [ ] Restaurant revenue tracking separate from room revenue
+- [ ] Kitchen ticket printing
 
 ## Open Questions (pending client requirements)
 - Walk-in only or online reservations too?
