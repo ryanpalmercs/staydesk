@@ -11,6 +11,7 @@ import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
+import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.repository.FolioItemRepository;
@@ -63,7 +64,7 @@ public class ReservationService {
 
         Reservation savedReservation = new Reservation(0, reservation.guestId(), reservation.roomId(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), now, now);
+                reservation.checkedOutAt(), Rate.RateType.NIGHTLY, 1, now, now);
 
         return reservationRepository.save(savedReservation);
     }
@@ -87,7 +88,7 @@ public class ReservationService {
 
         Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.createdAt(), LocalDateTime.now());
+                Rate.RateType.NIGHTLY, 1, reservation.createdAt(), LocalDateTime.now());
 
         return reservationRepository.save(updated);
     }
@@ -176,7 +177,7 @@ public class ReservationService {
     public Reservation cancelReservation(int id) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
-        
+
         if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_OUT) || reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
             throw new CannotCancelException();
         }
@@ -186,6 +187,6 @@ public class ReservationService {
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.createdAt(), LocalDateTime.now()));
+                Rate.RateType.NIGHTLY, 1, reservation.createdAt(), LocalDateTime.now()));
     }
 }
