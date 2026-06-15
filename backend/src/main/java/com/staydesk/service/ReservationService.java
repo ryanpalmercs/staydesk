@@ -6,15 +6,18 @@ import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
+import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
+import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioRepository;
+import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
 import org.springframework.stereotype.Service;
@@ -33,13 +36,29 @@ public class ReservationService {
     private final RoomRepository roomRepository;
     private final FolioRepository folioRepository;
     private final FolioItemRepository folioItemRepository;
+    private final RateRepository rateRepository;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
-                              FolioRepository folioRepository, FolioItemRepository folioItemRepository) {
+                              FolioRepository folioRepository, FolioItemRepository folioItemRepository,
+                              RateRepository rateRepository) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
+        this.rateRepository = rateRepository;
+    }
+
+    private static long getRemainingPeriods(Reservation reservation) {
+        long remainingPeriods = 0;
+
+        if (reservation.rateType().equals(Rate.RateType.NIGHTLY)) {
+            remainingPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 1;
+        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_5)) {
+            remainingPeriods = (ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 5) / 5;
+        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_7)) {
+            remainingPeriods = (ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 7) / 7;
+        }
+        return remainingPeriods;
     }
 
     @Transactional
@@ -61,9 +80,19 @@ public class ReservationService {
             throw new DateConflictException();
         }
 
+        if (rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount()).isEmpty()) {
+            throw new RateNotFoundException();
+        }
+
+        if ((reservation.rateType().equals(Rate.RateType.WEEKLY_5) && ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) % 5 != 0)
+            || (reservation.rateType().equals(Rate.RateType.WEEKLY_7) && ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) % 7 != 0)) {
+
+            throw new InvalidReservationException();
+        }
+
         Reservation savedReservation = new Reservation(0, reservation.guestId(), reservation.roomId(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), now, now);
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), now, now);
 
         return reservationRepository.save(savedReservation);
     }
@@ -87,7 +116,7 @@ public class ReservationService {
 
         Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.createdAt(), LocalDateTime.now());
+                reservation.rateType(), reservation.guestCount(), reservation.createdAt(), LocalDateTime.now());
 
         return reservationRepository.save(updated);
     }
@@ -113,18 +142,19 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Room room = roomRepository.findById(reservation.roomId())
-                                  .orElseThrow(RoomNotFoundException::new);
-
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.OCCUPIED);
 
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
-        Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, room.nightlyRate(), now, now);
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, rate.amount(), now, now);
 
         Folio folio = folioRepository.save(savedFolio);
 
-        FolioItem folioItem = new FolioItem(0, folio.id(), "GUEST ROOM", room.nightlyRate(), FolioItem.FolioItemType.CHARGE, now, now);
+        FolioItem folioItem = new FolioItem(0, folio.id(), "GUEST ROOM", rate.amount(),
+                FolioItem.FolioItemType.CHARGE, now, now);
 
         folioItemRepository.save(folioItem);
 
@@ -144,9 +174,6 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Room room = roomRepository.findById(reservation.roomId())
-                                  .orElseThrow(RoomNotFoundException::new);
-
         reservationRepository.updateReservationStatusToCheckedOut(id);
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
@@ -154,17 +181,21 @@ public class ReservationService {
         Folio folio = folioRepository.getFolioByReservationId(reservation.id())
                                      .orElseThrow(FolioNotFoundException::new);
 
-        long daysStayed = reservation.checkInDate().until(reservation.checkOutDate(), ChronoUnit.DAYS) - 1;
 
         List<FolioItem> folioItems = new ArrayList<>();
 
-        for (long i = 0; i < daysStayed; i++) {
-            folioItems.add(new FolioItem(0, folio.id(), "GUEST ROOM", room.nightlyRate(), FolioItem.FolioItemType.CHARGE, now, now));
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        long remainingPeriods = getRemainingPeriods(reservation);
+
+        for (long i = 0; i < remainingPeriods; i++) {
+            folioItems.add(new FolioItem(0, folio.id(), "GUEST ROOM", rate.amount(), FolioItem.FolioItemType.CHARGE, now, now));
         }
 
         folioItemRepository.saveAll(folioItems);
 
-        BigDecimal totalCost = folio.total().add(room.nightlyRate().multiply(BigDecimal.valueOf(daysStayed)));
+        BigDecimal totalCost = folio.total().add(rate.amount().multiply(BigDecimal.valueOf(remainingPeriods)));
 
         folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.createdAt(), now));
 
@@ -176,7 +207,7 @@ public class ReservationService {
     public Reservation cancelReservation(int id) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
-        
+
         if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_OUT) || reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
             throw new CannotCancelException();
         }
@@ -186,6 +217,6 @@ public class ReservationService {
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.createdAt(), LocalDateTime.now()));
+                reservation.rateType(), reservation.guestCount(), reservation.createdAt(), LocalDateTime.now()));
     }
 }

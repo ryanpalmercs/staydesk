@@ -2,16 +2,21 @@ import { useEffect, useState } from "react"
 import { createReservation, updateReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { createGuest, getGuests } from "../api/guestApi"
+import { getRates } from "../api/rateApi"
 
 function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
 
     const [rooms, setRooms] = useState([])
     const [guests, setGuests] = useState([])
+    const [rates, setRates] = useState([])
+    const [getsCount, setGuestCount] = useState('1')
     const [guestMode, setGuestMode] = useState('search')
     let [form, setForm] = useState({
         guestId: reservation?.guestId ?? '',
         roomId: reservation?.roomId ?? '',
+        rateType: reservation?.rateType ?? 'NIGHTLY',
+        guestCount: reservation?.guestCount ?? '1',
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED'
@@ -26,13 +31,25 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [error, setError] = useState(null)
 
+    const selectedRate = rates.find(r => r.rateType === form.rateType && r.guestCount === Number(form.guestCount))
+
     useEffect(() => {
         getRooms().then(res => setRooms(res.data ?? [])),
-            getGuests().then(res => setGuests(res.data ?? []))
+            getGuests().then(res => setGuests(res.data ?? [])),
+            getRates().then(res => setRates(res.data ?? []))
     }, [])
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
+    }
+
+    function handleRateChange(e) {
+        const newRateType = e.target.value
+        setForm({
+            ...form,
+            rateType: newRateType,
+            guestCount: newRateType === 'NIGHTLY' && form.guestCount === '3' ? '2' : form.guestCount
+        })
     }
 
     function handleGuestFieldChange(e) {
@@ -62,6 +79,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             try {
                 const res = await createGuest(guestForm)
                 submittedForm = { ...form, guestId: res.data.id }
+                console.dubug(submittedForm)
                 setGuestMode('search')
                 const guestsRes = await getGuests()
                 setGuests(guestsRes.data)
@@ -110,7 +128,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div>
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-baseline gap-2">
                             <label className="text-sm text-muted">Guest</label>
                             <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
                                 {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
@@ -134,6 +152,31 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
                         )}
                     </div>
+
+                    <div>
+                        <label className="block text-sm text-muted mb-1">Rate Type</label>
+                        <select name="rateType" value={form.rateType} onChange={handleRateChange} className="filter-input" required>
+                            <option value="NIGHTLY">Nightly</option>
+                            <option value="WEEKLY_5">Weekly (5-night)</option>
+                            <option value="WEEKLY_7">Weekly (7-night)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-muted mb-1">Number of Guests</label>
+                        <select name="guestCount" value={form.guestCount} onChange={handleChange} className="filter-input" required>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            {form.rateType !== 'NIGHTLY' && <option value="3">3</option>}
+                        </select>
+                    </div>
+
+                    {selectedRate &&
+                        <div className="flex items-baseline gap-2">
+                            <label className="block text-sm text-muted mb-1">Rate</label>
+                            <p className="text-sm font-medium text-charcoal mt-1">${selectedRate.amount}</p>
+                        </div>
+                    }
 
                     <div>
                         <label className="block text-sm text-muted mb-1">Room</label>

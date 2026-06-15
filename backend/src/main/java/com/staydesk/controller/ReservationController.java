@@ -6,6 +6,7 @@ import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
+import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
@@ -65,7 +66,7 @@ public class ReservationController {
             Reservation savedReservation = reservationService.createReservation(reservation);
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
-        } catch (RoomNotFoundException e) {
+        } catch (RoomNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (RoomUnavailableException | DateConflictException e) {
             return ResponseEntity.badRequest().build();
@@ -104,7 +105,7 @@ public class ReservationController {
 
         try {
             return ResponseEntity.ok(reservationService.checkIn(id));
-        } catch (RoomNotFoundException | ReservationNotFoundException e) {
+        } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
@@ -122,7 +123,7 @@ public class ReservationController {
 
         try {
             return ResponseEntity.ok(reservationService.checkOut(id));
-        } catch (ReservationNotFoundException | RoomNotFoundException | FolioNotFoundException e) {
+        } catch (ReservationNotFoundException | RoomNotFoundException | FolioNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedOutException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
