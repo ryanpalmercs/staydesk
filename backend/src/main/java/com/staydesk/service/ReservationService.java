@@ -20,12 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class ReservationService {
@@ -141,6 +139,8 @@ public class ReservationService {
 
         if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_OUT)) {
             throw new AlreadyCheckedOutException();
+        } else if (!reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new InvalidReservationException();
         }
 
         Room room = roomRepository.findById(reservation.roomId())
@@ -159,7 +159,7 @@ public class ReservationService {
 
         folioItemRepository.saveAll(folioItems);
 
-        BigDecimal totalCost = room.nightlyRate().multiply(BigDecimal.valueOf(daysStayed));
+        BigDecimal totalCost = folio.total().add(room.nightlyRate().multiply(BigDecimal.valueOf(daysStayed)));
 
         folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.createdAt(), now));
 
