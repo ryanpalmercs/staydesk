@@ -37,4 +37,7 @@ gusto:
 
 supabase:
   url: https://dmishzzcabozbbbjzlsb.supabase.co
+
+app:
+  base-url: ${APP_BASE_URL}
   
