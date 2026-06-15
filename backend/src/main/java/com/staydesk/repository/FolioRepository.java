@@ -13,6 +13,6 @@ public interface FolioRepository extends ListCrudRepository<Folio, Integer> {
     Optional<Folio> getFolioByReservationId(Integer reservationId);
 
     @Modifying
-    @Query("UPDATE folio SET status = 'CLOSED' WHERE id = :id")
+    @Query("UPDATE folios SET status = 'CLOSED' WHERE id = :id")
     void closeFolio(@Param("id") Integer id);
 }
