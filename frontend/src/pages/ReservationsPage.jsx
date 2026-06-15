@@ -41,12 +41,12 @@ function ReservationsPage() {
 
     async function handleDelete(id) {
         await deleteReservation(id)
-        fetchReservations()
+        await fetchReservations()
     }
 
-    function handleSaved() {
+    async function handleSaved() {
         setModalOpen(false)
-        fetchReservations()
+        await fetchReservations()
         getGuests().then(res => setGuests(res.data))
     }
 
@@ -57,7 +57,7 @@ function ReservationsPage() {
     async function handleCheckIn(id) {
         try {
             await checkIn(id)
-            fetchReservations()
+            await fetchReservations()
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked in.')
@@ -71,7 +71,7 @@ function ReservationsPage() {
     async function handleCheckOut(id) {
         try {
             await checkOut(id)
-            fetchReservations()
+            await fetchReservations()
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked out')
