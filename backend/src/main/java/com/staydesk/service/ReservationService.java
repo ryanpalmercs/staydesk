@@ -117,7 +117,7 @@ public class ReservationService {
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.OCCUPIED);
 
-        reservationRepository.updateReservationStatus(id, Reservation.ReservationStatus.CHECKED_IN);
+        reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, room.nightlyRate(), now, now);
 
@@ -146,6 +146,10 @@ public class ReservationService {
         Room room = roomRepository.findById(reservation.roomId())
                                   .orElseThrow(RoomNotFoundException::new);
 
+        reservationRepository.updateReservationStatusToCheckedOut(id);
+
+        roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
+
         Folio folio = folioRepository.getFolioByReservationId(reservation.id())
                                      .orElseThrow(FolioNotFoundException::new);
 
@@ -163,12 +167,7 @@ public class ReservationService {
 
         folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.createdAt(), now));
 
-        roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
 
-        Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(),
-                reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CHECKED_OUT,
-                reservation.checkedInAt(), now, reservation.createdAt(), now);
-
-        return reservationRepository.save(updated);
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 }
