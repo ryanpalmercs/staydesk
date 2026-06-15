@@ -1,1 +1,112 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
+
+@theme {
+    --color-rust: #C04A1E;
+    --color-rust-light: #E8694A;
+    --color-cream: #FDF6ED;
+    --color-warm-white: #FFFAF4;
+    --color-tan: #F0E0C8;
+    --color-brown: #7A4E2D;
+    --color-charcoal: #2C1F14;
+    --color-muted: #8C6B50;
+    --color-warm-yellow: #F5A623;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: var(--color-cream);
+    color: var(--color-charcoal);
+    line-height: 1.6;
+}
+
+.btn-primary {
+    background: var(--color-rust);
+    color: var(--color-cream);
+    padding: 0.65rem 1.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.btn-primary:hover {
+    background: var(--color-rust-light);
+}
+
+.btn-secondary {
+    border: 1px solid var(--color-tan);
+    color: var(--color-muted);
+    padding: 0.65rem 1.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-secondary:hover {
+    border-color: var(--color-muted);
+    color: var(--color-charcoal);
+}
+
+.feat-card {
+    background: var(--color-warm-white);
+    border: 1px solid var(--color-tan);
+    border-top: 3px solid var(--color-rust);
+    border-radius: 8px;
+    padding: 1.4rem;
+}
+
+.feat-card h3 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.05rem;
+    color: var(--color-charcoal);
+    margin-bottom: 0.4rem;
+}
+
+.feat-card p {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+    line-height: 1.65;
+}
+
+.section-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-rust);
+    margin-bottom: 0.6rem;
+}
+
+.section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+    color: var(--color-charcoal);
+    line-height: 1.25;
+    max-width: 500px;
+    margin-bottom: 2.5rem;
+}
+
+input,
+select,
+textarea,
+button {
+    font-family: inherit;
+}
+
+.filter-input {
+    border: 1px solid var(--color-tan);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    background: var(--color-warm-white);
+    outline: none;
+}
+
+.filter-input:focus {
+    border-color: var(--color-rust);
+    box-shadow: 0 0 0 1px var(--color-rust);
+}
