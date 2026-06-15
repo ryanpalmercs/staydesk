@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import RoomsPage from './pages/RoomsPage'
 import ReservationsPage from './pages/ReservationsPage'
+import SettingsPage from './pages/SettingsPage'
 import Layout from './components/Layout'
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
                     <Route path="/" element={<Navigate to="/reservations" replace />} />
                     <Route path="/rooms" element={<RoomsPage />} />
                     <Route path="/reservations" element={<ReservationsPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                 </Routes>
             </Layout>
         </BrowserRouter>

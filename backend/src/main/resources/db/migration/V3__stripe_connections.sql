@@ -1,0 +1,5 @@
+CREATE TABLE stripe_connections (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    stripe_account_id VARCHAR NOT NULL,
+    connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
