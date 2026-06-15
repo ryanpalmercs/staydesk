@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Table("rooms")
-public record Room(@Id int id, int roomNumber, RoomType type, BigDecimal nightlyRate, RoomStatus status,
+public record Room(@Id int id, int roomNumber, RoomType type, RoomStatus status,
                    LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum RoomType {
