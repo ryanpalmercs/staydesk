@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Table("folios")
 public record Folio(@Id int id, int reservationId, FolioStatus status, BigDecimal total,
-                    LocalDateTime createdAt, LocalDateTime updatedAt) {
+                    LocalDateTime paidAt, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum FolioStatus {
         OPEN, CLOSED
