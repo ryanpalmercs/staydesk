@@ -20,8 +20,8 @@ export function deleteReservation(id) {
     return api.delete(`/reservations/${id}`)
 }
 
-export function checkIn(id) {
-    return api.post(`/reservations/${id}/check-in`)
+export function checkIn(id, roomPaymentMethodId, incidentalsPaymentMethodId) {
+    return api.post(`/reservations/${id}/check-in`, { roomPaymentMethodId, incidentalsPaymentMethodId })
 }
 
 export function checkOut(id) {

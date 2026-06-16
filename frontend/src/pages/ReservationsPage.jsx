@@ -4,6 +4,8 @@ import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
 import StatusBadge from "../components/StatusBadge"
+import { getFolioByReservationId, payFolio } from "../api/folioApi"
+import CheckInPaymentModal from "../components/CheckInPaymentModal"
 
 function ReservationsPage() {
     const [reservations, setReservations] = useState([])
@@ -12,6 +14,7 @@ function ReservationsPage() {
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedReservation, setSelectedReservation] = useState(null)
+    const [checkInTarget, setCheckInTarget] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
     const [error, setError] = useState(null)
 
@@ -68,23 +71,21 @@ function ReservationsPage() {
         setFilters({ ...filters, [e.target.name]: e.target.value })
     }
 
-    async function handleCheckIn(id) {
-        try {
-            await checkIn(id)
-            await fetchReservations()
-        } catch (err) {
-            if (err.response?.status === 409) {
-                setError('Guest is already checked in.')
-            } else {
-                setError('Something went wrong.')
-            }
-        }
+    function openCheckIn(id) {
+        setCheckInTarget(id)
+    }
 
+    async function handleCheckInConfirmed(roomPaymentMethodId, incidentalsPaymentMethodId) {
+        await checkIn(checkInTarget, roomPaymentMethodId, incidentalsPaymentMethodId)
+        setCheckInTarget(null)
+        await fetchReservations()
     }
 
     async function handleCheckOut(id) {
         try {
             await checkOut(id)
+            const folioRes = await getFolioByReservationId(id)
+            await payFolio(folioRes.data.id)
             await fetchReservations()
         } catch (err) {
             if (err.response?.status === 409) {
@@ -176,21 +177,27 @@ function ReservationsPage() {
                                     <td className="px-6 py-4">{res.checkInDate}</td>
                                     <td className="px-6 py-4">{res.checkOutDate}</td>
                                     <td className="px-6 py-4"><StatusBadge status={res.status} /></td>
-                                    <td className="px-6 py-4 w-48">
-                                        <div className="flex gap-3 justify-end whitespace-nowrap">
-                                            {res.status === 'CONFIRMED' && (
-                                                <button onClick={() => handleCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light w-14 text-right">Check In</button>
-                                            )}
-                                            {res.status === 'CHECKED_IN' && (
-                                                <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light w-14 text-right">Check Out</button>
-                                            )}
-                                            <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust w-14 text-right">Edit</button>
-                                            {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
-                                                <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust w-14 text-right">Delete</button>
-                                            )}
-                                            {res.status === ('CONFIRMED') && (
-                                                <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust w-14 text-right">Cancel</button>
-                                            )}
+                                    <td className="px-6 py-4 w-56">
+                                        <div className="grid grid-cols-[4.5rem_2.5rem_3.5rem] gap-4 whitespace-nowrap">
+                                            <div className="text-right">
+                                                {res.status === 'CONFIRMED' && (
+                                                    <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check In</button>
+                                                )}
+                                                {res.status === 'CHECKED_IN' && (
+                                                    <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check Out</button>
+                                                )}
+                                            </div>
+                                            <div className="text-right">
+                                                <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust">Edit</button>
+                                            </div>
+                                            <div className="text-right">
+                                                {res.status === 'CONFIRMED' && (
+                                                    <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
+                                                )}
+                                                {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
+                                                    <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -204,6 +211,15 @@ function ReservationsPage() {
             {
                 modalOpen && (
                     <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
+                )
+            }
+
+            {
+                checkInTarget != null && (
+                    <CheckInPaymentModal
+                        onConfirm={handleCheckInConfirmed}
+                        onClose={() => setCheckInTarget(null)}
+                    />
                 )
             }
 
