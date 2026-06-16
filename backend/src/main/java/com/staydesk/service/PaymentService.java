@@ -44,12 +44,13 @@ public class PaymentService {
                              .build();
     }
 
-    public List<FolioPayment> createHolds(Folio folio, BigDecimal estimatedStayAmount, String paymentMethodId) {
+    public List<FolioPayment> createHolds(Folio folio, BigDecimal estimatedStayAmount,
+                                          String roomPaymentMethodId, String incidentalsPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
         RequestOptions options = connectedAccountOptions();
 
-        FolioPayment roomHold = createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, paymentMethodId, options, now);
-        FolioPayment incidentalsHold = createHold(folio.id(), PaymentKind.INCIDENTALS, incidentalsHoldAmount, paymentMethodId, options, now);
+        FolioPayment roomHold = createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, roomPaymentMethodId, options, now);
+        FolioPayment incidentalsHold = createHold(folio.id(), PaymentKind.INCIDENTALS, incidentalsHoldAmount, incidentalsPaymentMethodId, options, now);
 
         return List.of(roomHold, incidentalsHold);
     }
@@ -63,10 +64,12 @@ public class PaymentService {
                                              .setAmount(toCents(amount))
                                              .setCurrency("usd")
                                              .setPaymentMethod(paymentMethodId)
+                                             .addPaymentMethodType("card")
                                              .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
                                              .setConfirm(true)
                                              .build(),
-                    options);
+                    options
+            );
 
             return folioPaymentRepository.save(new FolioPayment(0, folioId, kind, intent.getId(),
                     PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));

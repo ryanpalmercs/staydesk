@@ -105,7 +105,7 @@ public class ReservationController {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {
-            return ResponseEntity.ok(reservationService.checkIn(id, request.paymentMethodId()));
+            return ResponseEntity.ok(reservationService.checkIn(id, request.roomPaymentMethodId(), request.incidentalsPaymentMethodId()));
         } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException e) {

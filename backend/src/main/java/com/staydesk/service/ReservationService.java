@@ -145,7 +145,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation checkIn(int id, String paymentMethodId) {
+    public Reservation checkIn(int id, String roomPaymentMethodId, String incidentalsPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -175,8 +175,8 @@ public class ReservationService {
 
         BigDecimal estimatedStayAmount = rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation)));
 
-        paymentService.createHolds(folio, estimatedStayAmount, paymentMethodId);
-
+        paymentService.createHolds(folio, estimatedStayAmount, roomPaymentMethodId, incidentalsPaymentMethodId);
+        
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 
