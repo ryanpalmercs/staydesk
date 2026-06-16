@@ -10,6 +10,7 @@ import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
+import com.staydesk.model.CheckInRequest;
 import com.staydesk.model.Reservation;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
@@ -100,11 +101,11 @@ public class ReservationController {
     }
 
     @PostMapping("{id}/check-in")
-    public ResponseEntity<Reservation> checkIn(@PathVariable Integer id) {
+    public ResponseEntity<Reservation> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {
-            return ResponseEntity.ok(reservationService.checkIn(id));
+            return ResponseEntity.ok(reservationService.checkIn(id, request.paymentMethodId()));
         } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException e) {

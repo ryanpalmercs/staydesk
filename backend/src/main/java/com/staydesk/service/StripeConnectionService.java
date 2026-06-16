@@ -31,7 +31,7 @@ public class StripeConnectionService {
         this.stripeConnectionRepository = stripeConnectionRepository;
     }
 
-    private String getConnectedAccountId() {
+    String getConnectedAccountId() {
         return getStatus()
                 .map(StripeConnection::stripeAccountId)
                 .orElseThrow(() -> new IllegalStateException("No Stripe account connected"));

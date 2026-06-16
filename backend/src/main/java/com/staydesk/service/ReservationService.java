@@ -37,15 +37,17 @@ public class ReservationService {
     private final FolioRepository folioRepository;
     private final FolioItemRepository folioItemRepository;
     private final RateRepository rateRepository;
+    private final PaymentService paymentService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               FolioRepository folioRepository, FolioItemRepository folioItemRepository,
-                              RateRepository rateRepository) {
+                              RateRepository rateRepository, PaymentService paymentService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
         this.rateRepository = rateRepository;
+        this.paymentService = paymentService;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -59,6 +61,19 @@ public class ReservationService {
             remainingPeriods = (ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 7) / 7;
         }
         return remainingPeriods;
+    }
+
+    private static long getTotalPeriods(Reservation reservation) {
+        long totalPeriods = 0;
+
+        if (reservation.rateType().equals(Rate.RateType.NIGHTLY)) {
+            totalPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate());
+        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_5)) {
+            totalPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) / 5;
+        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_7)) {
+            totalPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) / 7;
+        }
+        return totalPeriods;
     }
 
     @Transactional
@@ -130,7 +145,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation checkIn(int id) {
+    public Reservation checkIn(int id, String paymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -149,7 +164,7 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
-        Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, rate.amount(), now, now);
+        Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, rate.amount(), null, now, now);
 
         Folio folio = folioRepository.save(savedFolio);
 
@@ -157,6 +172,10 @@ public class ReservationService {
                 FolioItem.FolioItemType.CHARGE, now, now);
 
         folioItemRepository.save(folioItem);
+
+        BigDecimal estimatedStayAmount = rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation)));
+
+        paymentService.createHolds(folio, estimatedStayAmount, paymentMethodId);
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
@@ -197,8 +216,7 @@ public class ReservationService {
 
         BigDecimal totalCost = folio.total().add(rate.amount().multiply(BigDecimal.valueOf(remainingPeriods)));
 
-        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.createdAt(), now));
-
+        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.paidAt(), folio.createdAt(), now));
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
