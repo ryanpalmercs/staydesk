@@ -11,6 +11,8 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentCreateParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,8 @@ import java.util.List;
 
 @Service
 public class PaymentService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(PaymentService.class);
 
     private final StripeConnectionService stripeConnectionService;
     private final FolioPaymentRepository folioPaymentRepository;
@@ -36,6 +40,10 @@ public class PaymentService {
 
     private static long toCents(BigDecimal amount) {
         return amount.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).longValueExact();
+    }
+
+    private static BigDecimal fromCents(long cents) {
+        return BigDecimal.valueOf(cents, 2);
     }
 
     private RequestOptions connectedAccountOptions() {
@@ -139,6 +147,14 @@ public class PaymentService {
                     hold.createdAt(), LocalDateTime.now()));
         } catch (StripeException e) {
             throw new RuntimeException("Failed to cancel " + hold.kind() + " hold " + hold.stripePaymentIntentId(), e);
+        }
+    }
+
+    public void handlePaymentIntentSucceeded(PaymentIntent intent) {
+        int updated = folioPaymentRepository.markCaptured(intent.getId(), fromCents(intent.getAmountReceived()));
+
+        if (updated == 0) {
+            LOGGER.debug("No FolioPayment updated for PaymentIntent {} (already captured or not found)", intent.getId());
         }
     }
 
