@@ -47,8 +47,9 @@ Lightweight motel management app for small independent properties. Built for Mar
 | `rooms` | room_number, type, nightly_rate, status |
 | `guests` | first_name, last_name, email, phone |
 | `reservations` | guest_id, room_id, check_in_date, check_out_date, status, checked_in_at, checked_out_at |
-| `folios` | reservation_id, status (open/paid), total |
-| `folio_items` | folio_id, description, amount, type |
+| `folios` | reservation_id, status (open/closed), total, paid_at |
+| `folio_items` | folio_id, description, amount, type (charge/tax/payment) |
+| `extras` | name, price, active |
 | `employees` | first_name, last_name, role, pay_rate, hire_date, active |
 | `time_entries` | employee_id, clock_in, clock_out, date, hours, notes |
 
@@ -91,6 +92,8 @@ All tables include `created_at` and `updated_at` audit columns.
 - Card on file vs pay at checkout?
 - How many employees / payroll frequency?
 - Any existing tools in use?
+- Confirm Brookfield/Linn County lodging tax: currently assuming combined sales tax only (8.73% — 4.225% state + 1.75% county + 2.25% city + 0.5% special district), no separate transient guest tax found. Needs a call to city hall to confirm.
+- Extras catalog: what line items (towels, late checkout, etc.) and pricing should be seeded?
 
 ## Decisions Log
 | Date | Decision | Reason |
@@ -103,3 +106,6 @@ All tables include `created_at` and `updated_at` audit columns.
 | 2026-06-11 | Two separate holds at check-in (room + incidentals) | Industry standard; clean separation between room charges and incidentals; both settle or release at checkout |
 | 2026-06-11 | JavaFX desktop POS for restaurant | Web-based POS can't reliably drive cash drawers; JavaFX has direct hardware access |
 | 2026-06-11 | 45-day timeline | Expanded from 28 days to account for restaurant/POS scope |
+| 2026-06-16 | Single blended lodging tax rate (8.73%) instead of itemized state/county/city components | Simpler folio display; rate is configurable via `app.lodging-tax-rate` since it's specific to Brookfield/Linn County |
+| 2026-06-16 | Extras priced from a predefined catalog, not free-form staff entry | Keeps pricing consistent; catalog seed data still pending client input |
+| 2026-06-16 | Folio line items can only be added while status is OPEN | Forces late/forgotten charges through a separate process instead of editing a closed folio |

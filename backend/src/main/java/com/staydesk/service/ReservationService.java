@@ -11,11 +11,9 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
 import com.staydesk.model.Folio;
-import com.staydesk.model.FolioItem;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
-import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
@@ -26,8 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 public class ReservationService {
@@ -35,19 +31,19 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
     private final FolioRepository folioRepository;
-    private final FolioItemRepository folioItemRepository;
     private final RateRepository rateRepository;
     private final PaymentService paymentService;
+    private final FolioService folioService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
-                              FolioRepository folioRepository, FolioItemRepository folioItemRepository,
-                              RateRepository rateRepository, PaymentService paymentService) {
+                              FolioRepository folioRepository, RateRepository rateRepository,
+                              PaymentService paymentService, FolioService folioService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.folioRepository = folioRepository;
-        this.folioItemRepository = folioItemRepository;
         this.rateRepository = rateRepository;
         this.paymentService = paymentService;
+        this.folioService = folioService;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -164,16 +160,12 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
-        Folio savedFolio = new Folio(0, id, Folio.FolioStatus.OPEN, rate.amount(), null, now, now);
+        Folio savedFolio = folioRepository.save(new Folio(0, id, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
 
-        Folio folio = folioRepository.save(savedFolio);
+        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
 
-        FolioItem folioItem = new FolioItem(0, folio.id(), "GUEST ROOM", rate.amount(),
-                FolioItem.FolioItemType.CHARGE, now, now);
-
-        folioItemRepository.save(folioItem);
-
-        BigDecimal estimatedStayAmount = rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation)));
+        BigDecimal estimatedStayAmount = folioService.estimateWithTax(
+                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
 
         paymentService.createHolds(folio, estimatedStayAmount, roomPaymentMethodId, incidentalsPaymentMethodId);
         
@@ -200,23 +192,16 @@ public class ReservationService {
         Folio folio = folioRepository.getFolioByReservationId(reservation.id())
                                      .orElseThrow(FolioNotFoundException::new);
 
-
-        List<FolioItem> folioItems = new ArrayList<>();
-
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
         long remainingPeriods = getRemainingPeriods(reservation);
 
         for (long i = 0; i < remainingPeriods; i++) {
-            folioItems.add(new FolioItem(0, folio.id(), "GUEST ROOM", rate.amount(), FolioItem.FolioItemType.CHARGE, now, now));
+            folio = folioService.postCharge(folio, "GUEST ROOM", rate.amount());
         }
 
-        folioItemRepository.saveAll(folioItems);
-
-        BigDecimal totalCost = folio.total().add(rate.amount().multiply(BigDecimal.valueOf(remainingPeriods)));
-
-        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, totalCost, folio.paidAt(), folio.createdAt(), now));
+        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
