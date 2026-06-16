@@ -40,7 +40,7 @@ docs/      — planning notes and decisions log
 **Auth flow**: Supabase handles authentication. The Spring Security layer should validate Supabase-issued JWTs on protected endpoints.
 
 **External integrations**:
-- Stripe (`stripe-java` 25.3.0) — payment capture and webhooks
+- Stripe (`stripe-java` 33.0.0) — payment capture and webhooks
 - Gusto (`https://api.gusto.com`) — payroll sync via OAuth client credentials
 - Supabase — auth and production database; local development uses a Docker PostgreSQL instance
 
