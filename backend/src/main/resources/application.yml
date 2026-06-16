@@ -40,4 +40,5 @@ supabase:
 
 app:
   base-url: ${APP_BASE_URL}
+  incidentals-hold-amount: ${INCIDENTALS_HOLD_AMOUNT:75.00}
   
