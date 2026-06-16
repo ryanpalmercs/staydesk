@@ -5,12 +5,8 @@ import com.staydesk.repository.StripeConnectionRepository;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Account;
 import com.stripe.model.AccountLink;
-import com.stripe.model.oauth.TokenResponse;
-import com.stripe.net.OAuth;
 import com.stripe.param.AccountCreateParams;
 import com.stripe.param.AccountLinkCreateParams;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,8 +16,6 @@ import java.util.stream.StreamSupport;
 
 @Service
 public class StripeConnectionService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(StripeConnectionService.class);
-
     private final StripeConnectionRepository stripeConnectionRepository;
 
     @Value("${app.base-url}")
