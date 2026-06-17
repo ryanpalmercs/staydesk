@@ -38,7 +38,11 @@ gusto:
 supabase:
   url: https://dmishzzcabozbbbjzlsb.supabase.co
 
+server:
+  port: ${PORT:8080}
+
 app:
   base-url: ${APP_BASE_URL}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5174}
   incidentals-hold-amount: ${INCIDENTALS_HOLD_AMOUNT:75.00}
   lodging-tax-rate: ${LODGING_TAX_RATE:0.0873}
