@@ -1,43 +1,67 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { BedDouble, CalendarDays, DollarSign, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import './Layout.css'
 
 export default function Layout() {
     const { signOut } = useAuth()
-    const [collapsed, setCollapsed] = useState(false)
+    const [drawerOpen, setDrawerOpen] = useState(false)
+
+    const closeDrawer = () => setDrawerOpen(false)
 
     return (
         <div className="layout">
-            <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+
+            {/* Mobile top bar — hidden on desktop */}
+            <div className="mobile-topbar">
+                <span className="nav-logo">Stay<span>Desk</span></span>
+                <button className="hamburger" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
+                    <span /><span /><span />
+                </button>
+            </div>
+
+            {/* Backdrop */}
+            <div
+                className={`drawer-overlay ${drawerOpen ? 'open' : ''}`}
+                onClick={closeDrawer}
+            />
+
+            {/* Sidebar */}
+            <aside className={`sidebar ${drawerOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
-                    <div className="sidebar-logo nav-logo">
-                        {collapsed ? <>S<span>D</span></> : <>Stay<span>Desk</span></>}
-                    </div>                </div>
+                    <span className="nav-logo">Stay<span>Desk</span></span>
+                </div>
                 <nav className="sidebar-nav">
-                    <NavLink to="/rooms" className={({ isActive }) => isActive ? 'active' : ''}>
+                    <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                        <LayoutDashboard size={18} />
+                        <span>Dashboard</span>
+                    </NavLink>
+                    <NavLink to="/rooms" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                         <BedDouble size={18} />
-                        {!collapsed && <span>Rooms</span>}
+                        <span>Rooms</span>
                     </NavLink>
-                    <NavLink to="/reservations" className={({ isActive }) => isActive ? 'active' : ''}>
+                    <NavLink to="/reservations" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                         <CalendarDays size={18} />
-                        {!collapsed && <span>Reservations</span>}
+                        <span>Reservations</span>
                     </NavLink>
-                    <NavLink to="/payroll" className={({ isActive }) => isActive ? 'active' : ''}>
+                    <NavLink to="/payroll" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                         <DollarSign size={18} />
-                        {!collapsed && <span>Payroll</span>}
+                        <span>Payroll</span>
                     </NavLink>
                 </nav>
-                <button className="sidebar-signout" onClick={signOut}>
-                    <LogOut size={18} />
-                    {!collapsed && <span>Sign out</span>}
-                </button>
-
-                <button className="sidebar-toggle" onClick={() => setCollapsed(c => !c)}>
-                    {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-                </button>
+                <div className="sidebar-bottom">
+                    <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                        <Settings size={18} />
+                        <span>Settings</span>
+                    </NavLink>
+                    <button className="sidebar-signout" onClick={signOut}>
+                        <LogOut size={18} />
+                        <span>Sign out</span>
+                    </button>
+                </div>
             </aside>
+
             <main className="main-content">
                 <Outlet />
             </main>

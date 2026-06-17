@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { disconnectStripe, getConnectStatus } from "../api/stripeApi"
 import { useSearchParams } from "react-router-dom"
 
-function Settings() {
+function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [connected, setConnected] = useState(true)
     const [accountId, setAccountId] = useState(null)
@@ -57,4 +57,4 @@ function Settings() {
     )
 }
 
-export default Settings
+export default SettingsPage

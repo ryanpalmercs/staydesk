@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage'
 import RoomsPage from './pages/RoomsPage'
 import ReservationsPage from './pages/ReservationsPage'
 import PayrollPage from './pages/PayrollPage'
+import DashboardPage from './pages/DashboardPage'
+import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
     return (
@@ -15,10 +17,11 @@ export default function App() {
                     <Route path="/login" element={<LoginPage />} />
                     <Route element={<ProtectedRoute />}>
                         <Route element={<Layout />}>
-                            <Route path="/" element={<Navigate to="/reservations" replace />} />
+                            <Route path="/" element={<DashboardPage />} />
                             <Route path="/rooms" element={<RoomsPage />} />
                             <Route path="/reservations" element={<ReservationsPage />} />
                             <Route path="/payroll" element={<PayrollPage />} />
+                            <Route path="/settings" element={<SettingsPage />} />
                         </Route>
                     </Route>
                 </Routes>

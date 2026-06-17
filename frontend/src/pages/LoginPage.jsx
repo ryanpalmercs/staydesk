@@ -13,7 +13,7 @@ export default function LoginPage() {
     const [submitting, setSubmitting] = useState(false)
 
     if (!loading && session) {
-        return <Navigate to="/reservations" replace />
+        return <Navigate to="/" replace />
     }
 
     async function handleSubmit(e) {
