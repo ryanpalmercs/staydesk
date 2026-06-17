@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PGPASSWORD=local_password psql *)",
+      "Bash(curl *)",
+      "Bash(stripe events *)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=/Users/ryan/Library/Caches/ms-playwright node verify_checkin_full.js)"
+    ]
+  }
+}
