@@ -4,8 +4,9 @@ import { getRooms } from "../api/roomApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
 import StatusBadge from "../components/StatusBadge"
-import { getFolioByReservationId, payFolio } from "../api/folioApi"
+import { getFolioByReservationId } from "../api/folioApi"
 import CheckInPaymentModal from "../components/CheckInPaymentModal"
+import FolioModal from "../components/FolioModal"
 
 function ReservationsPage() {
     const [reservations, setReservations] = useState([])
@@ -15,6 +16,7 @@ function ReservationsPage() {
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedReservation, setSelectedReservation] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
+    const [reviewFolioId, setReviewFolioId] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
     const [error, setError] = useState(null)
 
@@ -84,9 +86,9 @@ function ReservationsPage() {
     async function handleCheckOut(id) {
         try {
             await checkOut(id)
-            const folioRes = await getFolioByReservationId(id)
-            await payFolio(folioRes.data.id)
             await fetchReservations()
+            const folioRes = await getFolioByReservationId(id)
+            setReviewFolioId(folioRes.data.id)
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked out')
@@ -219,6 +221,16 @@ function ReservationsPage() {
                     <CheckInPaymentModal
                         onConfirm={handleCheckInConfirmed}
                         onClose={() => setCheckInTarget(null)}
+                    />
+                )
+            }
+
+            {
+                reviewFolioId != null && (
+                    <FolioModal
+                        folioId={reviewFolioId}
+                        onClose={() => setReviewFolioId(null)}
+                        onPaid={fetchReservations}
                     />
                 )
             }

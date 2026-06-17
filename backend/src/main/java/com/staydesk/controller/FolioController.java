@@ -6,6 +6,8 @@ import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.model.AddFolioItemRequest;
 import com.staydesk.model.Folio;
+import com.staydesk.model.FolioItem;
+import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.service.FolioService;
 import com.staydesk.service.PaymentService;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/folios")
@@ -28,11 +31,14 @@ public class FolioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(FolioController.class);
 
     private final FolioRepository folioRepository;
+    private final FolioItemRepository folioItemRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
 
-    public FolioController(FolioRepository folioRepository, PaymentService paymentService, FolioService folioService) {
+    public FolioController(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
+                           PaymentService paymentService, FolioService folioService) {
         this.folioRepository = folioRepository;
+        this.folioItemRepository = folioItemRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
     }
@@ -42,6 +48,15 @@ public class FolioController {
         return folioRepository.findById(id)
                               .map(ResponseEntity::ok)
                               .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("{id}/items")
+    public ResponseEntity<List<FolioItem>> getFolioItems(@PathVariable Integer id) {
+        if (folioRepository.findById(id).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(folioItemRepository.findByFolioId(id));
     }
 
     @GetMapping("by-reservation/{reservationId}")

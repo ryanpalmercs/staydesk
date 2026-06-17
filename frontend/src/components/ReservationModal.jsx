@@ -3,9 +3,12 @@ import { createReservation, updateReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { createGuest, getGuests } from "../api/guestApi"
 import { getRates } from "../api/rateApi"
+import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
+import { getExtras } from "../api/extrasApi"
 
 function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
+    const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
 
     const [rooms, setRooms] = useState([])
     const [guests, setGuests] = useState([])
@@ -31,13 +34,40 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [error, setError] = useState(null)
 
+    const [showExtras, setShowExtras] = useState(false)
+    const [folioId, setFolioId] = useState(null)
+    const [extras, setExtras] = useState([])
+    const [selectedExtraId, setSelectedExtraId] = useState('')
+    const [extraQuantity, setExtraQuantity] = useState(1)
+    const [extraMessage, setExtraMessage] = useState(null)
+
     const selectedRate = rates.find(r => r.rateType === form.rateType && r.guestCount === Number(form.guestCount))
 
     useEffect(() => {
         getRooms().then(res => setRooms(res.data ?? [])),
             getGuests().then(res => setGuests(res.data ?? [])),
             getRates().then(res => setRates(res.data ?? []))
+
+        if (canAddExtras) {
+            getFolioByReservationId(reservation.id).then(res => setFolioId(res.data.id))
+            getExtras().then(res => setExtras(res.data ?? []))
+        }
     }, [])
+
+    async function handleAddExtra() {
+        if (!selectedExtraId || !folioId) return
+
+        setExtraMessage(null)
+
+        try {
+            await addFolioItem(folioId, Number(selectedExtraId), Number(extraQuantity))
+            setExtraMessage('Added.')
+            setSelectedExtraId('')
+            setExtraQuantity(1)
+        } catch (err) {
+            setExtraMessage(err.response?.status === 409 ? 'Folio is closed.' : 'Failed to add item.')
+        }
+    }
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
@@ -207,6 +237,29 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 <option value="CONFIRMED">Confirmed</option>
                                 <option value="CANCELLED">Cancelled</option>
                             </select>
+                        </div>
+                    )}
+
+                    {canAddExtras && (
+                        <div>
+                            <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-rust hover:text-rust-light">
+                                {showExtras ? 'Hide Extras' : 'Add Extras'}
+                            </button>
+
+                            {showExtras && (
+                                <div className="flex gap-2 items-end mt-2">
+                                    <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
+                                        <option value="">Select an extra...</option>
+                                        {extras.map(extra => (
+                                            <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
+                                        ))}
+                                    </select>
+                                    <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
+                                    <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                                </div>
+                            )}
+
+                            {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
                         </div>
                     )}
 
