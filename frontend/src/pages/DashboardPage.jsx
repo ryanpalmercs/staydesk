@@ -8,6 +8,7 @@ import './DashboardPage.css'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
+import { Link } from 'react-router-dom'
 
 export default function DashboardPage() {
     const [rooms, setRooms] = useState([])
@@ -44,37 +45,43 @@ export default function DashboardPage() {
         }))
 
     return (
-        <div>
+        <div className="dashboard">
             <h1 className="section-title">Dashboard</h1>
 
             <div className="dashboard-stats">
-                <div className="stat-card">
-                    <div className="stat-label">Occupancy</div>
-                    <div className="stat-value">{occupiedCount} / {rooms.length}</div>
-                    <div className="stat-sub">{availableCount} available</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-label">Checking In Today</div>
-                    <div className="stat-value">{todayCheckIns.length}</div>
-                    <ul className="stat-list">
-                        {todayCheckIns.slice(0, 5).map(r => (
-                            <li key={r.id}>
-                                {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — Room {roomsMap[r.roomId]?.roomNumber}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-label">Checking Out Today</div>
-                    <div className="stat-value">{todayCheckOuts.length}</div>
-                    <ul className="stat-list">
-                        {todayCheckOuts.slice(0, 5).map(r => (
-                            <li key={r.id}>
-                                {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — Rm {roomsMap[r.roomId]?.roomNumber}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                <Link to="/rooms" className="stat-card">
+                    <div>
+                        <div className="stat-label">Occupancy</div>
+                        <div className="stat-value">{occupiedCount} / {rooms.length}</div>
+                        <div className="stat-sub">{availableCount} available</div>
+                    </div>
+                </Link>
+                <Link to="/reservations" className="stat-card">
+                    <div>
+                        <div className="stat-label">Checking In Today</div>
+                        <div className="stat-value">{todayCheckIns.length}</div>
+                        <ul className="stat-list">
+                            {todayCheckIns.slice(0, 5).map(r => (
+                                <li key={r.id}>
+                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — Room {roomsMap[r.roomId]?.roomNumber}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </Link>
+                <Link to="/reservations" className="stat-card">
+                    <div>
+                        <div className="stat-label">Checking Out Today</div>
+                        <div className="stat-value">{todayCheckOuts.length}</div>
+                        <ul className="stat-list">
+                            {todayCheckOuts.slice(0, 5).map(r => (
+                                <li key={r.id}>
+                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — Rm {roomsMap[r.roomId]?.roomNumber}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </Link>
             </div>
 
             <div className="dashboard-calendar">
@@ -88,7 +95,7 @@ export default function DashboardPage() {
                     }}
                     events={events}
                     eventColor="var(--color-rust)"
-                    height={550}
+                    height="auto"
                 />
             </div>
         </div>

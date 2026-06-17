@@ -11,6 +11,13 @@
     border-top: 3px solid var(--color-rust);
     border-radius: 6px;
     padding: 1.25rem 1.5rem;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.stat-card:hover {
+    border-top-color: var(--color-brown);
 }
 
 .stat-label {
@@ -54,4 +61,14 @@
     border: 1px solid var(--color-tan);
     border-radius: 6px;
     padding: 1.25rem;
+}
+
+@media (max-width: 768px) {
+    .dashboard-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-calendar {
+        display: none;
+    }
 }
