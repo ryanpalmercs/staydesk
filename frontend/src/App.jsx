@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import Hotjar from '@hotjar/browser'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
@@ -8,9 +9,36 @@ import ReservationsPage from './pages/ReservationsPage'
 import PayrollPage from './pages/PayrollPage'
 import DashboardPage from './pages/DashboardPage'
 import SettingsPage from './pages/SettingsPage'
+import { useEffect, useState } from 'react'
+import api from './api/baseApi'
+
+const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
+const HOTJAR_VERSION = 6
 
 export default function App() {
+    const [wakingUp, setWakingUp] = useState(false)
+
+    useEffect(() => {
+        if (HOTJAR_ID) {
+            Hotjar.init(parseInt(HOTJAR_ID), HOTJAR_VERSION)
+        }
+    }, [])
+
+    useEffect(() => {
+        const timer = setTimeout(() => setWakingUp(true), 0)
+        api.get('/actuator/health')
+            .then(() => { clearTimeout(timer); setWakingUp(false) })
+            .catch(() => { clearTimeout(timer); setWakingUp(false) })
+        return () => clearTimeout(timer)
+    }, [])
+
     return (
+        <>
+        {wakingUp && (
+            <div className="waking-up-banner">
+                Server waking up, please wait...
+            </div>
+        )}
         <BrowserRouter>
             <AuthProvider>
                 <Routes>
@@ -27,5 +55,6 @@ export default function App() {
                 </Routes>
             </AuthProvider>
         </BrowserRouter>
+        </>
     )
 }

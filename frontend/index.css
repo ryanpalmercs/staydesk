@@ -110,3 +110,16 @@ button {
     border-color: var(--color-rust);
     box-shadow: 0 0 0 1px var(--color-rust);
 }
+
+.waking-up-banner {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-charcoal);
+    color: var(--color-cream);
+    padding: 0.625rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    z-index: 9999;
+}
