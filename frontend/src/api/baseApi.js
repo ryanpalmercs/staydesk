@@ -5,4 +5,14 @@ const api = axios.create({
     timeout: 60000
 })
 
+api.interceptors.response.use(
+    res => res,
+    err => {
+        if (err.response?.status === 401) {
+            window.location.replace('/login?expired=true')
+        }
+        return Promise.reject(err)
+    }
+)
+
 export default api
