@@ -123,3 +123,66 @@ button {
     font-size: 0.875rem;
     z-index: 9999;
 }
+
+.filter-btn {
+    border: 1px solid var(--color-tan);
+    border-radius: 4px;
+    padding: 0.4rem 0.875rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--color-muted);
+    background: var(--color-warm-white);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.filter-btn:hover {
+    border-color: var(--color-muted);
+    color: var(--color-charcoal);
+}
+
+.filter-btn.active {
+    background: var(--color-rust);
+    border-color: var(--color-rust);
+    color: var(--color-cream);
+}
+
+.filter-bar {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.filter-bar input,
+.filter-bar select {
+    width: 100%;
+}
+
+.page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.page-header .section-title {
+    margin-bottom: 0;
+}
+
+@media (min-width: 640px) {
+    .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .filter-bar input,
+    .filter-bar select {
+        width: auto;
+    }
+
+    .page-header {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
