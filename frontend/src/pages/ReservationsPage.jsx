@@ -19,6 +19,17 @@ function ReservationsPage() {
     const [reviewFolioId, setReviewFolioId] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
     const [error, setError] = useState(null)
+    const [sortKey, setSortKey] = useState('checkInDate')
+    const [sortDir, setSortDir] = useState('asc')
+
+    function handleSort(key) {
+        if (sortKey === key) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortKey(key)
+            setSortDir('asc')
+        }
+    }
 
     useEffect(() => {
         Promise.all([
@@ -123,16 +134,28 @@ function ReservationsPage() {
         return true
     })
 
+    const sorted = [...filtered].sort((a, b) => {
+        let aVal, bVal
+        if (sortKey === 'guestName') {
+            aVal = guestMap[a.guestId] ? `${guestMap[a.guestId].lastName} ${guestMap[a.guestId].firstName}` : ''
+            bVal = guestMap[b.guestId] ? `${guestMap[b.guestId].lastName} ${guestMap[b.guestId].firstName}` : ''
+            return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+        }
+        aVal = a[sortKey] ?? ''
+        bVal = b[sortKey] ?? ''
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
+        return 0
+    })
+
     return (
         <div>
-            <div className="flex items-center justify-between mb-6">
+            <div className="page-header mb-6">
                 <h1 className="section-title">Reservations</h1>
-                <button onClick={openCreate} className="btn btn-primary">
-                    New Reservation
-                </button>
+                <button onClick={openCreate} className="btn btn-primary">New Reservation</button>
             </div>
 
-            <div className="flex gap-4 mb-6">
+            <div className="filter-bar mb-6">
                 <div>
                     <label className="text-muted block text-xs mb-1">From</label>
                     <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="filter-input" />
@@ -156,84 +179,74 @@ function ReservationsPage() {
                 </div>
             </div>
 
+            <div className="flex gap-2 mb-6 flex-wrap">
+                {[
+                    { key: 'guestName', label: 'Guest' },
+                    { key: 'checkInDate', label: 'Check-in' },
+                    { key: 'checkOutDate', label: 'Check-out' },
+                    { key: 'status', label: 'Status' },
+                ].map(({ key, label }) => (
+                    <button
+                        key={key}
+                        onClick={() => handleSort(key)}
+                        className={`filter-btn${sortKey === key ? ' active' : ''}`}
+                    >
+                        {label}{sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                    </button>
+                ))}
+            </div>
+
             {loading ? (
                 <p className="text-gray-500">Loading...</p>
             ) : (
-                <div className="feat-card">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b text-sm text-gray-500">
-                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Guest</th>
-                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Room</th>
-                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Check-in</th>
-                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Check-out</th>
-                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3">Status</th>
-                                <th className="text-xs font-semibold text-muted uppercase tracking-wide px-6 py-3" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map(res => (
-                                <tr key={res.id} className="hover:bg-tan/30 border-b border-tan">
-                                    <td className="px-6 py-4">{guestMap[res.guestId] ? `${guestMap[res.guestId].firstName} ${guestMap[res.guestId].lastName}` : res.guestId}</td>
-                                    <td className="px-6 py-4">{roomMap[res.roomId] ? `Room ${roomMap[res.roomId].roomNumber}` : res.roomId}</td>
-                                    <td className="px-6 py-4">{res.checkInDate}</td>
-                                    <td className="px-6 py-4">{res.checkOutDate}</td>
-                                    <td className="px-6 py-4"><StatusBadge status={res.status} /></td>
-                                    <td className="px-6 py-4 w-56">
-                                        <div className="grid grid-cols-[4.5rem_2.5rem_3.5rem] gap-4 whitespace-nowrap">
-                                            <div className="text-right">
-                                                {res.status === 'CONFIRMED' && (
-                                                    <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check In</button>
-                                                )}
-                                                {res.status === 'CHECKED_IN' && (
-                                                    <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check Out</button>
-                                                )}
-                                            </div>
-                                            <div className="text-right">
-                                                <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust">Edit</button>
-                                            </div>
-                                            <div className="text-right">
-                                                {res.status === 'CONFIRMED' && (
-                                                    <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
-                                                )}
-                                                {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
-                                                    <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="flex flex-col gap-3">
+                    {sorted.map(res => {
+                        const guest = guestMap[res.guestId]
+                        const room = roomMap[res.roomId]
+                        return (
+                            <div key={res.id} className="feat-card">
+                                <div className="flex items-start justify-between gap-4 mb-2">
+                                    <span className="font-semibold text-charcoal">
+                                        {guest ? `${guest.firstName} ${guest.lastName}` : res.guestId}
+                                    </span>
+                                    <StatusBadge status={res.status} />
+                                </div>
+                                <div className="flex gap-4 text-sm text-muted mb-3">
+                                    <span>{room ? `Room ${room.roomNumber}` : res.roomId}</span>
+                                    <span>{res.checkInDate} → {res.checkOutDate}</span>
+                                </div>
+                                <div className="flex gap-4 justify-end">
+                                    {res.status === 'CONFIRMED' && (
+                                        <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check In</button>
+                                    )}
+                                    {res.status === 'CHECKED_IN' && (
+                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check Out</button>
+                                    )}
+                                    <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust">Edit</button>
+                                    {res.status === 'CONFIRMED' && (
+                                        <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
+                                    )}
+                                    {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
+                                        <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
-            )
-            }
+            )}
 
-            {
-                modalOpen && (
-                    <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
-                )
-            }
+            {modalOpen && (
+                <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
+            )}
 
-            {
-                checkInTarget != null && (
-                    <CheckInPaymentModal
-                        onConfirm={handleCheckInConfirmed}
-                        onClose={() => setCheckInTarget(null)}
-                    />
-                )
-            }
+            {checkInTarget != null && (
+                <CheckInPaymentModal onConfirm={handleCheckInConfirmed} onClose={() => setCheckInTarget(null)} />
+            )}
 
-            {
-                reviewFolioId != null && (
-                    <FolioModal
-                        folioId={reviewFolioId}
-                        onClose={() => setReviewFolioId(null)}
-                        onPaid={fetchReservations}
-                    />
-                )
-            }
+            {reviewFolioId != null && (
+                <FolioModal folioId={reviewFolioId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
+            )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
         </div >
