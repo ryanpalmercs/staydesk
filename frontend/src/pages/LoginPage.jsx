@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -11,6 +11,8 @@ export default function LoginPage() {
     const [error, setError] = useState(null)
     const [magicLinkSent, setMagicLinkSent] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+    const location = useLocation()
+    const sessionExpired = location.state?.expired
 
     if (!loading && session) {
         return <Navigate to="/" replace />
@@ -58,6 +60,8 @@ export default function LoginPage() {
             <div className="bg-white rounded-lg shadow-md w-full max-w-sm p-8">
                 <div className="nav-logo text-center mb-8" style={{ color: 'var(--color-brown)' }}>Stay<span>Desk</span></div>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    {sessionExpired && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">Your sesion expired. Please sign in again.</p>}
+
                     {error && <p className="text-sm text-red-600">{error}</p>}
 
                     <div className="flex flex-col gap-1">
