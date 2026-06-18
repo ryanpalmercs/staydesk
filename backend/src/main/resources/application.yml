@@ -43,6 +43,7 @@ server:
 
 app:
   base-url: ${APP_BASE_URL}
+  frontend-url: ${APP_FRONTEND_URL}
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5174}
   incidentals-hold-amount: ${INCIDENTALS_HOLD_AMOUNT:75.00}
   lodging-tax-rate: ${LODGING_TAX_RATE:0.0873}
