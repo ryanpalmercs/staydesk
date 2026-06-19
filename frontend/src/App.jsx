@@ -9,6 +9,7 @@ import ReservationsPage from './pages/ReservationsPage'
 import PayrollPage from './pages/PayrollPage'
 import DashboardPage from './pages/DashboardPage'
 import SettingsPage from './pages/SettingsPage'
+import EmployeesPage from './pages/EmployeesPage'
 import { useEffect, useState } from 'react'
 import api from './api/baseApi'
 
@@ -34,27 +35,32 @@ export default function App() {
 
     return (
         <>
-        {wakingUp && (
-            <div className="waking-up-banner">
-                Server waking up, please wait...
-            </div>
-        )}
-        <BrowserRouter>
-            <AuthProvider>
-                <Routes>
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route element={<ProtectedRoute />}>
-                        <Route element={<Layout />}>
-                            <Route path="/" element={<DashboardPage />} />
-                            <Route path="/rooms" element={<RoomsPage />} />
-                            <Route path="/reservations" element={<ReservationsPage />} />
-                            <Route path="/payroll" element={<PayrollPage />} />
-                            <Route path="/settings" element={<SettingsPage />} />
+            {wakingUp && (
+                <div className="waking-up-banner">
+                    Server waking up, please wait...
+                </div>
+            )}
+            <BrowserRouter>
+                <AuthProvider>
+                    <Routes>
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route element={<ProtectedRoute />}>
+                            <Route element={<Layout />}>
+                                <Route path="/" element={<DashboardPage />} />
+                                <Route path="/rooms" element={<RoomsPage />} />
+                                <Route path="/reservations" element={<ReservationsPage />} />
+                            </Route>
                         </Route>
-                    </Route>
-                </Routes>
-            </AuthProvider>
-        </BrowserRouter>
+                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                            <Route element={<Layout />}>
+                                <Route path="/employees" element={<EmployeesPage />} />
+                                <Route path="/payroll" element={<PayrollPage />} />
+                                <Route path="/settings" element={<SettingsPage />} />
+                            </Route>
+                        </Route>
+                    </Routes>
+                </AuthProvider>
+            </BrowserRouter>
         </>
     )
 }

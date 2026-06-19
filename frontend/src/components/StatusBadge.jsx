@@ -7,6 +7,8 @@ function StatusBadge({ status }) {
         CHECKED_IN: ['bg-green-100 text-green-800', 'Checked In'],
         CHECKED_OUT: ['bg-gray-100 text-gray-600', 'Checked Out'],
         CANCELLED: ['bg-gray-100 text-gray-500', 'Cancelled'],
+        ACTIVE: ['bg-green-200 text-green-800', 'Active'],
+        INACTIVE: ['bg-gray-100 text-gray-500', 'Inactive'],
     }
 
     const [cls, label] = map[status] ?? ['bg-tan text-muted', status]
