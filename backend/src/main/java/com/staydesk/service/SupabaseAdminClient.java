@@ -12,7 +12,7 @@ import java.util.UUID;
 @Service
 public class SupabaseAdminClient {
     private final RestClient restClient = RestClient.create();
-    
+
     @Value("${supabase.project.url}")
     private String projectUrl;
     @Value("${supabase.service.role.key}")
@@ -62,6 +62,23 @@ public class SupabaseAdminClient {
                   .body(Map.of("password", newPin))
                   .retrieve()
                   .toBodilessEntity();
+    }
+
+    public Map<String, Object> signIn(String email, String pin) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("email", email);
+        body.put("password", pin);
+
+        restClient.post()
+                  .uri(projectUrl + "/auth/v1/token?grant_type=password")
+                  .header("Authorization", "Bearer " + roleKey)
+                  .header("apiKey", roleKey)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .body(body)
+                  .retrieve()
+                  .body(Map.class);
+
+        return body;
     }
 
     private record SupabaseUserResponse(String id) {
