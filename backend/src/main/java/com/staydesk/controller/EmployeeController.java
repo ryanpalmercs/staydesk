@@ -2,9 +2,11 @@ package com.staydesk.controller;
 
 import com.staydesk.exception.EmployeeAlreadyExistsException;
 import com.staydesk.model.Employee;
+import com.staydesk.model.EmployeeType;
 import com.staydesk.model.request.CreateEmployeeRequest;
 import com.staydesk.model.request.UpdateEmployeeRequest;
 import com.staydesk.repository.EmployeeRepository;
+import com.staydesk.repository.EmployeeTypeRepository;
 import com.staydesk.service.EmployeeService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -25,26 +27,29 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/admin/employees")
+@RequestMapping("/admin")
 public class EmployeeController {
     private static final Logger LOGGER = LoggerFactory.getLogger(EmployeeController.class);
 
     private final EmployeeRepository employeeRepository;
     private final EmployeeService employeeService;
+    private final EmployeeTypeRepository employeeTypeRepository;
 
-    public EmployeeController(EmployeeRepository employeeRepository, EmployeeService employeeService) {
+    public EmployeeController(EmployeeRepository employeeRepository, EmployeeService employeeService,
+                              EmployeeTypeRepository employeeTypeRepository) {
         this.employeeRepository = employeeRepository;
         this.employeeService = employeeService;
+        this.employeeTypeRepository = employeeTypeRepository;
     }
 
-    @GetMapping
+    @GetMapping("employees")
     public List<Employee> getEmployees() {
         LOGGER.info("Getting employee list");
 
         return employeeRepository.findAll();
     }
 
-    @GetMapping("{id}")
+    @GetMapping("employees/{id}")
     public ResponseEntity<Employee> getEmployee(@PathVariable UUID id) {
         LOGGER.info("Getting employee with id: {}", id);
 
@@ -53,7 +58,7 @@ public class EmployeeController {
                                  .orElse(ResponseEntity.notFound().build());
     }
 
-    @PostMapping
+    @PostMapping("employees")
     public ResponseEntity<Employee> createEmployee(@Valid @RequestBody CreateEmployeeRequest createEmployeeRequest) {
         LOGGER.info("Creating employee with email: {}", createEmployeeRequest.email());
 
@@ -66,7 +71,7 @@ public class EmployeeController {
         }
     }
 
-    @PutMapping("{id}/role")
+    @PutMapping("employees/{id}/role")
     public ResponseEntity<Void> updateEmployeeRole(@PathVariable UUID id,
                                                    @Valid @RequestBody UpdateEmployeeRequest request) {
         LOGGER.info("Updating employee role with id: {}", id);
@@ -75,7 +80,7 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("{id}/pin")
+    @PutMapping("employees/{id}/pin")
     public ResponseEntity<Void> updateEmployeePin(@PathVariable UUID id,
                                                   @Valid @RequestBody UpdateEmployeeRequest request) {
         LOGGER.info("Updating employee pin with id: {}", id);
@@ -84,11 +89,18 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("{id}")
+    @DeleteMapping("employees/{id}")
     public ResponseEntity<Void> deleteEmployee(@PathVariable UUID id) {
         LOGGER.info("Deleting employee with id: {}", id);
 
         employeeRepository.deactivate(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("employeeTypes")
+    public List<EmployeeType> getEmployeeTypes() {
+        LOGGER.info("Getting employee types");
+
+        return employeeTypeRepository.findAll();
     }
 }
