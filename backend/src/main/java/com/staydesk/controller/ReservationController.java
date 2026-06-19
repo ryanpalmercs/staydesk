@@ -10,7 +10,7 @@ import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
-import com.staydesk.model.CheckInRequest;
+import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.Reservation;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;

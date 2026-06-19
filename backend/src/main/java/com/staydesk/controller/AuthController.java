@@ -1,7 +1,7 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.Employee;
-import com.staydesk.model.EmployeeLoginRequest;
+import com.staydesk.model.request.EmployeeLoginRequest;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.service.SupabaseAdminClient;
 import org.slf4j.Logger;
@@ -31,6 +31,7 @@ public class AuthController {
 
     @PostMapping("employee/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody EmployeeLoginRequest request) {
+        LOGGER.info("Received login request: {}", request);
         Optional<Employee> employee = employeeRepository.findByUsername(request.username());
 
         if (employee.isEmpty()) {
