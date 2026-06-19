@@ -8,8 +8,10 @@ import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.EmployeeTypeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.jdbc.core.JdbcAggregateTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -22,12 +24,14 @@ public class EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final EmployeeTypeRepository employeeTypeRepository;
     private final SupabaseAdminClient supabaseAdminClient;
+    private final JdbcAggregateTemplate jdbcAggregateTemplate;
 
     public EmployeeService(EmployeeRepository employeeRepository, EmployeeTypeRepository employeeTypeRepository,
-                           SupabaseAdminClient supabaseAdminClient) {
+                           SupabaseAdminClient supabaseAdminClient, JdbcAggregateTemplate jdbcAggregateTemplate) {
         this.employeeRepository = employeeRepository;
         this.employeeTypeRepository = employeeTypeRepository;
         this.supabaseAdminClient = supabaseAdminClient;
+        this.jdbcAggregateTemplate = jdbcAggregateTemplate;
     }
 
     public Employee createEmployee(CreateEmployeeRequest createEmployeeRequest) {
@@ -44,15 +48,25 @@ public class EmployeeService {
         EmployeeType type = employeeTypeRepository.findById(createEmployeeRequest.employeeTypeId())
                                                   .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee type"));
 
-        UUID supabaseId = supabaseAdminClient.createUser(
-                createEmployeeRequest.email(),
-                createEmployeeRequest.pin(),
-                type.authRole().name()
-        );
+        UUID supabaseId;
+
+        try {
+            supabaseId = supabaseAdminClient.createUser(
+                    createEmployeeRequest.email(),
+                    createEmployeeRequest.pin(),
+                    type.authRole().name()
+            );
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY) {
+                throw new EmployeeAlreadyExistsException();
+            }
+
+            throw e;
+        }
 
         LocalDateTime now = LocalDateTime.now();
 
-        return employeeRepository.save(new Employee(supabaseId, createEmployeeRequest.firstName(),
+        return jdbcAggregateTemplate.insert(new Employee(supabaseId, createEmployeeRequest.firstName(),
                 createEmployeeRequest.lastName(), createEmployeeRequest.email(), createEmployeeRequest.username(),
                 createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(), createEmployeeRequest.hireDate(),
                 true, now, now));

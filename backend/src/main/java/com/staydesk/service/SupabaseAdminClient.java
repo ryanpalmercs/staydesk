@@ -13,7 +13,7 @@ import java.util.UUID;
 public class SupabaseAdminClient {
     private final RestClient restClient = RestClient.create();
 
-    @Value("${supabase.project.url}")
+    @Value("${supabase.url}")
     private String projectUrl;
     @Value("${supabase.service.role.key}")
     private String roleKey;

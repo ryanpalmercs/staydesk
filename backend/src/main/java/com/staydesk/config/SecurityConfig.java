@@ -8,6 +8,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -32,6 +35,7 @@ public class SecurityConfig {
                    .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                    .authorizeHttpRequests(auth -> auth
                            .requestMatchers("/auth/employee/login").permitAll()
+                           .requestMatchers("/actuator/health").permitAll()
                            .requestMatchers("/admin/**")
                            .hasRole("ADMIN")
                            .anyRequest().authenticated())
@@ -73,5 +77,12 @@ public class SecurityConfig {
         });
 
         return converter;
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder(@Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri) {
+        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
+                               .jwsAlgorithm(SignatureAlgorithm.ES256)
+                               .build();
     }
 }
