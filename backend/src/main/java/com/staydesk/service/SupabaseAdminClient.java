@@ -1,5 +1,8 @@
 package com.staydesk.service;
 
+import com.staydesk.model.dto.SupabaseAuthResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -11,6 +14,8 @@ import java.util.UUID;
 
 @Service
 public class SupabaseAdminClient {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SupabaseAdminClient.class);
+
     private final RestClient restClient = RestClient.create();
 
     @Value("${supabase.url}")
@@ -64,21 +69,21 @@ public class SupabaseAdminClient {
                   .toBodilessEntity();
     }
 
-    public Map<String, Object> signIn(String email, String pin) {
+    public SupabaseAuthResponse signIn(String email, String pin) {
         Map<String, Object> body = new HashMap<>();
         body.put("email", email);
         body.put("password", pin);
 
-        restClient.post()
-                  .uri(projectUrl + "/auth/v1/token?grant_type=password")
-                  .header("Authorization", "Bearer " + roleKey)
-                  .header("apiKey", roleKey)
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .body(body)
-                  .retrieve()
-                  .body(Map.class);
-
-        return body;
+        SupabaseAuthResponse response = restClient.post()
+                                               .uri(projectUrl + "/auth/v1/token?grant_type=password")
+                                               .header("Authorization", "Bearer " + roleKey)
+                                               .header("apiKey", roleKey)
+                                               .contentType(MediaType.APPLICATION_JSON)
+                                               .body(body)
+                                               .retrieve()
+                                               .body(SupabaseAuthResponse.class);
+        LOGGER.info("Supabase signIn response: {}", response);
+        return response;
     }
 
     private record SupabaseUserResponse(String id) {

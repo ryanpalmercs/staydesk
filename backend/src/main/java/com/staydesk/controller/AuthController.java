@@ -1,6 +1,7 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.Employee;
+import com.staydesk.model.dto.SupabaseAuthResponse;
 import com.staydesk.model.request.EmployeeLoginRequest;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.service.SupabaseAdminClient;
@@ -30,7 +31,7 @@ public class AuthController {
     }
 
     @PostMapping("employee/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody EmployeeLoginRequest request) {
+    public ResponseEntity<SupabaseAuthResponse> login(@RequestBody EmployeeLoginRequest request) {
         LOGGER.info("Received login request: {}", request);
         Optional<Employee> employee = employeeRepository.findByUsername(request.username());
 
@@ -41,6 +42,7 @@ public class AuthController {
         try {
             return ResponseEntity.ok(supabaseAdminClient.signIn(employee.get().email(), request.pin()));
         } catch (Exception ex) {
+            LOGGER.error("Supabase signIn failed: {}", ex.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }

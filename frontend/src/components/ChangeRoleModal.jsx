@@ -48,6 +48,8 @@ function ChangeRoleModal({ employee, onSaved, onClose }) {
                         </select>
                     </div>
 
+                    <p className="text-sm text-charcoal/60">Role changes take effect on the employee's next login.</p>
+
                     {error && <p className="text-sm text-rust">{error}</p>}
 
                     <div className="flex justify-end gap-3 mt-2">

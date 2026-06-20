@@ -12,7 +12,8 @@ export default function Layout() {
 
     const adminOnly = role === 'ADMIN'
     const showRooms = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
-    const showReservationsAndDashboard = ['ADMIN', 'MANAGER', 'FRONT_DESK', 'HOUSEKEEPING'].includes(role)
+    const showDashboard = ['ADMIN', 'MANAGER', 'FRONT_DESK', 'HOUSEKEEPING'].includes(role)
+    const showReservations = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
 
     return (
         <div className="layout">
@@ -37,8 +38,8 @@ export default function Layout() {
                     <span className="nav-logo">Stay<span>Desk</span></span>
                 </div>
                 <nav className="sidebar-nav">
-                    {showReservationsAndDashboard && (
-                        <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                    {showDashboard && (
+                        <NavLink to={role === 'HOUSEKEEPING' ? '/housekeeping' : '/'} end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <LayoutDashboard size={18} />
                             <span>Dashboard</span>
                         </NavLink>
@@ -49,7 +50,7 @@ export default function Layout() {
                             <span>Rooms</span>
                         </NavLink>
                     )}
-                    {showReservationsAndDashboard && (
+                    {showReservations && (
                         <NavLink to="/reservations" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <CalendarDays size={18} />
                             <span>Reservations</span>
