@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Staydesk is a lightweight motel management app for a single small property (~10-15 rooms). MVP modules: guest management (reservations, check-in/out, folio), Stripe payments, and Gusto payroll integration. Auth is Supabase. Single-tenant — one property, no multi-tenancy.
+Staydesk is a lightweight motel management app for a single small property (Martin House — 27 rooms). MVP modules: guest management (reservations, check-in/out, folio), Stripe payments, and Gusto payroll integration. Auth is Supabase. Single-tenant — one property, no multi-tenancy.
 
 ## Commands
 
