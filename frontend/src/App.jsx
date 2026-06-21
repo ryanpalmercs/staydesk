@@ -8,6 +8,7 @@ import RoomsPage from './pages/RoomsPage'
 import ReservationsPage from './pages/ReservationsPage'
 import PayrollPage from './pages/PayrollPage'
 import DashboardPage from './pages/DashboardPage'
+import HousekeepingDashboardPage from './pages/HousekeepingDashboardPage'
 import SettingsPage from './pages/SettingsPage'
 import EmployeesPage from './pages/EmployeesPage'
 import { useEffect, useState } from 'react'
@@ -49,6 +50,11 @@ export default function App() {
                                 <Route path="/" element={<DashboardPage />} />
                                 <Route path="/rooms" element={<RoomsPage />} />
                                 <Route path="/reservations" element={<ReservationsPage />} />
+                            </Route>
+                        </Route>
+                        <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
+                            <Route element={<Layout />}>
+                                <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
                             </Route>
                         </Route>
                         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
