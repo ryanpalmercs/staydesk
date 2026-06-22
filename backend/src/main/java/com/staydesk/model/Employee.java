@@ -10,7 +10,8 @@ import java.util.UUID;
 
 @Table("employees")
 public record Employee(@Id UUID id, String firstName, String lastName, String email, String username, int employeeTypeId,
-                       BigDecimal payRate, LocalDate hireDate, boolean active, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                       BigDecimal payRate, LocalDate hireDate, boolean active, ContactInfo contactInfo,
+                       LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public String getName() {
         return firstName + " " + lastName;

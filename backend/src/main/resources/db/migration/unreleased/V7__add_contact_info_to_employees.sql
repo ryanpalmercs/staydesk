@@ -1,0 +1,1 @@
+ALTER TABLE IF EXISTS employees ADD COLUMN contact_info JSONB;
