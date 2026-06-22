@@ -1,0 +1,3 @@
+ALTER TABLE time_entries
+ALTER COLUMN clock_out DROP NOT NULL,
+    ALTER COLUMN hours DROP NOT NULL;
