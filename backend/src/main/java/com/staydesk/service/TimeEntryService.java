@@ -6,6 +6,7 @@ import com.staydesk.model.TimeEntry;
 import com.staydesk.model.request.ClockInRequest;
 import com.staydesk.model.request.ClockOutRequest;
 import com.staydesk.model.request.ManualTimeEntryRequest;
+import com.staydesk.model.request.UpdateTimeEntryRequest;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.TimeEntryRepository;
 import org.springframework.data.jdbc.core.JdbcAggregateTemplate;
@@ -89,7 +90,7 @@ public class TimeEntryService {
         ));
     }
 
-    public TimeEntry updateEntry(Long id, ManualTimeEntryRequest request) {
+    public TimeEntry updateEntry(Long id, UpdateTimeEntryRequest request) {
         TimeEntry existing = timeEntryRepository.findById(id)
                                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Time entry not found"));
 
