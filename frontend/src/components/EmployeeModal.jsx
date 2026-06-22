@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react"
-import { createEmployee, getEmployeeTypes } from "../api/employeeApi"
+import { useEffect, useRef, useState } from "react"
+import { createEmployee, getEmployeeTypes, getPayRateTypes, updateEmployeePersonalInfo } from "../api/employeeApi"
+import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
+import { formatPhone } from "../utils/phone"
 
 function EmployeeModal({ employee, onSaved, onClose }) {
+    const isEditing = employee != null
+    const [focused, setFocused] = useState(false)
+    const [phoneFocused, setPhoneFocused] = useState(false)
+
     const [form, setForm] = useState({
         firstName: employee?.firstName ?? '',
         lastName: employee?.lastName ?? '',
@@ -9,12 +15,22 @@ function EmployeeModal({ employee, onSaved, onClose }) {
         username: employee?.username ?? '',
         employeeTypeId: employee?.employeeTypeId ?? '',
         payRate: employee?.payRate ?? '',
+        payRateType: employee?.payRateType ?? 'HOURLY',
         hireDate: employee?.hireDate ?? '',
-        pin: ''
+        pin: '',
+        phone: employee?.contactInfo?.phone ?? '',
+        addressLine1: employee?.contactInfo?.addressLine1 ?? '',
+        addressLine2: employee?.contactInfo?.addressLine2 ?? '',
+        city: employee?.contactInfo?.city ?? '',
+        state: employee?.contactInfo?.state ?? '',
+        zipCode: employee?.contactInfo?.zipCode ?? ''
     })
     const [error, setError] = useState('')
     const [confirmPin, setConfirmPin] = useState('')
     const [employeeTypes, setEmployeeTypes] = useState([])
+    const [payRateTypes, setPayRateTypes] = useState([])
+    const initialFormRef = useRef(form)
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
@@ -24,6 +40,10 @@ function EmployeeModal({ employee, onSaved, onClose }) {
         getEmployeeTypes()
             .then(res => setEmployeeTypes(res.data))
             .catch(err => console.error(err))
+
+        getPayRateTypes()
+            .then(res => setPayRateTypes(res.data))
+            .catch(err => console.error(err))
     }, [])
 
     async function handleSubmit(e) {
@@ -31,15 +51,29 @@ function EmployeeModal({ employee, onSaved, onClose }) {
         try {
             setError('')
 
-            if (form.pin !== confirmPin) {
-                setError('PINs do not match')
-                return
+            if (isEditing) {
+                await updateEmployeePersonalInfo(employee.id, {
+                    ...employee, ...form, contactInfo: {
+                        phone: form.phone,
+                        addressLine1: form.addressLine1,
+                        addressLine2: form.addressLine2,
+                        city: form.city,
+                        state: form.state,
+                        zipCode: form.zipCode
+                    }
+                })
+            } else {
+                if (form.pin !== confirmPin) {
+                    setError('PINs do not match')
+                    return
+                }
+
+                await createEmployee(form)
             }
 
-            await createEmployee(form)
             onSaved()
         } catch (err) {
-            setError('Failed to create employee')
+            setError(isEditing ? 'Failed to update employee' : 'Failed to create employee')
             console.error(err)
         }
     }
@@ -48,39 +82,91 @@ function EmployeeModal({ employee, onSaved, onClose }) {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
                 <h2 className="text-lg text-charcoal font-semibold mb-4">
-                    Add Employee
+                    {isEditing ? 'Edit Employee' : 'Add Employee'}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    <div>
+                    <div className="flex flex-col gap-2">
                         <label className="block text-sm text-muted mb-1">Name</label>
-                        <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input" required />
-                        <input name="lastName" value={form.lastName} onChange={handleChange} className="filter-input" required />
+                        <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input" placeholder="First Name" required />
+                        <input name="lastName" value={form.lastName} onChange={handleChange} className="filter-input" placeholder="Last Name" required />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                        <label className="block text-sm text-muted mb-1">Address</label>
+                        <input name="addressLine1" value={form.addressLine1} onChange={handleChange} className="filter-input" placeholder="Address Line 1" required />
+                        <input name="addressLine2" value={form.addressLine2} onChange={handleChange} className="filter-input" placeholder="Address Line 2" />
+                        <div className="flex gap-2">
+                            <input name="city" placeholder="City" value={form.city} onChange={handleChange} className="filter-input flex-1" />
+                            <input name="state" placeholder="State" value={form.state} onChange={handleChange} className="filter-input w-16" />
+                            <input name="zipCode" placeholder="ZIP" value={form.zipCode} onChange={e => setForm({ ...form, zipCode: e.target.value.replace(/\D/g, '').slice(0, 5) })} className="filter-input w-24" />
+                        </div>
                     </div>
 
                     <div>
-                        <label className="block text-sm text-muted mb-1">Email</label>
-                        <input name="email" value={form.email} onChange={handleChange} className="filter-input" required />
+                        <label className="block text-sm text-muted mb-1">Phone Number</label>
+                        <input
+                            name="phone"
+                            value={phoneFocused ? form.phone : formatPhone(form.phone)}
+                            onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                            onFocus={() => setPhoneFocused(true)}
+                            onBlur={() => { setPhoneFocused(false); setForm({ ...form, phone: form.phone.replace(/\D/g, '') }) }}
+                            className="filter-input"
+                            placeholder="(###) ###-####"
+
+                        />
                     </div>
 
-                    <div>
-                        <label className="block text-sm text-muted mb-1">User Name</label>
-                        <input name="username" value={form.username} onChange={handleChange} className="filter-input" required />
-                    </div>
+                    {isEditing ?
+                        <>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Email</label>
+                                <label className="block text-sm text-rust mb-1">{employee.email}</label>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">User Name</label>
+                                <label className="block text-sm text-rust mb-1">{employee.username}</label>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Role</label>
+                                <label className="block text-sm text-rust mb-1">
+                                    {employeeTypes.find(t => t.id === employee.employeeTypeId)?.name}
+                                </label>
+                            </div>
+                        </> :
+                        <>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Email</label>
+                                <input name="email" value={form.email} onChange={handleChange} className="filter-input" required />
+                            </div>
 
-                    <div>
-                        <label className="block text-sm text-muted mb-1">Role</label>
-                        <select name="employeeTypeId" value={form.employeeTypeId} onChange={handleChange} className="filter-input" required>
-                            <option value="">Select a role</option>
-                            {employeeTypes.map(type => (
-                                <option key={type.id} value={type.id}>{type.name}</option>
-                            ))}
-                        </select>
-                    </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">User Name</label>
+                                <input name="username" value={form.username} onChange={handleChange} className="filter-input" required />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Role</label>
+                                <select name="employeeTypeId" value={form.employeeTypeId} onChange={handleChange} className="filter-input" required>
+                                    <option value="">Select a role</option>
+                                    {employeeTypes.map(type => (
+                                        <option key={type.id} value={type.id}>{type.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </>
+                    }
 
                     <div>
                         <label className="block text-sm text-muted mb-1">Pay Rate</label>
-                        <input type="number" name="payRate" value={form.payRate} onChange={handleChange} className="filter-input" step="0.01" required />
+                        <div className="flex gap-2">
+                            <input type="text" name="payRate" value={focused ? form.payRate : displayPrice(form.payRate)} onChange={e => setForm({ ...form, payRate: sanitizePrice(e.target.value) })} onBlur={e => { setFocused(false); setForm: formatPrice(sanitizePrice(e.target.value)) }} onFocus={() => setFocused(true)} className="filter-input" required />
+                            <select name="payRateType" value={form.payRateType} onChange={handleChange} className="filter-input" required>
+                                {payRateTypes.map(t => (
+                                    <option key={t.value} value={t.value}>{t.displayName}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     <div>
@@ -88,15 +174,20 @@ function EmployeeModal({ employee, onSaved, onClose }) {
                         <input type="date" name="hireDate" value={form.hireDate} onChange={handleChange} className="filter-input" required />
                     </div>
 
-                    <div>
-                        <label className="block text-sm text-muted mb-1">PIN</label>
-                        <input type="password" maxLength={6} inputMode="numeric" placeholder="PIN" name="pin" value={form.pin} onChange={handleChange} className="filter-input" required />
-                    </div>
+                    {!isEditing &&
+                        <>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">PIN</label>
+                                <input type="password" maxLength={6} inputMode="numeric" placeholder="PIN" name="pin" value={form.pin} onChange={handleChange} className="filter-input" required />
+                            </div>
 
-                    <div>
-                        <label className="block text-sm text-muted mb-1">Confirm PIN</label>
-                        <input type="password" maxLength={6} inputMode="numeric" placeholder="Confirm PIN" onChange={e => setConfirmPin(e.target.value)} className="filter-input" required />
-                    </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Confirm PIN</label>
+                                <input type="password" maxLength={6} inputMode="numeric" placeholder="Confirm PIN" onChange={e => setConfirmPin(e.target.value)} className="filter-input" required />
+                            </div>
+                        </>
+                    }
 
                     {error && <p className="text-sm text-rust">{error}</p>}
 
@@ -104,8 +195,8 @@ function EmployeeModal({ employee, onSaved, onClose }) {
                         <button type="button" onClick={onClose} className="btn btn-secondary">
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary">
-                            Add Employee
+                        <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
+                            {isEditing ? 'Update Employee' : 'Add Employee'}
                         </button>
                     </div>
                 </form>

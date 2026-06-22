@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { getEmployeeTypes, updateEmployeeRole } from "../api/employeeApi"
 
 function ChangeRoleModal({ employee, onSaved, onClose }) {
@@ -7,6 +7,8 @@ function ChangeRoleModal({ employee, onSaved, onClose }) {
     })
     const [error, setError] = useState('')
     const [employeeTypes, setEmployeeTypes] = useState([])
+    const initialFormRef = useRef(form)
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
@@ -56,7 +58,7 @@ function ChangeRoleModal({ employee, onSaved, onClose }) {
                         <button type="button" onClick={onClose} className="btn btn-secondary">
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-primary" disabled={isDirty}>
                             Submit
                         </button>
                     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createReservation, updateReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { createGuest, getGuests } from "../api/guestApi"
@@ -31,6 +31,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         email: '',
         phoneNumber: ''
     })
+    const initialFormRef = useRef(form)
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
     const [error, setError] = useState(null)
 
@@ -269,7 +271,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         <button type="button" onClick={onClose} className="btn btn-secondary">
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
                             {isEditing ? 'Save' : 'Create'}
                         </button>
                     </div>

@@ -27,3 +27,11 @@ export function deleteEmployee(id) {
 export function getEmployeeTypes() {
     return api.get('/admin/employeeTypes')
 }
+
+export function updateEmployeePersonalInfo(id, employee) {
+    return api.put(`/admin/employees/${id}`, employee)
+}
+
+export function getPayRateTypes() {
+    return api.get('/admin/payRateTypes')
+}

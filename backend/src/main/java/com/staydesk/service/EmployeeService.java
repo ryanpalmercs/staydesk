@@ -74,7 +74,7 @@ public class EmployeeService {
         return jdbcAggregateTemplate.insert(new Employee(supabaseId, createEmployeeRequest.firstName(),
                 createEmployeeRequest.lastName(), createEmployeeRequest.email(), createEmployeeRequest.username(),
                 createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(), createEmployeeRequest.hireDate(),
-                true, createEmployeeRequest.contactInfo(), now, now));
+                true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(), now, now));
     }
 
     public void updateEmployeeRole(UUID id, int employeeTypeId) {
@@ -99,6 +99,6 @@ public class EmployeeService {
         String contactInfoString = objectMapper.writeValueAsString(request.contactInfo());
 
         employeeRepository.updatePersonalInfo(id, request.firstName(), request.lastName(), request.payRate(), request.hireDate(),
-                contactInfoString);
+                contactInfoString, request.payRateType().name());
     }
 }

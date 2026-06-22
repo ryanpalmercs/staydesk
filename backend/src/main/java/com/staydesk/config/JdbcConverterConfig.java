@@ -6,6 +6,8 @@ import org.postgresql.util.PGobject;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.data.convert.ReadingConverter;
+import org.springframework.data.convert.WritingConverter;
 import org.springframework.data.jdbc.core.convert.JdbcCustomConversions;
 
 import java.util.List;
@@ -18,6 +20,7 @@ public class JdbcConverterConfig  {
         return new JdbcCustomConversions(List.of(new Writer(objectMapper), new Reader(objectMapper)));
     }
 
+    @WritingConverter
     static class Writer implements Converter<ContactInfo, PGobject> {
         private final ObjectMapper objectMapper;
 
@@ -38,6 +41,7 @@ public class JdbcConverterConfig  {
         }
     }
 
+    @ReadingConverter
     static class Reader implements Converter<PGobject, ContactInfo> {
         private final ObjectMapper objectMapper;
 

@@ -1,0 +1,3 @@
+ALTER TABLE IF EXISTS employees
+    ADD COLUMN contact_info  JSONB,
+    ADD COLUMN pay_rate_type VARCHAR NOT NULL DEFAULT 'HOURLY';
