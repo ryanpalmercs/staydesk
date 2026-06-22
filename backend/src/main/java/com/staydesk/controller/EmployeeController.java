@@ -1,10 +1,13 @@
 package com.staydesk.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.staydesk.exception.EmployeeAlreadyExistsException;
 import com.staydesk.model.Employee;
 import com.staydesk.model.EmployeeType;
+import com.staydesk.model.PayRateTypeResponse;
 import com.staydesk.model.request.CreateEmployeeRequest;
 import com.staydesk.model.request.UpdateEmployeeRequest;
+import com.staydesk.model.request.UpdatePersonalInfoRequest;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.EmployeeTypeRepository;
 import com.staydesk.service.EmployeeService;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -102,5 +106,24 @@ public class EmployeeController {
         LOGGER.info("Getting employee types");
 
         return employeeTypeRepository.findAll();
+    }
+
+    @PutMapping("employees/{id}")
+    public ResponseEntity<Void> updateEmployeePersonalInfo(@PathVariable UUID id, @Valid @RequestBody UpdatePersonalInfoRequest request) {
+        LOGGER.info("Updating employee personal info with id: {}", id);
+
+        try {
+            employeeService.updateEmployeePersonalInfo(id, request);
+            return ResponseEntity.noContent().build();
+        } catch (JsonProcessingException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("payRateTypes")
+    public List<PayRateTypeResponse> getPayRateTypes() {
+        return Arrays.stream(Employee.PayRateType.values())
+                .map(PayRateTypeResponse::from)
+                .toList();
     }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { createRoom, updateRoom } from "../api/roomApi"
 
 function RoomModal({ room, onSaved, onClose }) {
@@ -10,6 +10,8 @@ function RoomModal({ room, onSaved, onClose }) {
         nightlyRate: room?.nightlyRate ?? '',
         status: room?.status ?? 'AVAILABLE'
     })
+    const initialFormRef = useRef(form)
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
@@ -18,7 +20,7 @@ function RoomModal({ room, onSaved, onClose }) {
     async function handleSubmit(e) {
         e.preventDefault()
         try {
-            let result 
+            let result
             if (isEditing) {
                 result = await updateRoom(room.id, { ...room, ...form })
             } else {
@@ -75,7 +77,7 @@ function RoomModal({ room, onSaved, onClose }) {
                         <button type="button" onClick={onClose} className="btn btn-secondary">
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
                             {isEditing ? 'Save' : 'Add Room'}
                         </button>
                     </div>

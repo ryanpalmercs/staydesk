@@ -35,6 +35,12 @@ body {
     background: var(--color-rust-light);
 }
 
+.btn-primary:disabled {
+    background: var(--color-tan);
+    color: var(--color-muted);
+    cursor: not-allowed;
+}
+
 .btn-secondary {
     border: 1px solid var(--color-tan);
     color: var(--color-muted);
