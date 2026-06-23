@@ -2,29 +2,55 @@ import { useState, useEffect } from 'react'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import { getRooms } from '../api/roomApi'
-import { getReservations } from '../api/reservationApi'
+import { getReservations, checkIn } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
 import './DashboardPage.css'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import interactionPlugin from '@fullcalendar/interaction'
+import ReservationSummaryModal from '../components/ReservationSummaryModal'
+import CheckInPaymentModal from '../components/CheckInPaymentModal'
 
-export default function DashboardPage() {
+const STATUS_COLORS = {
+    CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
+    CHECKED_IN: { backgroundColor: '#dcfce7', textColor: '#166534', borderColor: '#dcfce7' },
+    CHECKED_OUT: { backgroundColor: '#f3f4f6', textColor: '#4b5563', borderColor: '#f3f4f6' },
+}
+
+function DashboardPage() {
     const [rooms, setRooms] = useState([])
     const [reservations, setReservations] = useState([])
     const [guests, setGuests] = useState([])
     const [calDate, setCalDate] = useState(new Date())
     const [calView, setCalView] = useState('month')
+    const navigate = useNavigate()
+    const [selectedEvent, setSelectedEvent] = useState(null)
+    const [checkInTarget, setCheckInTarget] = useState(null)
 
-    useEffect(() => {
+    function fetchData() {
         Promise.all([getRooms(), getReservations(), getGuests()])
             .then(([r, res, g]) => {
                 setRooms(r.data)
                 setReservations(res.data)
                 setGuests(g.data)
             })
-    }, [])
+    }
+
+    useEffect(() => { fetchData() }, [])
+
+    async function handleCheckInConfirmed(roomPaymentMethodId, incidentalsPaymentMethodId) {
+        try {
+            await checkIn(checkInTarget, roomPaymentMethodId, incidentalsPaymentMethodId)
+            setCheckInTarget(null)
+            setSelectedEvent(null)
+            fetchData()
+        } catch (err) {
+            console.error('Check-in failed:', err, 'checkInTarget:', checkInTarget)
+            throw err
+        }
+    }
 
     const today = new Date().toISOString().split('T')[0]
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
@@ -41,7 +67,16 @@ export default function DashboardPage() {
             title: `${guestsMap[r.guestId]?.firstName ?? 'Guest'} — Rm ${roomsMap[r.roomId]?.roomNumber}`,
             start: new Date(r.checkInDate + 'T12:00:00'),
             end: new Date(r.checkOutDate + 'T12:00:00'),
-            allDay: true
+            allDay: true,
+            ...STATUS_COLORS[r.status],
+            extendedProps: {
+                reservationId: r.id,
+                status: r.status,
+                guestId: r.guestId,
+                roomId: r.roomId,
+                checkInDate: r.checkInDate,
+                checkOutDate: r.checkOutDate
+            }
         }))
 
     return (
@@ -86,7 +121,7 @@ export default function DashboardPage() {
 
             <div className="dashboard-calendar">
                 <FullCalendar
-                    plugins={[dayGridPlugin, timeGridPlugin]}
+                    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                     initialView="dayGridMonth"
                     headerToolbar={{
                         left: 'prev,next today',
@@ -94,10 +129,37 @@ export default function DashboardPage() {
                         right: 'dayGridMonth,timeGridWeek'
                     }}
                     events={events}
-                    eventColor="var(--color-rust)"
+                    eventContent={arg => (
+                        <div
+                            onClick={() => setSelectedEvent(arg.event.extendedProps)}
+                            style={{ cursor: 'pointer', padding: '2px 4px', width: '100%', fontSize: '0.85em' }}
+                        >
+                            {arg.event.title}
+                        </div>
+                    )}
                     height="auto"
                 />
             </div>
+
+            {selectedEvent && !checkInTarget && (
+                <ReservationSummaryModal
+                    reservation={selectedEvent}
+                    guest={guestsMap[selectedEvent.guestId]}
+                    room={roomsMap[selectedEvent.roomId]}
+                    onClose={() => setSelectedEvent(null)}
+                    onCheckIn={() => setCheckInTarget(selectedEvent.reservationId)}
+                    onNavigate={navigate}
+                />
+            )}
+
+            {checkInTarget && (
+                <CheckInPaymentModal
+                    onConfirm={handleCheckInConfirmed}
+                    onClose={() => setCheckInTarget(null)}
+                />
+            )}
         </div>
     )
 }
+
+export default DashboardPage
