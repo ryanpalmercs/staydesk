@@ -5,8 +5,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
-public record UpdateTimeEntryRequest(@NotNull LocalDate date, @NotNull OffsetDateTime clockIn, @NotNull OffsetDateTime clockOut,
-                                     @NotNull @DecimalMin("0.0") BigDecimal hours, String notes) {
+public record UpdateTimeEntryRequest(@NotNull LocalDate date, @NotNull LocalDateTime clockIn,
+                                     @NotNull LocalDateTime clockOut, @NotNull @DecimalMin("0.0") BigDecimal hours,
+                                     String notes) {
 }

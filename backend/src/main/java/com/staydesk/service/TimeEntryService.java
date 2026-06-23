@@ -20,8 +20,8 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -46,7 +46,7 @@ public class TimeEntryService {
         });
 
         LocalDateTime now = LocalDateTime.now();
-        OffsetDateTime clockIn = OffsetDateTime.now();
+        LocalDateTime clockIn = LocalDateTime.now();
 
         return jdbcAggregateTemplate.insert(new TimeEntry(
                 null, employeeId, clockIn, null,
@@ -60,7 +60,7 @@ public class TimeEntryService {
         TimeEntry open = timeEntryRepository.getOpenEntry(employeeId)
                                             .orElseThrow(NotClockedInException::new);
 
-        OffsetDateTime clockOut = OffsetDateTime.now();
+        LocalDateTime clockOut = LocalDateTime.now();
         BigDecimal hours = computeHours(open.clockIn(), clockOut);
         LocalDateTime now = LocalDateTime.now();
 
@@ -74,7 +74,7 @@ public class TimeEntryService {
     }
 
     public List<TimeEntry> getEmployeeTimesheet(UUID employeeId, Jwt jwt, LocalDate start, LocalDate end) {
-        enforceOwnership(jwt, employeeId);
+        enforceOwnershipOrAdmin(jwt, employeeId);
 
         return timeEntryRepository.getByEmployeeAndDateRange(employeeId, start, end);
     }
@@ -83,10 +83,18 @@ public class TimeEntryService {
         employeeRepository.findById(request.employeeId())
                           .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
 
+        BigDecimal resolvedHours = request.hours();
+        if (resolvedHours == null) {
+            if (request.clockIn() == null || request.clockOut() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide either hours or both clock-in and clock-out times");
+            }
+            resolvedHours = computeHours(request.clockIn(), request.clockOut());
+        }
+
         LocalDateTime now = LocalDateTime.now();
         return jdbcAggregateTemplate.insert(new TimeEntry(
                 null, request.employeeId(), request.clockIn(), request.clockOut(),
-                request.date(), request.hours(), request.notes(), now, now
+                request.date(), resolvedHours, request.notes(), now, now
         ));
     }
 
@@ -121,7 +129,21 @@ public class TimeEntryService {
         }
     }
 
-    private BigDecimal computeHours(OffsetDateTime clockIn, OffsetDateTime clockOut) {
+    private void enforceOwnershipOrAdmin(Jwt jwt, UUID employeeId) {
+        UUID callerId = UUID.fromString(jwt.getSubject());
+
+        if (callerId.equals(employeeId)) {
+            return;
+        }
+
+        Map<String, Object> meta = jwt.getClaim("app_metadata");
+        if (meta != null && "ADMIN".equals(meta.get("role"))) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot access another employee's time entries");
+    }
+
+    private BigDecimal computeHours(LocalDateTime clockIn, LocalDateTime clockOut) {
         long minutes = Duration.between(clockIn, clockOut).toMinutes();
 
         return BigDecimal.valueOf(minutes).divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);

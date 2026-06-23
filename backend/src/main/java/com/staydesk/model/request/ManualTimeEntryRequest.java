@@ -5,9 +5,10 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record ManualTimeEntryRequest(@NotNull UUID employeeId, @NotNull LocalDate date, @NotNull OffsetDateTime clockIn, @NotNull OffsetDateTime clockOut,
-                                     @NotNull @DecimalMin("0.0") BigDecimal hours, String notes) {
+public record ManualTimeEntryRequest(@NotNull UUID employeeId, @NotNull LocalDate date, @NotNull LocalDateTime clockIn,
+                                     @NotNull LocalDateTime clockOut, @DecimalMin("0.0") BigDecimal hours,
+                                     String notes) {
 }
