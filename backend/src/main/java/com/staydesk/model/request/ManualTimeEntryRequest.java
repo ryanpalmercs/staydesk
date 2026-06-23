@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record ManualTimeEntryRequest(@NotNull UUID employeeId, @NotNull LocalDate date, @NotNull LocalDateTime clockIn,
-                                     @NotNull LocalDateTime clockOut, @DecimalMin("0.0") BigDecimal hours,
+public record ManualTimeEntryRequest(@NotNull UUID employeeId, @NotNull LocalDate date, LocalDateTime clockIn,
+                                     LocalDateTime clockOut, @DecimalMin("0.0") BigDecimal hours,
                                      String notes) {
 }
