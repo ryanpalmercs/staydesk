@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import { getRooms } from '../api/roomApi'
-import { getReservations, checkIn } from '../api/reservationApi'
+import { getReservations, checkIn, checkOut } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
+import { getFolioByReservationId } from '../api/folioApi'
 import './DashboardPage.css'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -12,6 +13,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import interactionPlugin from '@fullcalendar/interaction'
 import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
+import FolioModal from '../components/FolioModal'
 
 const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
@@ -28,6 +30,8 @@ function DashboardPage() {
     const navigate = useNavigate()
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
+    const [folioId, setFolioId] = useState(null)
+    const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
 
     function fetchData() {
         Promise.all([getRooms(), getReservations(), getGuests()])
@@ -47,9 +51,38 @@ function DashboardPage() {
             setSelectedEvent(null)
             fetchData()
         } catch (err) {
-            console.error('Check-in failed:', err, 'checkInTarget:', checkInTarget)
-            throw err
+            console.error('Check-in failed:', err)
         }
+    }
+
+    async function handleViewFolio() {
+        try {
+            const res = await getFolioByReservationId(selectedEvent.reservationId)
+            setFolioId(res.data.id)
+            setSelectedEvent(null)
+        } catch (err) {
+            console.error('Failed to find folio:', err)
+        }
+    }
+
+    async function handleCheckOut() {
+        try {
+            await checkOut(selectedEvent.reservationId)
+            const res = await getFolioByReservationId(selectedEvent.reservationId)
+            setFolioId(res.data.id)
+            setSelectedEvent(null)
+            fetchData()
+        } catch (err) {
+            console.error('Check-out failed:', err)
+        }
+    }
+
+    function toggleStatus(status) {
+        setVisibleStatuses(prev => {
+            const next = new Set(prev)
+            next.has(status) ? next.delete(status) : next.add(status)
+            return next
+        })
     }
 
     const today = new Date().toISOString().split('T')[0]
@@ -60,9 +93,8 @@ function DashboardPage() {
     const availableCount = rooms.filter(r => r.status === 'AVAILABLE').length
     const todayCheckIns = reservations.filter(r => r.checkInDate === today && r.status === 'CONFIRMED')
     const todayCheckOuts = reservations.filter(r => r.checkOutDate === today && r.status === 'CHECKED_IN')
-
     const events = reservations
-        .filter(r => r.status !== 'CANCELLED')
+        .filter(r => r.status !== 'CANCELLED' && visibleStatuses.has(r.status))
         .map(r => ({
             title: `${guestsMap[r.guestId]?.firstName ?? 'Guest'} — Rm ${roomsMap[r.roomId]?.roomNumber}`,
             start: new Date(r.checkInDate + 'T12:00:00'),
@@ -120,6 +152,22 @@ function DashboardPage() {
             </div>
 
             <div className="dashboard-calendar">
+                <div className="flex flex-row justify-center gap-3 mb-3">
+                    {[
+                        { status: 'CONFIRMED', label: 'Confirmed', color: '#F0E0C8' },
+                        { status: 'CHECKED_IN', label: 'Checked In', color: '#dcfce7' },
+                        { status: 'CHECKED_OUT', label: 'Checked Out', color: '#f3f4f6' },
+                    ].map(({ status, label, color }) => (
+                        <button
+                            key={status}
+                            onClick={() => toggleStatus(status)}
+                            className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded border border-tan transition-opacity ${visibleStatuses.has(status) ? 'opacity-100' : 'opacity-40'}`}
+                        >
+                            <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
+                            <span className="text-muted">{label}</span>
+                        </button>
+                    ))}
+                </div>
                 <FullCalendar
                     plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                     initialView="dayGridMonth"
@@ -148,7 +196,8 @@ function DashboardPage() {
                     room={roomsMap[selectedEvent.roomId]}
                     onClose={() => setSelectedEvent(null)}
                     onCheckIn={() => setCheckInTarget(selectedEvent.reservationId)}
-                    onNavigate={navigate}
+                    onCheckOut={handleCheckOut}
+                    onViewFolio={handleViewFolio}
                 />
             )}
 
@@ -157,6 +206,10 @@ function DashboardPage() {
                     onConfirm={handleCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
                 />
+            )}
+
+            {folioId && (
+                <FolioModal folioId={folioId} onClose={() => setFolioId(null)} onPaid={fetchData} />
             )}
         </div>
     )
