@@ -31,6 +31,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.postgresql:postgresql")
+    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+    implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")

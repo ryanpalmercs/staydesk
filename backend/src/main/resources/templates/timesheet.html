@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        @page {
+            size: letter;
+            margin: 1in;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            color: #222;
+        }
+
+        h1 {
+            font-size: 14pt;
+            margin: 0 0 4px;
+        }
+
+        .period {
+            font-size: 10pt;
+            color: #555;
+            margin-bottom: 24px;
+        }
+
+        .employee-section {
+            page-break-before: always;
+        }
+
+        .employee-section:first-child {
+            page-break-before: avoid;
+        }
+
+        h2 {
+            font-size: 11pt;
+            margin: 0 0 2px;
+        }
+
+        .pay-rate {
+            font-size: 9pt;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 6px;
+        }
+
+        th {
+            text-align: left;
+            border-bottom: 2px solid #333;
+            padding: 4px 6px;
+            font-size: 9pt;
+        }
+
+        td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .subtotal td {
+            border-top: 2px solid #333;
+            border-bottom: none;
+            font-weight: bold;
+        }
+
+        .grand-total {
+            margin-top: 24px;
+            font-weight: bold;
+            font-size: 11pt;
+        }
+    </style>
+</head>
+<body>
+<h1>Timesheet</h1>
+<div class="period"
+     th:text="${#temporals.format(report.start, 'MMM d, yyyy')} + ' – ' + ${#temporals.format(report.end, 'MMM d, yyyy')}">
+</div>
+
+<div th:each="row : ${report.employees}" class="employee-section">
+    <h2 th:text="${row.name}"></h2>
+    <div class="pay-rate" th:text="${row.payRateDisplay}"></div>
+    <table>
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Clock In</th>
+            <th>Clock Out</th>
+            <th>Hours</th>
+            <th>Notes</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="entry : ${row.entries}">
+            <td th:text="${#temporals.format(entry.date, 'MMM d, yyyy')}"></td>
+            <td th:text="${#temporals.format(entry.date, 'EEE')}"></td>
+            <td th:text="${entry.clockIn != null ? #temporals.format(entry.clockIn, 'h:mm a') : '—'}"></td>
+            <td th:text="${entry.clockOut != null ? #temporals.format(entry.clockOut, 'h:mm a') : '—'}"></td>
+            <td th:text="${entry.hours != null ? #numbers.formatDecimal(entry.hours, 1, 2) : '—'}"></td>
+            <td th:text="${entry.notes != null ? entry.notes : ''}"></td>
+        </tr>
+        </tbody>
+        <tfoot>
+        <tr class="subtotal">
+            <td colspan="4">Total</td>
+            <td th:text="${#numbers.formatDecimal(row.totalHours, 1, 2)}"></td>
+            <td></td>
+        </tr>
+        </tfoot>
+    </table>
+</div>
+
+<div class="grand-total"
+     th:text="'Grand Total: ' + ${#numbers.formatDecimal(report.totalHours, 1, 2)} + ' hrs'">
+</div>
+</body>
+</html>
