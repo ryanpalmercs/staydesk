@@ -27,3 +27,10 @@ export function updateTimeEntry(id, entry) {
 export function deleteTimeEntry(id) {
     return api.delete(`/admin/time-entries/${id}`)
 }
+
+export function exportTimesheets(startDate, endDate, format) {
+    return api.get('/admin/timesheets/export', {
+        params: { startDate, endDate, format },
+        responseType: 'blob'
+    })
+}

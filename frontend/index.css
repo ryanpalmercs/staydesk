@@ -57,6 +57,11 @@ body {
     color: var(--color-charcoal);
 }
 
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .feat-card {
     background: var(--color-warm-white);
     border: 1px solid var(--color-tan);
