@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getEmployees } from '../api/employeeApi'
-import { getPayPeriodEntries } from '../api/timeEntryApi'
+import { exportTimesheets, getPayPeriodEntries } from '../api/timeEntryApi'
 import { displayPrice } from '../utils/price'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 
 function getWeekStart(date) {
     const d = new Date(date)
@@ -30,6 +30,8 @@ export default function PayrollPage() {
     const [entries, setEntries] = useState([])
     const [loading, setLoading] = useState(true)
     const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
+    const [exporting, setExporting] = useState(false)
+    const [error, setError] = useState(null)
 
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
@@ -48,9 +50,30 @@ export default function PayrollPage() {
             const res = await getPayPeriodEntries(toISODate(weekStart), toISODate(weekEnd))
             setEntries(res.data)
         } catch (err) {
+            setError(`Failed to retrieve data for pay period ${toISODate(weekStart)} - ${toISODate(weekEnd)}.`)
             console.error(err)
         }
         setLoading(false)
+    }
+
+    async function handleExport(format) {
+        setExporting(true)
+
+        try {
+            const res = await exportTimesheets(toISODate(weekStart), toISODate(weekEnd), format)
+            const url = URL.createObjectURL(res.data)
+            const a = document.createElement('a')
+
+            a.href = url
+            a.download = `timesheet-${toISODate(weekStart)}-${toISODate(weekEnd)}.${format}`
+            a.click()
+            URL.revokeObjectURL(url)
+        } catch (err) {
+            setError('Export failed. Please try again.')
+            console.error(err)
+        }
+
+        setExporting(false)
     }
 
     const rows = employees
@@ -70,6 +93,14 @@ export default function PayrollPage() {
         <div>
             <div className="page-header mb-6">
                 <h1 className="section-title">Payroll</h1>
+                <div className="flex gap-2">
+                    <button onClick={() => handleExport('csv')} disabled={exporting} className="btn btn-secondary flex items-center gap-2">
+                        <Download size={16} /> CSV
+                    </button>
+                    <button onClick={() => handleExport('pdf')} disabled={exporting} className="btn btn-secondary flex items-center gap-2">
+                        <Download size={16} /> PDF
+                    </button>
+                </div>
             </div>
 
             <div className="flex items-center justify-between mb-6">
@@ -122,6 +153,8 @@ export default function PayrollPage() {
                     </table>
                 </div>
             )}
+
+            {error && <p className="text-rust text-sm mt-2">{error}</p>}
         </div>
     )
 }

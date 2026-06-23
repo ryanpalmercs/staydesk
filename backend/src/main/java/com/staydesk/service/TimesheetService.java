@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class TimesheetService {
+
+    private static DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
 
     private final TimeEntryRepository timeEntryRepository;
     private final EmployeeRepository employeeRepository;
@@ -119,8 +122,8 @@ public class TimesheetService {
                        row.name(),
                        e.date(),
                        e.date().getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.US),
-                       e.clockIn() != null ? e.clockIn().toLocalTime() : "",
-                       e.clockOut() != null ? e.clockOut().toLocalTime() : "",
+                       e.clockIn() != null ? formatter.format(e.clockIn().toLocalTime()) : "",
+                       e.clockOut() != null ? formatter.format(e.clockOut().toLocalTime()) : "",
                        e.hours() != null ? e.hours().toPlainString() : "",
                        e.notes() != null ? e.notes().replace("\"", "\"\"") : ""
                )).forEach(stringBuilder::append);

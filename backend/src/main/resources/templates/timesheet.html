@@ -25,9 +25,7 @@
             margin-bottom: 24px;
         }
 
-        .employee-section {
-            page-break-before: always;
-        }
+        .page-break { page-break-before: always; }
 
         .employee-section:first-child {
             page-break-before: avoid;
@@ -78,10 +76,10 @@
 <body>
 <h1>Timesheet</h1>
 <div class="period"
-     th:text="${#temporals.format(report.start, 'MMM d, yyyy')} + ' – ' + ${#temporals.format(report.end, 'MMM d, yyyy')}">
+     th:text="${#temporals.format(report.startDate, 'MMM d, yyyy')} + ' – ' + ${#temporals.format(report.endDate, 'MMM d, yyyy')}">
 </div>
 
-<div th:each="row : ${report.employees}" class="employee-section">
+<div th:each="row, rowStat : ${report.employees}" th:class="${rowStat.first} ? 'employee-section' : 'employee-section page-break'">
     <h2 th:text="${row.name}"></h2>
     <div class="pay-rate" th:text="${row.payRateDisplay}"></div>
     <table>
