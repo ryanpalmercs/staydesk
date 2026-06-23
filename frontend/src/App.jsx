@@ -13,9 +13,11 @@ import SettingsPage from './pages/SettingsPage'
 import EmployeesPage from './pages/EmployeesPage'
 import { useEffect, useState } from 'react'
 import api from './api/baseApi'
+import TimesheetPage from './pages/TimesheetPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
+
 
 export default function App() {
     const [wakingUp, setWakingUp] = useState(false)
@@ -50,6 +52,7 @@ export default function App() {
                                 <Route path="/" element={<DashboardPage />} />
                                 <Route path="/rooms" element={<RoomsPage />} />
                                 <Route path="/reservations" element={<ReservationsPage />} />
+                                <Route path="/timesheet/:id" element={<TimesheetPage />} />
                             </Route>
                         </Route>
                         <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>

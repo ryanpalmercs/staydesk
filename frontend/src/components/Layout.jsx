@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users } from 'lucide-react'
+import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import './Layout.css'
 
 export default function Layout() {
-    const { role, signOut } = useAuth()
+    const { role, signOut, user } = useAuth()
     const [drawerOpen, setDrawerOpen] = useState(false)
 
     const closeDrawer = () => setDrawerOpen(false)
@@ -14,6 +14,7 @@ export default function Layout() {
     const showRooms = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
     const showDashboard = ['ADMIN', 'MANAGER', 'FRONT_DESK', 'HOUSEKEEPING'].includes(role)
     const showReservations = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
+    const showTimesheet = !adminOnly
 
     return (
         <div className="layout">
@@ -42,6 +43,12 @@ export default function Layout() {
                         <NavLink to={role === 'HOUSEKEEPING' ? '/housekeeping' : '/'} end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <LayoutDashboard size={18} />
                             <span>Dashboard</span>
+                        </NavLink>
+                    )}
+                    {showTimesheet && (
+                        <NavLink to={`/timesheet/${user?.id}`} className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                            <Clock size={18} />
+                            <span>Timesheet</span>
                         </NavLink>
                     )}
                     {showRooms && (
