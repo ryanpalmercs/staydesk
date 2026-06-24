@@ -26,16 +26,19 @@ public class PropertySettingsController {
 
     @GetMapping
     public List<PropertySetting> getProperties() {
+        LOGGER.info("Getting properties");
         return propertySettingsService.getProperties();
     }
 
     @GetMapping("/{name}")
     public PropertySetting getProperty(@PathVariable String name) {
+        LOGGER.info("Getting property {}", name);
         return propertySettingsService.getProperty(name);
     }
 
     @PutMapping("/{name}")
     public PropertySetting updateProperty(@PathVariable String name, @RequestParam String value) {
+        LOGGER.info("Updating property {}", name);
         return propertySettingsService.updateProperty(name, value);
     }
 }
