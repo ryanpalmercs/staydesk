@@ -70,7 +70,7 @@ public class ReservationController {
                     new Reservation(0, request.guestId(), request.roomId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), LocalDateTime.now(), LocalDateTime.now()),
-                    "");
+                    request.roomPaymentMethodId());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
         } catch (RoomNotFoundException | RateNotFoundException e) {
