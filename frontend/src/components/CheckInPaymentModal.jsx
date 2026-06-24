@@ -3,8 +3,6 @@ import { CardElement, Elements, useElements, useStripe } from "@stripe/react-str
 import { loadStripe } from "@stripe/stripe-js"
 import { getConnectStatus } from "../api/stripeApi"
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-
 function CheckInPaymentForm({ onConfirm, onClose }) {
     const stripe = useStripe()
     const elements = useElements()
@@ -23,13 +21,6 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
 
         const card = elements.getElement(CardElement)
 
-        const roomResult = await stripe.createPaymentMethod({ type: 'card', card })
-        if (roomResult.error) {
-            setError(roomResult.error.message)
-            setSubmitting(false)
-            return
-        }
-
         const incidentalsResult = await stripe.createPaymentMethod({ type: 'card', card })
         if (incidentalsResult.error) {
             setError(incidentalsResult.error.message)
@@ -38,7 +29,7 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
         }
 
         try {
-            await onConfirm(roomResult.paymentMethod.id, incidentalsResult.paymentMethod.id)
+            await onConfirm(incidentalsResult.paymentMethod.id)
         } catch (err) {
             setError('Failed to check in. Please try a different card.')
             setSubmitting(false)
@@ -84,10 +75,9 @@ function CheckInPaymentModal({ onConfirm, onClose }) {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">Card for Holds</h2>
+                <h2 className="text-lg text-charcoal font-semibold mb-4">Card for Incidentals</h2>
                 <p className="text-sm text-muted mb-4">
-                    We'll place two holds on this card: one for the estimated stay, one as an incidentals buffer.
-                    Neither is charged until checkout.
+                    We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout.
                 </p>
                 {error && <p className="text-sm text-rust mb-4">{error}</p>}
                 {stripePromise && (

@@ -52,19 +52,30 @@ public class PaymentService {
                              .build();
     }
 
-    public List<FolioPayment> createHolds(Folio folio, BigDecimal estimatedStayAmount,
-                                          String roomPaymentMethodId, String incidentalsPaymentMethodId) {
+    public void createIncidentalHold(Folio folio, String incidentalsPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
         RequestOptions options = connectedAccountOptions();
 
-        FolioPayment roomHold = createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, roomPaymentMethodId, options, now);
-        FolioPayment incidentalsHold = createHold(folio.id(), PaymentKind.INCIDENTALS, incidentalsHoldAmount, incidentalsPaymentMethodId, options, now);
-
-        return List.of(roomHold, incidentalsHold);
+        createHold(folio.id(), PaymentKind.INCIDENTALS, incidentalsHoldAmount, incidentalsPaymentMethodId, options, now);
     }
 
-    private FolioPayment createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId,
-                                    RequestOptions options, LocalDateTime now) {
+    public void createRoomHold(Folio folio, BigDecimal estimatedStayAmount, String roomPaymentMethodId) {
+        LocalDateTime now = LocalDateTime.now();
+        RequestOptions options = connectedAccountOptions();
+
+        createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, roomPaymentMethodId, options, now);
+    }
+
+    public void cancelOpenHolds(Folio folio) {
+        RequestOptions options = connectedAccountOptions();
+
+        folioPaymentRepository.findByFolioId(folio.id()).stream()
+                              .filter(p -> p.status() == PaymentStatus.REQUIRES_CAPTURE)
+                              .forEach(p -> cancelHold(p, options));
+    }
+
+    private void createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId,
+                            RequestOptions options, LocalDateTime now) {
 
         try {
             PaymentIntent intent = PaymentIntent.create(
@@ -79,7 +90,7 @@ public class PaymentService {
                     options
             );
 
-            return folioPaymentRepository.save(new FolioPayment(0, folioId, kind, intent.getId(),
+            folioPaymentRepository.save(new FolioPayment(0, folioId, kind, intent.getId(),
                     PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
         } catch (StripeException e) {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folioId, e);

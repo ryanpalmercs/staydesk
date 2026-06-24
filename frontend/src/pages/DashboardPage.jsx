@@ -44,9 +44,9 @@ function DashboardPage() {
 
     useEffect(() => { fetchData() }, [])
 
-    async function handleCheckInConfirmed(roomPaymentMethodId, incidentalsPaymentMethodId) {
+    async function handleCheckInConfirmed(incidentalsPaymentMethodId) {
         try {
-            await checkIn(checkInTarget, roomPaymentMethodId, incidentalsPaymentMethodId)
+            await checkIn(checkInTarget, incidentalsPaymentMethodId)
             setCheckInTarget(null)
             setSelectedEvent(null)
             fetchData()

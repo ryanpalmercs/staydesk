@@ -88,8 +88,8 @@ function ReservationsPage() {
         setCheckInTarget(id)
     }
 
-    async function handleCheckInConfirmed(roomPaymentMethodId, incidentalsPaymentMethodId) {
-        await checkIn(checkInTarget, roomPaymentMethodId, incidentalsPaymentMethodId)
+    async function handleCheckInConfirmed(incidentalsPaymentMethodId) {
+        await checkIn(checkInTarget, incidentalsPaymentMethodId)
         setCheckInTarget(null)
         await fetchReservations()
     }
