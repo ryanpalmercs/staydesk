@@ -73,7 +73,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation createReservation(Reservation reservation) {
+    public Reservation createReservation(Reservation reservation, String roomPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
 
         Room room = roomRepository.findById(reservation.roomId())
@@ -91,9 +91,8 @@ public class ReservationService {
             throw new DateConflictException();
         }
 
-        if (rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount()).isEmpty()) {
-            throw new RateNotFoundException();
-        }
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
 
         if ((reservation.rateType().equals(Rate.RateType.WEEKLY_5) && ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) % 5 != 0)
             || (reservation.rateType().equals(Rate.RateType.WEEKLY_7) && ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) % 7 != 0)) {
@@ -101,11 +100,20 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Reservation savedReservation = new Reservation(0, reservation.guestId(), reservation.roomId(),
+        Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), reservation.roomId(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), now, now);
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), now, now));
 
-        return reservationRepository.save(savedReservation);
+        Folio savedFolio = folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
+
+        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
+
+        BigDecimal estimatedStayAmount = folioService.estimateWithTax(
+                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
+
+        paymentService.createRoomHold(folio, estimatedStayAmount, roomPaymentMethodId);
+
+        return savedReservation;
     }
 
     @Transactional
@@ -141,11 +149,9 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation checkIn(int id, String roomPaymentMethodId, String incidentalsPaymentMethodId) {
+    public Reservation checkIn(int id, String incidentalsPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
-
-        LocalDateTime now = LocalDateTime.now();
 
         if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
             throw new AlreadyCheckedInException();
@@ -157,18 +163,10 @@ public class ReservationService {
 
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
-        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
-                                  .orElseThrow(RateNotFoundException::new);
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
 
-        Folio savedFolio = folioRepository.save(new Folio(0, id, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
+        paymentService.createIncidentalHold(folio, incidentalsPaymentMethodId);
 
-        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
-
-        BigDecimal estimatedStayAmount = folioService.estimateWithTax(
-                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
-
-        paymentService.createHolds(folio, estimatedStayAmount, roomPaymentMethodId, incidentalsPaymentMethodId);
-        
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 
@@ -216,7 +214,10 @@ public class ReservationService {
         }
 
         folioRepository.getFolioByReservationId(reservation.id())
-                       .ifPresent(f -> folioRepository.closeFolio(f.id()));
+                       .ifPresent(f -> {
+                           paymentService.cancelOpenHolds(f);
+                           folioRepository.closeFolio(f.id());
+                       });
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
