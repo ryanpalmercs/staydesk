@@ -62,6 +62,20 @@ body {
     cursor: not-allowed;
 }
 
+.btn-chip {
+    border: 1px solid var(--color-tan);
+    color: var(--color-muted);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-chip:hover {
+    border-color: var(--color-muted);
+    color: var(--color-charcoal);
+}
+
 .feat-card {
     background: var(--color-warm-white);
     border: 1px solid var(--color-tan);
