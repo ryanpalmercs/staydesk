@@ -15,6 +15,7 @@ import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.repository.FolioRepository;
+import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
@@ -34,16 +35,21 @@ public class ReservationService {
     private final RateRepository rateRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
+    private final GuestRepository guestRepository;
+    private final SmsService smsService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               FolioRepository folioRepository, RateRepository rateRepository,
-                              PaymentService paymentService, FolioService folioService) {
+                              PaymentService paymentService, FolioService folioService, GuestRepository guestRepository,
+                              SmsService smsService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.folioRepository = folioRepository;
         this.rateRepository = rateRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
+        this.guestRepository = guestRepository;
+        this.smsService = smsService;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -112,6 +118,8 @@ public class ReservationService {
                 rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
 
         paymentService.createRoomHold(folio, estimatedStayAmount, roomPaymentMethodId);
+
+        guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation, room.roomNumber()));
 
         return savedReservation;
     }
