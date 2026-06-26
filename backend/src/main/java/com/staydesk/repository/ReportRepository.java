@@ -78,7 +78,7 @@ public class ReportRepository {
 
     public List<GuestCountRow> getGuestCountBreakdown(LocalDate startDate, LocalDate endDate) {
         String sql = """
-                             SELECT r.guest_count, COUNT(r.id) AS reservation_count, COALESCE(SUM(fi.amount, 0)) AS revenue
+                             SELECT r.guest_count, COUNT(r.id) AS reservation_count, COALESCE(SUM(fi.amount), 0) AS revenue
                              FROM reservations r
                              JOIN folios f ON f.reservation_id = r.id
                              LEFT JOIN folio_items fi ON fi.folio_id = f.id AND fi.type = 'CHARGE'

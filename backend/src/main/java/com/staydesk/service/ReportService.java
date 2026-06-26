@@ -27,7 +27,7 @@ public class ReportService {
 
         int occupiedNights = reportRepository.getOccupiedNightCount(startDate, endDate);
         int totalRooms = reportRepository.getTotalRoomCount();
-        long days = ChronoUnit.DAYS.between(startDate, endDate);
+        long days = ChronoUnit.DAYS.between(startDate, endDate) + 1;
         int totalRoomNights = (int) (totalRooms * days);
 
         BigDecimal occupancyRate = totalRoomNights > 0 ?
