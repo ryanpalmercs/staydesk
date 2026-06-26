@@ -1,7 +1,7 @@
 import dayjs from "dayjs"
 import { useState, useEffect } from "react"
-import { getReportSummary } from "../api/reportApi"
-import { Minus, TrendingDown, TrendingUp } from "lucide-react"
+import { exportReport, getReportSummary } from "../api/reportApi"
+import { FileDown, Minus, TrendingDown, TrendingUp } from "lucide-react"
 import { displayPrice } from "../utils/price"
 import './ReportsPage.css'
 
@@ -108,6 +108,17 @@ function ReportsPage() {
         }
     }
 
+    function handleExport(format) {
+        exportReport(report, format).then(res => {
+            const url = URL.createObjectURL(res.data)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `report-${report.startDate}-${report.endDate}.${format}`
+            a.click()
+            URL.revokeObjectURL(url)
+        })
+    }
+
     return (
         <div className="page-container">
             <div>
@@ -136,6 +147,14 @@ function ReportsPage() {
 
             {report && !loading && (
                 <>
+                    <div className="report-actions">
+                        <button className="btn-secondary" onClick={() => handleExport('csv')}>
+                            <FileDown size={15} /> CSV
+                        </button>
+                        <button className="btn-secondary" onClick={() => handleExport('pdf')}>
+                            <FileDown size={15} /> PDF
+                        </button>
+                    </div>
                     {/* Stat cards */}
                     <div className="report-cards">
                         <div className="report-card">

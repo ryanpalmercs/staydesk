@@ -112,9 +112,17 @@
     font-weight: 600;
 }
 
-.comparison-delta.up .delta-pct { color: #166534; }
-.comparison-delta.down .delta-pct { color: #991b1b; }
-.comparison-delta.flat .delta-pct { color: var(--color-muted); }
+.comparison-delta.up .delta-pct {
+    color: #166534;
+}
+
+.comparison-delta.down .delta-pct {
+    color: #991b1b;
+}
+
+.comparison-delta.flat .delta-pct {
+    color: var(--color-muted);
+}
 
 .report-section {
     background: white;
@@ -158,6 +166,19 @@
 
 .report-table tbody tr:last-child td {
     border-bottom: none;
+}
+
+.report-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-bottom: 1.25rem;
+}
+
+.report-actions button {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 @media (max-width: 768px) {
