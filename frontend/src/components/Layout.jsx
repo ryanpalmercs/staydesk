@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users } from 'lucide-react'
+import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, BarChart2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import './Layout.css'
 
@@ -77,6 +77,13 @@ export default function Layout() {
                     )}
                 </nav>
                 <div className="sidebar-bottom">
+                    {adminOnly && (
+                        <NavLink to="/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                            <BarChart2 size={18} />
+                            <span>Reports</span>
+                        </NavLink>
+                    )}
+
                     {adminOnly && (
                         <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <Settings size={18} />

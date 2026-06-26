@@ -93,9 +93,7 @@ public class ReportRepository {
         String sql = """
                 SELECT ro.id AS room_id,
                        ro.room_number,
-                       COALESCE(SUM(
-                           LEAST(r.check_out_date, ?) - GREATEST(r.check_in_date, ?)
-                       ), 0) AS booked_nights,
+                       COALESCE(SUM(LEAST(r.check_out_date, ?) - GREATEST(r.check_in_date, ?)), 0) AS booked_nights,
                        COALESCE(SUM(fi.amount), 0) AS revenue
                 FROM rooms ro
                 LEFT JOIN reservations r ON r.room_id = ro.id
