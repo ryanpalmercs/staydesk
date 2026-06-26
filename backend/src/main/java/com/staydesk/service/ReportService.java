@@ -21,14 +21,30 @@ public class ReportService {
         this.reportRepository = reportRepository;
     }
 
-    public ReportSummaryResponse getReportSummary(LocalDate startDate, LocalDate endDate) {
+    public ReportSummaryResponse getReportSummary(LocalDate startDate, LocalDate endDate, LocalDate comparisonStartDate,
+                                                  LocalDate comparisonEndDate) {
         BigDecimal totalRevenue = reportRepository.getTotalRevenue(startDate, endDate);
         BigDecimal totalTax = reportRepository.getTotalTax(startDate, endDate);
 
-        int occupiedNights = reportRepository.getOccupiedNightCount(startDate, endDate);
         int totalRooms = reportRepository.getTotalRoomCount();
-        long days = ChronoUnit.DAYS.between(startDate, endDate) + 1;
-        int totalRoomNights = (int) (totalRooms * days);
+        int totalNights = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        int totalRoomNights = totalRooms * totalNights;
+
+        List<RoomReportRow> roomBreakDown = reportRepository.getByRoom(startDate, endDate)
+                                                            .stream()
+                                                            .map(r -> new RoomReportRow(
+                                                                    r.roomId(),
+                                                                    r.roomNumber(),
+                                                                    r.bookedNights(),
+                                                                    totalNights,
+                                                                    totalNights > 0 ?
+                                                                    BigDecimal.valueOf(r.bookedNights()).divide(BigDecimal.valueOf(totalNights), 4, RoundingMode.HALF_UP) :
+                                                                    BigDecimal.ZERO,
+                                                                    r.revenue()
+                                                            ))
+                                                            .toList();
+
+        int occupiedNights = roomBreakDown.stream().mapToInt(RoomReportRow::bookedNights).sum();
 
         BigDecimal occupancyRate = totalRoomNights > 0 ?
                                    BigDecimal.valueOf(occupiedNights).divide(BigDecimal.valueOf(totalRoomNights), 4, RoundingMode.HALF_UP) :
@@ -40,27 +56,27 @@ public class ReportService {
 
         List<GuestCountRow> guestCountBreakdown = reportRepository.getGuestCountBreakdown(startDate, endDate);
 
-        PeriodComparison periodComparison = buildComparison(startDate, days, totalRooms);
+        PeriodComparison periodComparison = buildComparison(comparisonStartDate, comparisonEndDate, totalRooms);
 
         return new ReportSummaryResponse(startDate, endDate, totalRevenue, totalTax, occupancyRate, occupiedNights,
-                totalRoomNights, averageNightlyRate, guestCountBreakdown, periodComparison);
+                totalRoomNights, averageNightlyRate, guestCountBreakdown, periodComparison, roomBreakDown);
     }
 
-    public List<RoomReportRow> getByRoom(LocalDate startDate, LocalDate endDate) {
-        return reportRepository.getByRoom(startDate, endDate);
-    }
+    private PeriodComparison buildComparison(LocalDate startDate, LocalDate endDate, int totalRooms) {
+        BigDecimal previousRevenue = reportRepository.getTotalRevenue(startDate, endDate);
 
-    private PeriodComparison buildComparison(LocalDate startDate, long days, int totalRooms) {
-        LocalDate previousStart = startDate.minusDays(days);
+        int previousNights = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        int previousTotalRoomNights = totalRooms * previousNights;
 
-        BigDecimal previousRevenue = reportRepository.getTotalRevenue(previousStart, startDate);
-        int previousOccupied =  reportRepository.getOccupiedNightCount(previousStart, startDate);
-        int previousTotalRoomNights = (int) (totalRooms * days);
+        int previousOccupied = reportRepository.getByRoom(startDate, endDate)
+                                               .stream()
+                                               .mapToInt(RoomReportRow::bookedNights)
+                                               .sum();
 
         BigDecimal previousOccupancyRate = previousTotalRoomNights > 0 ?
                                            BigDecimal.valueOf(previousOccupied).divide(BigDecimal.valueOf(previousTotalRoomNights), 4, RoundingMode.HALF_UP) :
                                            BigDecimal.ZERO;
 
-        return new PeriodComparison(previousStart, startDate, previousRevenue, previousOccupancyRate);
+        return new PeriodComparison(startDate, endDate, previousRevenue, previousOccupancyRate);
     }
 }

@@ -59,19 +59,6 @@ public class ReportRepository {
         return jdbcTemplate.queryForObject(sql, BigDecimal.class, startDate, endDate);
     }
 
-    public Integer getOccupiedNightCount(LocalDate startDate, LocalDate endDate) {
-        String sql = """
-                SELECT COALESCE(SUM(LEAST(check_out_date, ?) - GREATEST(check_in_date, ?)), 0)
-                FROM reservations
-                WHERE status != 'CANCELLED'
-                                   AND check_in_date < ? AND check_out_date > ?
-                """;
-
-        LOGGER.debug("SQL: {}", sql);
-
-        return jdbcTemplate.queryForObject(sql, Integer.class, endDate, startDate, endDate, startDate);
-    }
-
     public Integer getTotalRoomCount() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM rooms", Integer.class);
     }
@@ -103,7 +90,6 @@ public class ReportRepository {
     }
 
     public List<RoomReportRow> getByRoom(LocalDate startDate, LocalDate endDate) {
-        int totalNights = (int) startDate.until(endDate, java.time.temporal.ChronoUnit.DAYS);
         String sql = """
                 SELECT ro.id AS room_id,
                        ro.room_number,
@@ -124,20 +110,14 @@ public class ReportRepository {
         LOGGER.debug("SQL: {}", sql);
 
         return jdbcTemplate.query(sql,
-                (rs, rowNum) -> {
-                    int bookedNights = rs.getInt("booked_nights");
-                    BigDecimal occupancyRate = totalNights > 0 ?
-                                               BigDecimal.valueOf(bookedNights).divide(BigDecimal.valueOf(totalNights), 4, java.math.RoundingMode.HALF_UP) :
-                                               BigDecimal.ZERO;
-                    return new RoomReportRow(
-                            rs.getInt("room_id"),
-                            rs.getInt("room_number"),
-                            bookedNights,
-                            totalNights,
-                            occupancyRate,
-                            rs.getBigDecimal("revenue")
-                    );
-                },
+                (rs, rowNum) -> new RoomReportRow(
+                        rs.getInt("room_id"),
+                        rs.getInt("room_number"),
+                        rs.getInt("booked_nights"),
+                        0,
+                        BigDecimal.ZERO,
+                        rs.getBigDecimal("revenue")
+                ),
                 endDate, startDate, endDate, startDate);
     }
 }

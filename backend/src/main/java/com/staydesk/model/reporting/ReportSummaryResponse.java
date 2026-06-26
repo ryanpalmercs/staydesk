@@ -6,5 +6,6 @@ import java.util.List;
 
 public record ReportSummaryResponse(LocalDate startDate, LocalDate endDate, BigDecimal totalRevenue, BigDecimal totalTax,
                                     BigDecimal occupancyRate, int occupiedNightCount, int totalRoomNightCount,
-                                    BigDecimal averageNightlyRate, List<GuestCountRow> guestCountBreakdown, PeriodComparison comparison) {
+                                    BigDecimal averageNightlyRate, List<GuestCountRow> guestCountBreakdown, PeriodComparison comparison,
+                                    List<RoomReportRow> roomBreakDown) {
 }
