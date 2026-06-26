@@ -14,6 +14,7 @@ import EmployeesPage from './pages/EmployeesPage'
 import { useEffect, useState } from 'react'
 import api from './api/baseApi'
 import TimesheetPage from './pages/TimesheetPage'
+import ReportsPage from './pages/ReportsPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -65,6 +66,7 @@ export default function App() {
                                 <Route path="/employees" element={<EmployeesPage />} />
                                 <Route path="/payroll" element={<PayrollPage />} />
                                 <Route path="/settings" element={<SettingsPage />} />
+                                <Route path="/reports" element={<ReportsPage />} />
                             </Route>
                         </Route>
                     </Routes>

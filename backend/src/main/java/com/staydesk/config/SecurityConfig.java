@@ -36,7 +36,7 @@ public class SecurityConfig {
                    .authorizeHttpRequests(auth -> auth
                            .requestMatchers("/auth/employee/login", "/error").permitAll()
                            .requestMatchers("/actuator/health").permitAll()
-                           .requestMatchers("/admin/**")
+                           .requestMatchers("/admin/**", "/reports/**")
                            .hasRole("ADMIN")
                            .anyRequest().authenticated())
                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
