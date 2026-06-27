@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Staydesk is a lightweight motel management app for a single small property (~10-15 rooms). MVP modules: guest management (reservations, check-in/out, folio), Stripe payments, and Gusto payroll integration. Auth is Supabase. Single-tenant — one property, no multi-tenancy.
+Staydesk is a lightweight motel management app for a single small property (Martin House — 27 rooms). MVP modules: guest management (reservations, check-in/out, folio), Stripe payments, and Gusto payroll integration. Auth is Supabase. Single-tenant — one property, no multi-tenancy.
 
 ## Commands
 
@@ -40,7 +40,7 @@ docs/      — planning notes and decisions log
 **Auth flow**: Supabase handles authentication. The Spring Security layer should validate Supabase-issued JWTs on protected endpoints.
 
 **External integrations**:
-- Stripe (`stripe-java` 25.3.0) — payment capture and webhooks
+- Stripe (`stripe-java` 33.0.0) — payment capture and webhooks
 - Gusto (`https://api.gusto.com`) — payroll sync via OAuth client credentials
 - Supabase — auth and production database; local development uses a Docker PostgreSQL instance
 
