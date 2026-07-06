@@ -29,6 +29,14 @@ Lightweight motel management app for small independent properties. Built for Mar
 - [ ] Final capture at checkout against both holds — settle actuals, release remainder
 - [ ] SMS notifications (Twilio)
 
+### Guest Flagging / Do Not Return
+- [ ] Add `flagged`, `flag_reason`, `flagged_date`, `flagged_by` fields to guest record
+- [ ] Flagging and unflagging restricted to admin role only
+- [ ] Flagged status visible to all staff (read-only for front desk)
+- [ ] Warning banner shown to front desk staff when a flagged guest is matched during reservation creation (match on name + phone or name + email)
+- [ ] Flag reason is free text (e.g. "declined payment," "property damage," "behavior issue")
+- [ ] Does not block reservation creation — informs staff, decision remains with front desk
+
 ### Employee & Payroll
 - [ ] Employee records (name, role, pay_rate, hire_date, active)
 - [ ] Clock-in / clock-out time tracking (built into StayDesk)
@@ -54,17 +62,38 @@ Lightweight motel management app for small independent properties. Built for Mar
 ### Compliance
 - [ ] Guest PII encryption at rest
 - [ ] Missouri guest registration data collection (address, vehicle info)
-- [ ] Data retention policy and automated purge (90-day minimum)
+- [ ] Data retention policy and automated anonymization (see Data Retention section)
 - [ ] Breach notification plan (Missouri Rev. Stat. § 407.1500)
 - [ ] Privacy policy for guest-facing pages
 - [ ] Terms of service
 - [ ] Pre-launch Missouri attorney review
 
+### Data Retention
+- [ ] Retention period: 3 years from check-out date for completed stays
+- [ ] Anonymization approach (hybrid hard delete / retain):
+  - Hard delete PII after 3 years — guest name, address, phone, email, payment tokens permanently removed
+  - Retain anonymized transactional data indefinitely for financial reporting and analytics — stay duration, room type, nightly rate, total revenue, dates — stripped of any link to a specific individual
+- [ ] Scheduled job to identify records crossing the 3-year threshold and execute anonymization
+- [ ] Legal hold mechanism:
+  - Ability to flag a guest record or reservation as under legal hold (admin only)
+  - Records under legal hold excluded from automated anonymization regardless of age
+  - Legal hold flag persists until manually cleared by admin
+- [ ] Cancelled reservation retention (attorney-confirmed):
+  - Cancelled reservations with no charge — standard 3-year retention, anonymization applies same as completed stays
+  - Cancelled reservations with a cancellation fee charged — retain transaction/financial record minimum 3 years for Missouri tax compliance; retain full reservation contract record up to 10 years (Missouri statute of limitations for written contract breach)
+  - PII anonymization follows the same 3-year hard-delete rule; the extended 10-year window applies only to anonymized contract/transaction data, not identifiable PII
+- [ ] Flagged/banned guest retention — indefinite:
+  - Flagged guest records exempt from the standard 3-year anonymization/purge cycle
+  - Minimum retained data: guest name, identifying info (phone/email used for matching), flag reason, flagged date, flagged by
+  - Flagged guest records persist indefinitely unless manually unflagged by admin
+  - If a flagged guest is unflagged, standard 3-year retention rules resume from that point forward
+- Note: included in existing compliance scope at no additional cost
+
 ## Data Model Summary
 | Table | Key Columns |
 |-------|-------------|
 | `rooms` | room_number, type, nightly_rate, status, sifely_lock_id |
-| `guests` | first_name, last_name, email, phone |
+| `guests` | first_name, last_name, email, phone, flagged, flag_reason, flagged_date, flagged_by |
 | `reservations` | guest_id, room_id, check_in_date, check_out_date, status, checked_in_at, checked_out_at, door_code, door_code_pwd_id |
 | `folios` | reservation_id, status (open/closed), total, paid_at |
 | `folio_items` | folio_id, description, amount, type (charge/tax/payment) |
@@ -92,6 +121,8 @@ All tables include `created_at` and `updated_at` audit columns.
 | PUT | /api/admin/employees/{id}/role | Update employee role (admin only) |
 | DELETE | /api/admin/employees/{id} | Deactivate employee (admin only) |
 | GET/POST | /api/admin/employee-types | List / create employee types (admin only) |
+| POST | /guests/{id}/flag | Flag a guest |
+| DELETE | /guests/{id}/flag | Unflag a guest |
 | GET/POST | /employees/{id}/hours | Get / log time entries |
 | POST | /employees/{id}/clock-in | Clock in |
 | POST | /employees/{id}/clock-out | Clock out |
@@ -128,6 +159,11 @@ All tables include `created_at` and `updated_at` audit columns.
 - [ ] Overbooking prevention via real-time inventory sync
 - Note: Direct API access to Booking.com/Expedia requires a channel manager middleman — Channex is the recommended option (modern REST API, 2-4 week integration estimate)
 
+### Guest Flagging — Online Booking Block
+- [ ] Flagged guests blocked from completing online booking
+- [ ] Blocked guest directed to call the front desk instead
+- [ ] Match logic against flagged guest records during booking flow (name + phone or name + email)
+
 ### Customer-Facing Booking Site
 - [ ] Public booking site for direct online reservations
 
@@ -149,3 +185,6 @@ All tables include `created_at` and `updated_at` audit columns.
 | 2026-06-26 | Remote check-in deferred to Phase 2 | Out of v1.0.0 contract scope |
 | 2026-06-26 | QuickBooks over Gusto for payroll integration | Client preference; deferred to Phase 2 |
 | 2026-06-26 | SMS only in Phase 1, email in Phase 2 | Unblocks launch; Twilio already integrated |
+| 2026-06-30 | Guest flagging — admin sets, all staff can view | Cecelia's request; front desk warning only, online booking block deferred to Phase 2 |
+| 2026-06-30 | Hybrid anonymization for data retention | Hard delete PII after 3 years, retain anonymized data for analytics; legal hold mechanism overrides auto-purge |
+| 2026-06-30 | Flagged/banned guests retained indefinitely | Business need to maintain ban list regardless of time elapsed; exempt from standard anonymization cycle until manually unflagged |
