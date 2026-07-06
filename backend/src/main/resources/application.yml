@@ -55,3 +55,7 @@ twilio:
   from-number: ${TWILIO_FROM_NUMBER}
   incidentals-hold-amount: ${INCIDENTALS_HOLD_AMOUNT:75.00}
   lodging-tax-rate: ${LODGING_TAX_RATE:0.0873}
+
+sifely:
+  base-url: https://app-smart-server.sifely.com
+  token-encryption-key: ${SIFELY_TOKEN_ENCRYPTION_KEY}
