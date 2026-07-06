@@ -24,8 +24,8 @@ public class TokenCipher {
     private final SecretKeySpec key;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public TokenCipher(@Value("${sifley.token-encryption-key}") String base64Key) {
-        this.key = new SecretKeySpec(base64Key.getBytes(), "AES");
+    public TokenCipher(@Value("${sifely.token-encryption-key}") String base64Key) {
+        this.key = new SecretKeySpec(Base64.getDecoder().decode(base64Key), "AES");
         LOGGER.info("Initialized TokenCipher");
     }
 

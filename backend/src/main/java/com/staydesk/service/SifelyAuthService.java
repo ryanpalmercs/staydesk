@@ -45,30 +45,40 @@ public class SifelyAuthService {
         }
     }
 
-    public void connect(String account, String password) {
+    public void connect(String account, String password, String clientId, String clientSecret) {
         LOGGER.info("Connecting Sifely account for {}", account);
 
         SifelyLoginResponse response = restClient.post()
                                                  .uri(baseUrl + "/system/smart/login")
                                                  .contentType(APPLICATION_JSON)
-                                                 .body(Map.of("account", account, "password", md5Hex(password)))
+                                                 .body(Map.of(
+                                                         "account", account,
+                                                         "password", md5Hex(password),
+                                                         "client_id", clientId,
+                                                         "client_secret", clientSecret
+                                                 ))
                                                  .retrieve()
                                                  .body(SifelyLoginResponse.class);
 
-        if (response == null || response.data() == null || response.data().clientToken() == null) {
+        if (response == null || response.clientToken() == null) {
             LOGGER.error("Sifely login failed, no client token returned");
             throw new IllegalStateException("Sifely account could not be connected, no token returned");
+        }
+
+        if (response.lockNum() == 0) {
+            LOGGER.warn("Sifely account connected but no locks are bound to this client yet (lockNum=0)");
         }
 
         sifelyConnectionRepository.deleteAll();
         sifelyConnectionRepository.save(new SifelyConnection(
                 0,
-                new EncryptedToken(response.data().clientToken()),
-                response.data().clientId(),
+                new EncryptedToken(response.clientToken()),
+                response.clientId(),
                 LocalDateTime.now()
         ));
 
-        LOGGER.info("Sifely account connected successfully");
+        LOGGER.info("Sifely account connected (plan={}, subscriptionStatus={}, lockNum={})",
+                response.plan(), response.subscriptionStatus(), response.lockNum());
     }
 
     public String getApiKey() {

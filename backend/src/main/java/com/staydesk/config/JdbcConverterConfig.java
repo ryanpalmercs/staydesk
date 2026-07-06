@@ -1,6 +1,5 @@
 package com.staydesk.config;
 
-import ch.qos.logback.core.rolling.helper.TokenConverter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staydesk.model.ContactInfo;
 import com.staydesk.model.EncryptedToken;
@@ -18,12 +17,16 @@ import org.springframework.data.jdbc.core.convert.JdbcCustomConversions;
 import java.util.List;
 
 @Configuration
-public class JdbcConverterConfig  {
+public class JdbcConverterConfig {
 
     @Bean
-    public JdbcCustomConversions jdbcCustomConversions(ObjectMapper objectMapper) {
-        return new JdbcCustomConversions(List.of(new Writer(objectMapper), new Reader(objectMapper)));
+    public JdbcCustomConversions jdbcCustomConversions(ObjectMapper objectMapper, TokenCipher tokenCipher) {
+        return new JdbcCustomConversions(List.of(
+                new Writer(objectMapper), new Reader(objectMapper),
+                new EncryptedTokenWriter(tokenCipher), new EncryptedTokenReader(tokenCipher)
+        ));
     }
+
 
     @WritingConverter
     static class Writer implements Converter<ContactInfo, PGobject> {
