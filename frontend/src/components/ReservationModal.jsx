@@ -177,7 +177,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             try {
                 const res = await createGuest(guestForm)
                 submittedForm = { ...form, guestId: res.data.id }
-                console.dubug(submittedForm)
+                console.debug(submittedForm)
                 setGuestMode('search')
                 const guestsRes = await getGuests()
                 setGuests(guestsRes.data)

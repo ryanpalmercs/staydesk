@@ -37,11 +37,12 @@ public class ReservationService {
     private final FolioService folioService;
     private final GuestRepository guestRepository;
     private final SmsService smsService;
+    private final LockPasscodeService lockPasscodeService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               FolioRepository folioRepository, RateRepository rateRepository,
                               PaymentService paymentService, FolioService folioService, GuestRepository guestRepository,
-                              SmsService smsService) {
+                              SmsService smsService, LockPasscodeService lockPasscodeService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.folioRepository = folioRepository;
@@ -50,6 +51,7 @@ public class ReservationService {
         this.folioService = folioService;
         this.guestRepository = guestRepository;
         this.smsService = smsService;
+        this.lockPasscodeService = lockPasscodeService;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -175,6 +177,12 @@ public class ReservationService {
 
         paymentService.createIncidentalHold(folio, incidentalsPaymentMethodId);
 
+        Room room = roomRepository.findById(reservation.roomId()).orElseThrow(RoomNotFoundException::new);
+
+        lockPasscodeService.issuePasscode(reservation, room)
+                           .ifPresent(doorCode -> guestRepository.findById(reservation.guestId())
+                                                                 .ifPresent(guest -> smsService.sendCheckInComplete(guest, reservation, room.roomNumber(), doorCode)));
+
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 
@@ -194,6 +202,8 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedOut(id);
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
+
+        lockPasscodeService.revokePasscodes(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id())
                                      .orElseThrow(FolioNotFoundException::new);

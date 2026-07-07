@@ -49,7 +49,7 @@ public class RoomController {
     public ResponseEntity<Room> createRoom(@RequestBody Room room) {
         LOGGER.info("Saving room {}", room);
         LocalDateTime now = LocalDateTime.now();
-        Room savedRoom = new Room(0, room.roomNumber(), room.type(), room.status(), now, now);
+        Room savedRoom = new Room(0, room.roomNumber(), room.type(), room.status(), room.sifelyLockId(), now, now);
         Room saved = roomRepository.save(savedRoom);
         URI location = URI.create("/rooms/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -63,7 +63,7 @@ public class RoomController {
             return ResponseEntity.notFound().build();
         }
 
-        Room updatedRoom = new Room(id, room.roomNumber(), room.type(), room.status(), room.createdAt(), LocalDateTime.now());
+        Room updatedRoom = new Room(id, room.roomNumber(), room.type(), room.status(), room.sifelyLockId(), room.createdAt(), LocalDateTime.now());
 
         return ResponseEntity.ok(roomRepository.save(updatedRoom));
     }

@@ -11,8 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/stripe")
@@ -28,14 +29,15 @@ public class StripeConnectController {
     }
 
     @GetMapping("connect")
-    public ResponseEntity<Void> connect() {
+    public ResponseEntity<Map<String, String>> connect() {
         LOGGER.info("Connecting Stripe Account");
 
         try {
             String url = stripeConnectionService.initiateConnect();
-            return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+            return ResponseEntity.ok(Map.of("url", url));
         } catch (StripeException e) {
-            return ResponseEntity.status(HttpStatus.FOUND).header("Location", frontendUrl + "/settings").build();
+            LOGGER.error("Failed to initiate Stripe connect", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

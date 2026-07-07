@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -77,8 +76,15 @@ public class SmsService {
         LOGGER.info("Check-in link SMS stub - reservation {}, link {}", reservation.id(), link);
     }
 
-    public void sendCheckInComplete(Guest guest, Reservation reservation, String doorCode) {
-        // NO OP
-        LOGGER.info("Check-in complete SMS stub - reservation {}, doorCode {}", reservation.id(), doorCode);
+    public void sendCheckInComplete(Guest guest, Reservation reservation, int roomNumber, String doorCode) {
+        String template = propertySettingsService.getProperty("sms_checkin_complete_template").value();
+
+        Map<String, String> variables = Map.of(
+                "guestFirstName", guest.firstName(),
+                "roomNumber", String.valueOf(roomNumber),
+                "doorCode", doorCode
+        );
+
+        sendSms(guest.phoneNumber(), interpolate(template, variables));
     }
 }
