@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { disconnectStripe, getConnectStatus } from "../api/stripeApi"
+import { connectStripe, disconnectStripe, getConnectStatus } from "../api/stripeApi"
 import { useSearchParams } from "react-router-dom"
 import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
@@ -167,7 +167,10 @@ function SettingsPage() {
                     </div>
                 ) : (
                     <div className="mt-4">
-                        <a href={import.meta.env.VITE_API_BASE_URL + '/stripe/connect'} className="btn-primary">Connect Stripe Account</a>
+                        <button className="btn-primary" onClick={async () => {
+                            const response = await connectStripe()
+                            window.location.href = response.data.url
+                        }}>Connect Stripe Account</button>
                     </div>
                 )}
             </div>
