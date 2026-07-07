@@ -14,6 +14,7 @@ import com.staydesk.model.Folio;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.RateRepository;
@@ -159,7 +160,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation checkIn(int id, String incidentalsPaymentMethodId) {
+    public CheckInResult checkIn(int id, String incidentalsPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -170,20 +171,22 @@ public class ReservationService {
         }
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.OCCUPIED);
-
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
-
         paymentService.createIncidentalHold(folio, incidentalsPaymentMethodId);
 
         Room room = roomRepository.findById(reservation.roomId()).orElseThrow(RoomNotFoundException::new);
 
-        lockPasscodeService.issuePasscode(reservation, room)
-                           .ifPresent(doorCode -> guestRepository.findById(reservation.guestId())
-                                                                 .ifPresent(guest -> smsService.sendCheckInComplete(guest, reservation, room.roomNumber(), doorCode)));
+        LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(reservation, room);
 
-        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED) {
+            guestRepository.findById(reservation.guestId())
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, reservation, room.roomNumber(), passcodeResult.passcode()));
+        }
+
+        Reservation updated = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        return new CheckInResult(updated, passcodeResult.outcome());
     }
 
     @Transactional

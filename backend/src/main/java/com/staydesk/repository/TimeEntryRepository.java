@@ -15,6 +15,9 @@ public interface TimeEntryRepository extends CrudRepository<TimeEntry, Long> {
     @Query("SELECT * FROM time_entries WHERE employee_id = :employeeId AND clock_out IS NULL LIMIT 1")
     Optional<TimeEntry> getOpenEntry(@Param("employeeId") UUID employeeId);
 
+    @Query("SELECT * FROM time_entries WHERE clock_out IS NULL")
+    List<TimeEntry> getAllOpenEntries();
+
     @Query("SELECT * FROM time_entries WHERE employee_id = :employeeId AND date BETWEEN :start AND :end ORDER BY date, clock_in")
     List<TimeEntry> getByEmployeeAndDateRange(UUID employeeId, LocalDate start, LocalDate end);
 

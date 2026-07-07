@@ -89,7 +89,7 @@ public class EmployeeController {
                                                   @Valid @RequestBody UpdateEmployeeRequest request) {
         LOGGER.info("Updating employee pin with id: {}", id);
 
-        employeeService.updateEmployeePin(id, request.pin());
+        employeeService.updateEmployeePin(id, request.pin(), request.grantDoorAccess());
         return ResponseEntity.noContent().build();
     }
 
@@ -97,7 +97,7 @@ public class EmployeeController {
     public ResponseEntity<Void> deleteEmployee(@PathVariable UUID id) {
         LOGGER.info("Deleting employee with id: {}", id);
 
-        employeeRepository.deactivate(id);
+        employeeService.deactivateEmployee(id);
         return ResponseEntity.noContent().build();
     }
 
@@ -109,7 +109,8 @@ public class EmployeeController {
     }
 
     @PutMapping("employees/{id}")
-    public ResponseEntity<Void> updateEmployeePersonalInfo(@PathVariable UUID id, @Valid @RequestBody UpdatePersonalInfoRequest request) {
+    public ResponseEntity<Void> updateEmployeePersonalInfo(@PathVariable UUID id,
+                                                           @Valid @RequestBody UpdatePersonalInfoRequest request) {
         LOGGER.info("Updating employee personal info with id: {}", id);
 
         try {
@@ -123,7 +124,7 @@ public class EmployeeController {
     @GetMapping("payRateTypes")
     public List<PayRateTypeResponse> getPayRateTypes() {
         return Arrays.stream(Employee.PayRateType.values())
-                .map(PayRateTypeResponse::from)
-                .toList();
+                     .map(PayRateTypeResponse::from)
+                     .toList();
     }
 }

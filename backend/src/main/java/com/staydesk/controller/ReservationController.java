@@ -11,6 +11,7 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
 import com.staydesk.model.Reservation;
+import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.repository.ReservationRepository;
@@ -107,7 +108,7 @@ public class ReservationController {
     }
 
     @PostMapping("{id}/check-in")
-    public ResponseEntity<Reservation> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
+    public ResponseEntity<CheckInResult> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {

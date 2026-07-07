@@ -87,4 +87,11 @@ public class SmsService {
 
         sendSms(guest.phoneNumber(), interpolate(template, variables));
     }
+
+    public void sendDoorCodeResolved(String phoneNumber, int roomNumber) {
+        String template = propertySettingsService.getProperty("sms_door_code_resolved_template").value();
+        Map<String, String> variables = Map.of("roomNumber", String.valueOf(roomNumber));
+
+        sendSms(phoneNumber, interpolate(template, variables));
+    }
 }

@@ -27,6 +27,12 @@ public interface EmployeeRepository extends ListCrudRepository<Employee, UUID> {
     @Modifying
     @Query("UPDATE employees SET first_name = :firstName, last_name = :lastName, pay_rate = :payRate, hire_date = :hireDate, " +
            "contact_info = :contactInfo::jsonb, pay_rate_type = :payRateType WHERE id = :id")
-    void updatePersonalInfo(@Param("id") UUID id, @Param("firstName") String firstName, @Param("lastName") String lastName,
-                            @Param("payRate") BigDecimal payRate, @Param("hireDate")LocalDate hireDate, @Param("contactInfo") String contactInfo, @Param("payRateType") String payRateType);
+    void updatePersonalInfo(@Param("id") UUID id, @Param("firstName") String firstName,
+                            @Param("lastName") String lastName, @Param("payRate") BigDecimal payRate,
+                            @Param("hireDate") LocalDate hireDate, @Param("contactInfo") String contactInfo,
+                            @Param("payRateType") String payRateType);
+
+    @Modifying
+    @Query("UPDATE employees SET door_access_enabled = :enabled WHERE id = :id")
+    void updateDoorAccessEnabled(@Param("id") UUID id, @Param("enabled") boolean enabled);
 }
