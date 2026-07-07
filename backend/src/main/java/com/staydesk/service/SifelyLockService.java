@@ -1,6 +1,5 @@
 package com.staydesk.service;
 
-import com.staydesk.model.dto.SifelyOpenStateResponse;
 import com.staydesk.model.dto.SifelyPasscodeResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,21 +19,6 @@ public class SifelyLockService {
 
     public SifelyLockService(SifelyAuthService sifelyAuthService) {
         this.sifelyAuthService = sifelyAuthService;
-    }
-
-    public int queryOpenState(long lockId) {
-        SifelyOpenStateResponse response = restClient.get()
-                                                     .uri(baseUrl + "/v3/lock/queryOpenState?lockId=" + lockId)
-                                                     .header("Authorization", sifelyAuthService.getApiKey())
-                                                     .retrieve()
-                                                     .body(SifelyOpenStateResponse.class);
-
-        if (response == null) {
-            throw new IllegalStateException("Sifely queryOpenState returned no response for lockId " + lockId);
-        }
-
-        LOGGER.info("Sifely lock {} open state: {}", lockId, response.state());
-        return response.state();
     }
 
     public String createPasscode(long lockId, String keyboardPwd, String label, long startDateMillis,

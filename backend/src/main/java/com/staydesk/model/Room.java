@@ -4,7 +4,6 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.lang.Nullable;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Table("rooms")
