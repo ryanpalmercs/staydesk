@@ -69,16 +69,16 @@ public class StaffDoorAccessService {
 
     public void revokeAccess(Employee employee) {
         staffLockPasscodeRepository.findByEmployeeIdAndStatus(employee.id(), StaffLockPasscode.Status.ACTIVE)
-                                   .forEach(sp -> {
+                                   .forEach(slp -> {
                                        try {
-                                           sifelyLockService.deletePasscode(sp.lockId(), sp.keyboardPwdId());
+                                           sifelyLockService.deletePasscode(slp.lockId(), slp.keyboardPwdId());
                                        } catch (Exception e) {
                                            LOGGER.error("Failed to revoke staff passcode {} for employee {} - marking revoked anyway",
-                                                   sp.keyboardPwdId(), employee.id(), e);
+                                                   slp.keyboardPwdId(), employee.id(), e);
                                        }
 
-                                       staffLockPasscodeRepository.save(new StaffLockPasscode(sp.id(), sp.employeeId(), sp.lockId(),
-                                               sp.keyboardPwdId(), StaffLockPasscode.Status.REVOKED, sp.createdAt(), LocalDateTime.now()));
+                                       staffLockPasscodeRepository.save(new StaffLockPasscode(slp.id(), slp.employeeId(), slp.lockId(),
+                                               slp.keyboardPwdId(), StaffLockPasscode.Status.REVOKED, slp.createdAt(), LocalDateTime.now()));
                                    });
     }
 
@@ -93,14 +93,21 @@ public class StaffDoorAccessService {
         List<Integer> failedRoomNumbers = new ArrayList<>();
 
         for (Room room : rooms) {
+            Long lockId = room.sifelyLockId();
             try {
-                String keyboardPwdId = sifelyLockService.createPermanentPasscode(room.sifelyLockId(), pin, PasscodeLabels.forStaff(employee.username()));
+                if (lockId == null) {
+                    throw new IllegalStateException("Room " + room.roomNumber() + " has no Sifely lock ID configured.");
+                }
 
-                staffLockPasscodeRepository.save(new StaffLockPasscode(0, employee.id(), room.sifelyLockId(),
+                String keyboardPwdId = sifelyLockService.createPermanentPasscode(lockId, pin, PasscodeLabels.forStaff(employee.username()));
+
+                staffLockPasscodeRepository.save(new StaffLockPasscode(0, employee.id(), lockId,
                         Long.parseLong(keyboardPwdId), StaffLockPasscode.Status.ACTIVE, LocalDateTime.now(), null));
+
                 succeeded++;
             } catch (Exception e) {
-                LOGGER.error("Failed to issue staff passcode for employee {} on lock {}", employee.id(), room.sifelyLockId(), e);
+                LOGGER.error("Failed to issue staff passcode for room {}", room.roomNumber(), e);
+
                 failedRoomNumbers.add(room.roomNumber());
             }
         }

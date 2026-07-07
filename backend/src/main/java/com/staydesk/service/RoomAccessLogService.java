@@ -30,7 +30,7 @@ public class RoomAccessLogService {
     }
 
     public List<RoomAccessEvent> getAccessLog(long lockId, int days) {
-        int clampedDays = Math.max(1, Math.min(days, 90));
+        int clampedDays = Math.clamp(days, 1, 90);
         long end = System.currentTimeMillis();
         long start = end - Duration.ofDays(clampedDays).toMillis();
 
