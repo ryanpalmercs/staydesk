@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
 import { getRooms, deleteRoom } from '../api/roomApi'
 import RoomModal from '../components/RoomModal'
+import RoomAccessLogModal from '../components/RoomAccessLogModal'
 import StatusBadge from "../components/StatusBadge";
+import { useAuth } from "../contexts/AuthContext"
 
 function RoomsPage() {
+    const { role } = useAuth()
     const [rooms, setRooms] = useState([])
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedRoom, setSelectedRoom] = useState(null)
+    const [accessLogRoom, setAccessLogRoom] = useState(null)
     const [statusFilter, setStatusFilter] = useState('ALL')
     const displayed = rooms.filter(r => statusFilter === 'ALL' || r.status === statusFilter)
         .sort((a, b) => a.roomNumber - b.roomNumber)
@@ -75,6 +79,9 @@ function RoomsPage() {
                                 </div>
                                 <p className="text-sm text-muted">{room.type}</p>
                                 <div className="flex gap-3 justify-end">
+                                    {role === 'ADMIN' && room.sifelyLockId != null && (
+                                        <button onClick={() => setAccessLogRoom(room)} className="text-brown hover:text-rust text-sm font-medium">Access Log</button>
+                                    )}
                                     <button onClick={() => openEdit(room)} className="text-brown hover:text-rust text-sm font-medium">Edit</button>
                                     <button onClick={() => handleDelete(room.id)} className="text-muted hover:text-rust text-sm font-medium">Delete</button>
                                 </div>
@@ -86,6 +93,10 @@ function RoomsPage() {
 
             {modalOpen && (
                 <RoomModal room={selectedRoom} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
+            )}
+
+            {accessLogRoom && (
+                <RoomAccessLogModal room={accessLogRoom} onClose={() => setAccessLogRoom(null)} />
             )}
         </div>
     )

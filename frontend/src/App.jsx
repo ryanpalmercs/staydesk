@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react'
 import api from './api/baseApi'
 import TimesheetPage from './pages/TimesheetPage'
 import ReportsPage from './pages/ReportsPage'
+import RoomAccessLogPage from './pages/RoomAccessLogPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -67,6 +68,7 @@ export default function App() {
                                 <Route path="/payroll" element={<PayrollPage />} />
                                 <Route path="/settings" element={<SettingsPage />} />
                                 <Route path="/reports" element={<ReportsPage />} />
+                                <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
                             </Route>
                         </Route>
                     </Routes>
