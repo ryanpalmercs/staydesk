@@ -15,3 +15,11 @@ export function createGuest(guest) {
 export function updateGuest(id, guest) {
     return api.put(`/guests/${id}`, guest)
 }
+
+export function flagGuest(id, reason) {
+    return api.post(`/guests/${id}/flag`, { reason })
+}
+
+export function unflagGuest(id) {
+    return api.delete(`/guests/${id}/flag`)
+}

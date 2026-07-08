@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useCombobox } from "downshift"
 import { createReservation, updateReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { createGuest, getGuests } from "../api/guestApi"
@@ -60,6 +61,52 @@ function CardCaptureStep({ stripePromise, onCapture, onCancel }) {
     )
 }
 
+function SearchableSelect({ items, selectedId, itemKey = 'id', itemLabel, renderBadge, onSelect, placeholder }) {
+    const sortedItems = useMemo(
+        () => [...items].sort((a, b) => itemLabel(a).localeCompare(itemLabel(b))),
+        [items]
+    )
+    const [inputItems, setInputItems] = useState(sortedItems)
+    const selectedItem = items.find(i => i[itemKey] === selectedId) ?? null
+
+    useEffect(() => {
+        setInputItems(sortedItems)
+    }, [sortedItems])
+
+    const { isOpen, getMenuProps, getInputProps, getItemProps, highlightedIndex } = useCombobox({
+        items: inputItems,
+        itemToString: item => (item ? itemLabel(item) : ''),
+        selectedItem,
+        onInputValueChange: ({ inputValue }) => {
+            setInputItems(
+                sortedItems.filter(i => itemLabel(i).toLowerCase().includes((inputValue ?? '').toLowerCase()))
+            )
+        },
+        onSelectedItemChange: ({ selectedItem }) => {
+            onSelect(selectedItem ? selectedItem[itemKey] : '')
+        },
+    })
+
+    return (
+        <div className="relative">
+            <input {...getInputProps({ placeholder })} className="filter-input w-full" />
+            <ul {...getMenuProps()} className={`absolute z-10 w-full bg-warm-white border border-tan rounded-md mt-1 max-h-48 overflow-auto shadow-lg ${isOpen ? '' : 'hidden'}`}>
+                {isOpen &&
+                    inputItems.map((item, index) => (
+                        <li
+                            key={item[itemKey]}
+                            {...getItemProps({ item, index })}
+                            className={`px-3 py-2 text-sm cursor-pointer flex justify-between ${highlightedIndex === index ? 'bg-tan' : ''}`}
+                        >
+                            <span>{itemLabel(item)}</span>
+                            {renderBadge?.(item)}
+                        </li>
+                    ))}
+            </ul>
+        </div>
+    )
+}
+
 function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
     const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
@@ -102,6 +149,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [stripePromise, setStripePromise] = useState(null)
 
     const selectedRate = rates.find(r => r.rateType === form.rateType && r.guestCount === Number(form.guestCount))
+
+    const selectedGuest = guests.find(g => g.id === Number(form.guestId))
+    const flaggedMatch = guestMode === 'search'
+        ? (selectedGuest?.flagged ? selectedGuest : null)
+        : guests.find(g => g.flagged && (
+            (guestForm.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
+            (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
+        ))
 
     useEffect(() => {
         getRooms().then(res => setRooms(res.data ?? [])),
@@ -163,6 +218,16 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         e.preventDefault()
 
         setError(null)
+
+        if (guestMode === 'search' && !form.guestId) {
+            setError('Please select a guest.')
+            return
+        }
+
+        if (!form.roomId) {
+            setError('Please select a room.')
+            return
+        }
 
         if (form.checkOutDate <= form.checkInDate) {
             setError('Check-out date must be after check-in date.')
@@ -254,14 +319,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 </button>
                             </div>
                             {guestMode === 'search' ? (
-                                <select name="guestId" value={form.guestId} onChange={handleChange} className="filter-input" required>
-                                    <option value="">Select a guest</option>
-                                    {guests.map(guest => (
-                                        <option key={guest.id} value={guest.id}>
-                                            {guest.firstName} {guest.lastName}
-                                        </option>
-                                    ))}
-                                </select>
+                                <SearchableSelect
+                                    items={guests}
+                                    selectedId={form.guestId}
+                                    itemLabel={g => `${g.firstName} ${g.lastName}`}
+                                    renderBadge={g => g.flagged && <span className="text-xs text-rust font-medium">Flagged</span>}
+                                    onSelect={guestId => setForm({ ...form, guestId })}
+                                    placeholder="Search guests..."
+                                />
                             ) : (
                                 <div className="flex flex-col gap-2">
                                     <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
@@ -299,14 +364,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
                         <div>
                             <label className="block text-sm text-muted mb-1">Room</label>
-                            <select name="roomId" value={form.roomId} onChange={handleChange} className="filter-input" required>
-                                <option value="">Select a room</option>
-                                {rooms.map(room => (
-                                    <option key={room.id} value={room.id}>
-                                        Room {room.roomNumber} — ${room.nightlyRate}/night
-                                    </option>
-                                ))}
-                            </select>
+                            <SearchableSelect
+                                items={rooms}
+                                selectedId={form.roomId}
+                                itemLabel={r => `Room ${r.roomNumber}`}
+                                onSelect={roomId => setForm({ ...form, roomId })}
+                                placeholder="Search rooms..."
+                            />
                         </div>
 
                         <div>
@@ -349,6 +413,12 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 )}
 
                                 {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                            </div>
+                        )}
+
+                        {flaggedMatch && (
+                            <div className="bg-red-100 text-red-700 text-sm rounded p-2">
+                                Warning: this guest is flagged — {flaggedMatch.flagReason}
                             </div>
                         )}
 
