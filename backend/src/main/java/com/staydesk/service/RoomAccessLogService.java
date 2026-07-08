@@ -1,5 +1,7 @@
 package com.staydesk.service;
 
+import com.staydesk.model.Guest;
+import com.staydesk.model.Reservation;
 import com.staydesk.model.dto.RoomAccessEvent;
 import com.staydesk.model.dto.SifelyLockRecord;
 import com.staydesk.repository.GuestRepository;
@@ -58,8 +60,9 @@ public class RoomAccessLogService {
         Optional<Integer> reservationId = PasscodeLabels.parseReservationId(username);
         if (reservationId.isPresent()) {
             Optional<String> guestName = reservationRepository.findById(reservationId.get())
-                                                              .flatMap(r -> guestRepository.findById(r.guestId()))
-                                                              .map(g -> g.firstName() + " " + g.lastName());
+                                                              .map(Reservation::guestId)
+                                                              .flatMap(guestRepository::findById)
+                                                              .map(Guest::name);
 
             if (guestName.isPresent()) {
                 return new RoomAccessEvent(occurredAt, eventType, true, guestName.get(), RoomAccessEvent.ActorType.GUEST);

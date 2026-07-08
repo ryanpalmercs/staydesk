@@ -31,3 +31,11 @@ export function checkOut(id) {
 export function cancelReservation(id) {
     return api.post(`/reservations/${id}/cancel`)
 }
+
+export function setReservationLegalHold(id) {
+    return api.post(`/reservations/${id}/legal-hold`)
+}
+
+export function clearReservationLegalHold(id) {
+    return api.delete(`/reservations/${id}/legal-hold`)
+}

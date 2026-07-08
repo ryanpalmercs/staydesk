@@ -70,7 +70,7 @@ public class ReservationController {
             Reservation savedReservation = reservationService.createReservation(
                     new Reservation(0, request.guestId(), request.roomId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
-                            null, request.rateType(), request.guestCount(), LocalDateTime.now(), LocalDateTime.now()),
+                            null, request.rateType(), request.guestCount(), false, LocalDateTime.now(), LocalDateTime.now()),
                     request.roomPaymentMethodId());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
@@ -157,6 +157,28 @@ public class ReservationController {
         } catch (Exception e) {
             LOGGER.error("An error occurred while canceling reservation with id {}", id, e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("{id}/legal-hold")
+    public ResponseEntity<Reservation> setLegalHold(@PathVariable Integer id) {
+        LOGGER.info("Placing legal hold on reservation {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.setLegalHold(id));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("{id}/legal-hold")
+    public ResponseEntity<Reservation> clearLegalHold(@PathVariable Integer id) {
+        LOGGER.info("Clearing legal hold on reservation {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.clearLegalHold(id));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
         }
     }
 }

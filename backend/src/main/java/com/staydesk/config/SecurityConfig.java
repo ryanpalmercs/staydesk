@@ -3,6 +3,7 @@ package com.staydesk.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -36,6 +37,12 @@ public class SecurityConfig {
                    .authorizeHttpRequests(auth -> auth
                            .requestMatchers("/auth/employee/login", "/error", "/stripe/connect/return", "/stripe/connect/refresh").permitAll()
                            .requestMatchers("/actuator/health").permitAll()
+                           .requestMatchers(HttpMethod.POST, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.DELETE, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.POST, "/guests/*/legal-hold").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.DELETE, "/guests/*/legal-hold").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.POST, "/reservations/*/legal-hold").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.DELETE, "/reservations/*/legal-hold").hasAnyRole("ADMIN", "MANAGER")
                            .requestMatchers("/admin/**", "/reports/**")
                            .hasRole("ADMIN")
                            .anyRequest().authenticated())

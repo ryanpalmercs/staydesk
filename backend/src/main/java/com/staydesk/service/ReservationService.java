@@ -111,7 +111,7 @@ public class ReservationService {
 
         Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), reservation.roomId(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), now, now));
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.legalHold(), now, now));
 
         Folio savedFolio = folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
 
@@ -129,8 +129,8 @@ public class ReservationService {
 
     @Transactional
     public Reservation updateReservation(int id, Reservation reservation) {
-        reservationRepository.findById(id)
-                             .orElseThrow(ReservationNotFoundException::new);
+        Reservation existing = reservationRepository.findById(id)
+                                                    .orElseThrow(ReservationNotFoundException::new);
 
         boolean hasOverlap = reservationRepository.findOverlapping(reservation.roomId(), reservation.checkOutDate(), reservation.checkInDate())
                                                   .stream()
@@ -146,7 +146,7 @@ public class ReservationService {
 
         Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.createdAt(), LocalDateTime.now());
+                reservation.rateType(), reservation.guestCount(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now());
 
         return reservationRepository.save(updated);
     }
@@ -242,6 +242,20 @@ public class ReservationService {
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.createdAt(), LocalDateTime.now()));
+                reservation.rateType(), reservation.guestCount(), reservation.legalHold(), reservation.createdAt(), LocalDateTime.now()));
+    }
+
+    @Transactional
+    public Reservation setLegalHold(int id) {
+        reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        reservationRepository.setLegalHold(id);
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    @Transactional
+    public Reservation clearLegalHold(int id) {
+        reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        reservationRepository.clearLegalHold(id);
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 }
