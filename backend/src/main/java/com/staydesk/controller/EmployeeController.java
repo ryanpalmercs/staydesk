@@ -1,6 +1,5 @@
 package com.staydesk.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.staydesk.exception.EmployeeAlreadyExistsException;
 import com.staydesk.model.Employee;
 import com.staydesk.model.EmployeeType;
@@ -64,7 +63,7 @@ public class EmployeeController {
 
     @PostMapping("employees")
     public ResponseEntity<Employee> createEmployee(@Valid @RequestBody CreateEmployeeRequest createEmployeeRequest) {
-        LOGGER.info("Creating employee with email: {}", createEmployeeRequest.email());
+        LOGGER.info("Creating employee with username: {}", createEmployeeRequest.username());
 
         try {
             Employee savedEmployee = employeeService.createEmployee(createEmployeeRequest);
@@ -113,12 +112,8 @@ public class EmployeeController {
                                                            @Valid @RequestBody UpdatePersonalInfoRequest request) {
         LOGGER.info("Updating employee personal info with id: {}", id);
 
-        try {
-            employeeService.updateEmployeePersonalInfo(id, request);
-            return ResponseEntity.noContent().build();
-        } catch (JsonProcessingException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        employeeService.updateEmployeePersonalInfo(id, request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("payRateTypes")

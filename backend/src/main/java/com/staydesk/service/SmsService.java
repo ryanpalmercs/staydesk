@@ -60,15 +60,15 @@ public class SmsService {
         String template = propertySettingsService.getProperty("sms_confirmation_template").value();
 
         Map<String, String> variables = Map.of(
-                "guestFirstName", guest.firstName(),
-                "guestLastName", guest.lastName(),
+                "guestFirstName", guest.firstName().value(),
+                "guestLastName", guest.lastName().value(),
                 "checkInDate", reservation.checkInDate().toString(),
                 "checkOutDate", reservation.checkOutDate().toString(),
                 "roomNumber", String.valueOf(roomNumber),
                 "confirmationNumber", String.valueOf(reservation.id())
         );
 
-        sendSms(guest.phoneNumber(), interpolate(template, variables));
+        sendSms(guest.phoneNumber().value(), interpolate(template, variables));
     }
 
     public void sendCheckInLink(Guest guest, Reservation reservation, String link) {
@@ -80,12 +80,12 @@ public class SmsService {
         String template = propertySettingsService.getProperty("sms_checkin_complete_template").value();
 
         Map<String, String> variables = Map.of(
-                "guestFirstName", guest.firstName(),
+                "guestFirstName", guest.firstName().value(),
                 "roomNumber", String.valueOf(roomNumber),
                 "doorCode", doorCode
         );
 
-        sendSms(guest.phoneNumber(), interpolate(template, variables));
+        sendSms(guest.phoneNumber().value(), interpolate(template, variables));
     }
 
     public void sendDoorCodeResolved(String phoneNumber, int roomNumber) {

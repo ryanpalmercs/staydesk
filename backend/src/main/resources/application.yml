@@ -59,3 +59,7 @@ twilio:
 sifely:
   base-url: https://cus-openapi.sifely.com
   token-encryption-key: ${SIFELY_TOKEN_ENCRYPTION_KEY}
+
+guest:
+  pii-encryption-key: ${GUEST_PII_ENCRYPTION_KEY}
+  pii-hash-key: ${GUEST_PII_HASH_KEY}

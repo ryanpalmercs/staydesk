@@ -43,7 +43,7 @@ public class AuthController {
         }
 
         try {
-            SupabaseAuthResponse authResponse = supabaseAdminClient.signIn(employee.get().email(), request.pin());
+            SupabaseAuthResponse authResponse = supabaseAdminClient.signIn(employee.get().email().value(), request.pin());
             staffDoorAccessService.syncAccessIfNeeded(employee.get(), request.pin());
             return ResponseEntity.ok(authResponse);
         } catch (Exception ex) {

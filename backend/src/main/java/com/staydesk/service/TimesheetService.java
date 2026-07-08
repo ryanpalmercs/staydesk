@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 @Service
 public class TimesheetService {
 
-    private static DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
 
     private final TimeEntryRepository timeEntryRepository;
     private final EmployeeRepository employeeRepository;
@@ -56,7 +56,7 @@ public class TimesheetService {
         List<EmployeeTimesheetRow> rows = groupedTimeEntries.entrySet()
                                                             .stream()
                                                             .filter(entry -> employeeMap.containsKey(entry.getKey()))
-                                                            .sorted(Comparator.comparing(entry -> employeeMap.get(entry.getKey()).lastName()))
+                                                            .sorted(Comparator.comparing(entry -> employeeMap.get(entry.getKey()).lastName().value()))
                                                             .map(entry -> {
                                                                 Employee employee = employeeMap.get(entry.getKey());
 

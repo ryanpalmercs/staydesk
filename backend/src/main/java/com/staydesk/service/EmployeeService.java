@@ -1,14 +1,14 @@
 package com.staydesk.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staydesk.exception.EmployeeAlreadyExistsException;
+import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Employee;
 import com.staydesk.model.EmployeeType;
 import com.staydesk.model.request.CreateEmployeeRequest;
 import com.staydesk.model.request.UpdatePersonalInfoRequest;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.EmployeeTypeRepository;
+import com.staydesk.security.PiiCipher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.jdbc.core.JdbcAggregateTemplate;
@@ -24,23 +24,23 @@ import java.util.UUID;
 public class EmployeeService {
     private static final Logger LOGGER = LoggerFactory.getLogger(EmployeeService.class);
 
-    private final ObjectMapper objectMapper;
     private final EmployeeRepository employeeRepository;
     private final EmployeeTypeRepository employeeTypeRepository;
     private final SupabaseAdminClient supabaseAdminClient;
     private final JdbcAggregateTemplate jdbcAggregateTemplate;
     private final StaffDoorAccessService staffDoorAccessService;
+    private final PiiCipher piiCipher;
 
-    public EmployeeService(ObjectMapper objectMapper, EmployeeRepository employeeRepository,
+    public EmployeeService(EmployeeRepository employeeRepository,
                            EmployeeTypeRepository employeeTypeRepository,
                            SupabaseAdminClient supabaseAdminClient, JdbcAggregateTemplate jdbcAggregateTemplate,
-                           StaffDoorAccessService staffDoorAccessService) {
-        this.objectMapper = objectMapper;
+                           StaffDoorAccessService staffDoorAccessService, PiiCipher piiCipher) {
         this.employeeRepository = employeeRepository;
         this.employeeTypeRepository = employeeTypeRepository;
         this.supabaseAdminClient = supabaseAdminClient;
         this.jdbcAggregateTemplate = jdbcAggregateTemplate;
         this.staffDoorAccessService = staffDoorAccessService;
+        this.piiCipher = piiCipher;
     }
 
     public Employee createEmployee(CreateEmployeeRequest createEmployeeRequest) {
@@ -49,8 +49,9 @@ public class EmployeeService {
             throw new EmployeeAlreadyExistsException();
         }
 
-        if (employeeRepository.findByEmail(createEmployeeRequest.email()).isPresent()) {
-            LOGGER.warn("Employee with email {} already exists", createEmployeeRequest.email());
+        String emailHash = piiCipher.hash(createEmployeeRequest.email().strip().toLowerCase());
+        if (employeeRepository.findByEmailHash(emailHash).isPresent()) {
+            LOGGER.warn("Employee with this email already exists");
             throw new EmployeeAlreadyExistsException();
         }
 
@@ -79,10 +80,10 @@ public class EmployeeService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        Employee saved = jdbcAggregateTemplate.insert(new Employee(supabaseId, createEmployeeRequest.firstName(),
-                createEmployeeRequest.lastName(), createEmployeeRequest.email(), createEmployeeRequest.username(),
-                createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(), createEmployeeRequest.hireDate(),
-                true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(),
+        Employee saved = jdbcAggregateTemplate.insert(new Employee(supabaseId, new EncryptedString(createEmployeeRequest.firstName()),
+                new EncryptedString(createEmployeeRequest.lastName()), new EncryptedString(createEmployeeRequest.email()), emailHash,
+                createEmployeeRequest.username(), createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(),
+                createEmployeeRequest.hireDate(), true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(),
                 createEmployeeRequest.grantDoorAccess(), now, now));
 
         if (createEmployeeRequest.grantDoorAccess()) {
@@ -129,13 +130,15 @@ public class EmployeeService {
         employeeRepository.deactivate(id);
     }
 
-    public void updateEmployeePersonalInfo(UUID id, UpdatePersonalInfoRequest request) throws JsonProcessingException {
-        employeeRepository.findById(id)
-                          .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
+    public void updateEmployeePersonalInfo(UUID id, UpdatePersonalInfoRequest request) {
+        Employee existing = employeeRepository.findById(id)
+                                              .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
 
-        String contactInfoString = objectMapper.writeValueAsString(request.contactInfo());
+        Employee updated = new Employee(existing.id(), new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+                existing.email(), existing.emailHash(), existing.username(), existing.employeeTypeId(), request.payRate(),
+                request.hireDate(), existing.active(), request.contactInfo(), request.payRateType(),
+                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now());
 
-        employeeRepository.updatePersonalInfo(id, request.firstName(), request.lastName(), request.payRate(), request.hireDate(),
-                contactInfoString, request.payRateType().name());
+        employeeRepository.save(updated);
     }
 }
