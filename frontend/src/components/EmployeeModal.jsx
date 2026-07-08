@@ -18,6 +18,7 @@ function EmployeeModal({ employee, onSaved, onClose }) {
         payRateType: employee?.payRateType ?? 'HOURLY',
         hireDate: employee?.hireDate ?? '',
         pin: '',
+        grantDoorAccess: false,
         phone: employee?.contactInfo?.phone ?? '',
         addressLine1: employee?.contactInfo?.addressLine1 ?? '',
         addressLine2: employee?.contactInfo?.addressLine2 ?? '',
@@ -160,7 +161,7 @@ function EmployeeModal({ employee, onSaved, onClose }) {
                     <div>
                         <label className="block text-sm text-muted mb-1">Pay Rate</label>
                         <div className="flex gap-2">
-                            <input type="text" name="payRate" value={focused ? form.payRate : displayPrice(form.payRate)} onChange={e => setForm({ ...form, payRate: sanitizePrice(e.target.value) })} onBlur={e => { setFocused(false); setForm: formatPrice(sanitizePrice(e.target.value)) }} onFocus={() => setFocused(true)} className="filter-input" required />
+                            <input type="text" name="payRate" value={focused ? form.payRate : displayPrice(form.payRate)} onChange={e => setForm({ ...form, payRate: sanitizePrice(e.target.value) })} onBlur={e => { setFocused(false); setForm({ ...form, payRate: formatPrice(sanitizePrice(e.target.value)) }) }} onFocus={() => setFocused(true)} className="filter-input" required />
                             <select name="payRateType" value={form.payRateType} onChange={handleChange} className="filter-input" required>
                                 {payRateTypes.map(t => (
                                     <option key={t.value} value={t.value}>{t.displayName}</option>
@@ -181,11 +182,20 @@ function EmployeeModal({ employee, onSaved, onClose }) {
                                 <input type="password" maxLength={6} inputMode="numeric" placeholder="PIN" name="pin" value={form.pin} onChange={handleChange} className="filter-input" required />
                             </div>
 
-
                             <div>
                                 <label className="block text-sm text-muted mb-1">Confirm PIN</label>
                                 <input type="password" maxLength={6} inputMode="numeric" placeholder="Confirm PIN" onChange={e => setConfirmPin(e.target.value)} className="filter-input" required />
                             </div>
+
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" id="grantDoorAccess" checked={form.grantDoorAccess}
+                                    onChange={e => setForm({ ...form, grantDoorAccess: e.target.checked })} className="h-4 w-4" />
+                                <label htmlFor="grantDoorAccess" className="text-sm text-charcoal">Grant smart lock door access with this PIN</label>
+                            </div>
+
+                            {form.grantDoorAccess && (
+                                <p className="text-xs text-muted -mt-2">PIN must be 6 digits with no repeated or sequential digits (e.g. 482913).</p>
+                            )}
                         </>
                     }
 
@@ -200,8 +210,8 @@ function EmployeeModal({ employee, onSaved, onClose }) {
                         </button>
                     </div>
                 </form>
-            </div >
-        </div >
+            </div>
+        </div>
     )
 }
 

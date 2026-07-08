@@ -8,6 +8,6 @@ import java.util.Optional;
 
 public interface SifelyConnectionRepository extends CrudRepository<SifelyConnection, Integer> {
 
-    @Query("SELECT * FROM sifely_connections WHERE id = 1")
+    @Query("SELECT * FROM sifely_connections LIMIT 1")
     Optional<SifelyConnection> findFirst();
 }
