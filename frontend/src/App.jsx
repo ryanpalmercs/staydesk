@@ -16,6 +16,7 @@ import api from './api/baseApi'
 import TimesheetPage from './pages/TimesheetPage'
 import ReportsPage from './pages/ReportsPage'
 import RoomAccessLogPage from './pages/RoomAccessLogPage'
+import GuestProfilePage from './pages/GuestProfilePage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -55,6 +56,7 @@ export default function App() {
                                 <Route path="/rooms" element={<RoomsPage />} />
                                 <Route path="/reservations" element={<ReservationsPage />} />
                                 <Route path="/timesheet/:id" element={<TimesheetPage />} />
+                                <Route path="/guest/:id" element={<GuestProfilePage />} />
                             </Route>
                         </Route>
                         <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
