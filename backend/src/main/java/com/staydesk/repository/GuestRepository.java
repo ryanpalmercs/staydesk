@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface GuestRepository extends ListCrudRepository<Guest, Integer> {
 
-    Optional<Guest> getGuestByEmail(String email);
+    Optional<Guest> findByEmailHash(String emailHash);
 
     @Modifying
     @Query("UPDATE guests SET flagged = TRUE, flag_reason = :reason, flagged_date = now(), flagged_by = :flaggedBy WHERE id = :id")

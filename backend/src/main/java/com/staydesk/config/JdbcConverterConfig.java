@@ -2,9 +2,10 @@ package com.staydesk.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staydesk.model.ContactInfo;
+import com.staydesk.model.EncryptedString;
 import com.staydesk.model.EncryptedToken;
+import com.staydesk.security.PiiCipher;
 import com.staydesk.security.TokenCipher;
-import org.postgresql.util.PGobject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -20,29 +21,29 @@ import java.util.List;
 public class JdbcConverterConfig {
 
     @Bean
-    public JdbcCustomConversions jdbcCustomConversions(ObjectMapper objectMapper, TokenCipher tokenCipher) {
+    public JdbcCustomConversions jdbcCustomConversions(ObjectMapper objectMapper, TokenCipher tokenCipher, PiiCipher piiCipher) {
         return new JdbcCustomConversions(List.of(
-                new Writer(objectMapper), new Reader(objectMapper),
-                new EncryptedTokenWriter(tokenCipher), new EncryptedTokenReader(tokenCipher)
+                new Writer(objectMapper, piiCipher), new Reader(objectMapper, piiCipher),
+                new EncryptedTokenWriter(tokenCipher), new EncryptedTokenReader(tokenCipher),
+                new EncryptedStringWriter(piiCipher), new EncryptedStringReader(piiCipher)
         ));
     }
 
 
     @WritingConverter
-    static class Writer implements Converter<ContactInfo, PGobject> {
+    static class Writer implements Converter<ContactInfo, String> {
         private final ObjectMapper objectMapper;
+        private final PiiCipher piiCipher;
 
-        Writer(ObjectMapper objectMapper) {
+        Writer(ObjectMapper objectMapper, PiiCipher piiCipher) {
             this.objectMapper = objectMapper;
+            this.piiCipher = piiCipher;
         }
 
         @Override
-        public PGobject convert(ContactInfo contactInfo) {
+        public String convert(ContactInfo contactInfo) {
             try {
-                PGobject object = new PGobject();
-                object.setType("jsonb");
-                object.setValue(objectMapper.writeValueAsString(contactInfo));
-                return object;
+                return piiCipher.encrypt(objectMapper.writeValueAsString(contactInfo));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -50,20 +51,50 @@ public class JdbcConverterConfig {
     }
 
     @ReadingConverter
-    static class Reader implements Converter<PGobject, ContactInfo> {
+    static class Reader implements Converter<String, ContactInfo> {
         private final ObjectMapper objectMapper;
+        private final PiiCipher piiCipher;
 
-        Reader(ObjectMapper objectMapper) {
+        Reader(ObjectMapper objectMapper, PiiCipher piiCipher) {
             this.objectMapper = objectMapper;
+            this.piiCipher = piiCipher;
         }
 
         @Override
-        public ContactInfo convert(PGobject source) {
+        public ContactInfo convert(String source) {
             try {
-                return objectMapper.readValue(source.getValue(), ContactInfo.class);
+                return objectMapper.readValue(piiCipher.decrypt(source), ContactInfo.class);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    @WritingConverter
+    static class EncryptedStringWriter implements Converter<EncryptedString, String> {
+        private final PiiCipher piiCipher;
+
+        EncryptedStringWriter(PiiCipher piiCipher) {
+            this.piiCipher = piiCipher;
+        }
+
+        @Override
+        public String convert(EncryptedString source) {
+            return piiCipher.encrypt(source.value());
+        }
+    }
+
+    @ReadingConverter
+    static class EncryptedStringReader implements Converter<String, EncryptedString> {
+        private final PiiCipher piiCipher;
+
+        EncryptedStringReader(PiiCipher piiCipher) {
+            this.piiCipher = piiCipher;
+        }
+
+        @Override
+        public EncryptedString convert(String source) {
+            return new EncryptedString(piiCipher.decrypt(source));
         }
     }
 

@@ -1,9 +1,14 @@
 package com.staydesk.controller;
 
+import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Guest;
+import com.staydesk.model.request.CreateGuestRequest;
 import com.staydesk.model.request.FlagGuestRequest;
+import com.staydesk.model.request.UpdateGuestRequest;
 import com.staydesk.repository.GuestRepository;
+import com.staydesk.security.PiiCipher;
 import com.staydesk.service.GuestService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -32,10 +37,12 @@ public class GuestController {
 
     private final GuestRepository guestRepository;
     private final GuestService guestService;
+    private final PiiCipher piiCipher;
 
-    public GuestController(GuestRepository guestRepository, GuestService guestService) {
+    public GuestController(GuestRepository guestRepository, GuestService guestService, PiiCipher piiCipher) {
         this.guestRepository = guestRepository;
         this.guestService = guestService;
+        this.piiCipher = piiCipher;
     }
 
     @GetMapping
@@ -53,16 +60,18 @@ public class GuestController {
     }
 
     @PostMapping
-    public ResponseEntity<Guest> createGuest(@RequestBody Guest guest) {
-        LOGGER.info("Creating guest {}", guest);
+    public ResponseEntity<Guest> createGuest(@Valid @RequestBody CreateGuestRequest request) {
+        LOGGER.info("Creating guest");
 
-        if (guestRepository.getGuestByEmail(guest.email()).isPresent()) {
+        String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
+        if (guestRepository.findByEmailHash(emailHash).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
 
         LocalDateTime now = LocalDateTime.now();
 
-        Guest savedGuest = new Guest(0, guest.firstName(), guest.lastName(), guest.email(), guest.phoneNumber(),
+        Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 false, null, null, null, false, now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
@@ -70,15 +79,17 @@ public class GuestController {
     }
 
     @PutMapping("{id}")
-    public ResponseEntity<Guest> updateGuest(@PathVariable Integer id, @RequestBody Guest guest) {
-        LOGGER.info("Updating guest {}", guest);
+    public ResponseEntity<Guest> updateGuest(@PathVariable Integer id, @Valid @RequestBody UpdateGuestRequest request) {
+        LOGGER.info("Updating guest {}", id);
 
         Guest existing = guestRepository.findById(id).orElse(null);
         if (existing == null) {
             return ResponseEntity.notFound().build();
         }
 
-        Guest updatedGuest = new Guest(id, guest.firstName(), guest.lastName(), guest.email(), guest.phoneNumber(),
+        String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
+        Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
                 existing.legalHold(), existing.createdAt(), LocalDateTime.now());
 
