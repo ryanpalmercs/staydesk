@@ -19,3 +19,7 @@ export function updateRoom(id, room) {
 export function deleteRoom(id) {
     return api.delete(`/rooms/${id}`)
 }
+
+export function getRoomAccessLog(id, days) {
+    return api.get(`/admin/rooms/${id}/access-log`, { params: days ? { days } : {} })
+}

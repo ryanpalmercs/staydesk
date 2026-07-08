@@ -45,14 +45,10 @@ function DashboardPage() {
     useEffect(() => { fetchData() }, [])
 
     async function handleCheckInConfirmed(incidentalsPaymentMethodId) {
-        try {
-            await checkIn(checkInTarget, incidentalsPaymentMethodId)
-            setCheckInTarget(null)
-            setSelectedEvent(null)
-            fetchData()
-        } catch (err) {
-            console.error('Check-in failed:', err)
-        }
+        const res = await checkIn(checkInTarget, incidentalsPaymentMethodId)
+        setSelectedEvent(null)
+        fetchData()
+        return res.data.doorAccessStatus
     }
 
     async function handleViewFolio() {

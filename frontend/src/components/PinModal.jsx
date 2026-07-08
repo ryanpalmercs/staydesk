@@ -3,7 +3,8 @@ import { updateEmployeePin } from "../api/employeeApi"
 
 function PinModal({ employee, onSaved, onClose }) {
     const [form, setForm] = useState({
-        pin: ''
+        pin: '',
+        grantDoorAccess: employee.doorAccessEnabled ?? false
     })
     const [error, setError] = useState('')
     const [confirmPin, setConfirmPin] = useState('')
@@ -24,9 +25,10 @@ function PinModal({ employee, onSaved, onClose }) {
                 return
             }
 
-            await updateEmployeePin(employee.id, { pin: form.pin })
+            await updateEmployeePin(employee.id, { pin: form.pin, grantDoorAccess: form.grantDoorAccess })
             onSaved()
         } catch (err) {
+            setError('Failed to update PIN')
             console.error(err)
         }
     }
@@ -48,6 +50,16 @@ function PinModal({ employee, onSaved, onClose }) {
                         <label className="block text-sm text-muted mb-1">Confirm PIN</label>
                         <input type="password" maxLength={6} inputMode="numeric" placeholder="Confirm PIN" onChange={e => setConfirmPin(e.target.value)} className="filter-input" required />
                     </div>
+
+                    <div className="flex items-center gap-2">
+                        <input type="checkbox" id="grantDoorAccess" checked={form.grantDoorAccess}
+                            onChange={e => setForm({ ...form, grantDoorAccess: e.target.checked })} className="h-4 w-4" />
+                        <label htmlFor="grantDoorAccess" className="text-sm text-charcoal">Grant smart lock door access with this PIN</label>
+                    </div>
+
+                    {form.grantDoorAccess && (
+                        <p className="text-xs text-muted -mt-2">PIN must be 6 digits with no repeated or sequential digits (e.g. 482913).</p>
+                    )}
 
                     {error && <p className="text-sm text-rust">{error}</p>}
 

@@ -29,14 +29,18 @@ public class EmployeeService {
     private final EmployeeTypeRepository employeeTypeRepository;
     private final SupabaseAdminClient supabaseAdminClient;
     private final JdbcAggregateTemplate jdbcAggregateTemplate;
+    private final StaffDoorAccessService staffDoorAccessService;
 
-    public EmployeeService(ObjectMapper objectMapper, EmployeeRepository employeeRepository, EmployeeTypeRepository employeeTypeRepository,
-                           SupabaseAdminClient supabaseAdminClient, JdbcAggregateTemplate jdbcAggregateTemplate) {
+    public EmployeeService(ObjectMapper objectMapper, EmployeeRepository employeeRepository,
+                           EmployeeTypeRepository employeeTypeRepository,
+                           SupabaseAdminClient supabaseAdminClient, JdbcAggregateTemplate jdbcAggregateTemplate,
+                           StaffDoorAccessService staffDoorAccessService) {
         this.objectMapper = objectMapper;
         this.employeeRepository = employeeRepository;
         this.employeeTypeRepository = employeeTypeRepository;
         this.supabaseAdminClient = supabaseAdminClient;
         this.jdbcAggregateTemplate = jdbcAggregateTemplate;
+        this.staffDoorAccessService = staffDoorAccessService;
     }
 
     public Employee createEmployee(CreateEmployeeRequest createEmployeeRequest) {
@@ -52,6 +56,10 @@ public class EmployeeService {
 
         EmployeeType type = employeeTypeRepository.findById(createEmployeeRequest.employeeTypeId())
                                                   .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee type"));
+
+        if (createEmployeeRequest.grantDoorAccess() && !PasscodeRules.isValidPin(createEmployeeRequest.pin())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PIN must be 6 digits with no repeated or sequential digits");
+        }
 
         UUID supabaseId;
 
@@ -71,10 +79,17 @@ public class EmployeeService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        return jdbcAggregateTemplate.insert(new Employee(supabaseId, createEmployeeRequest.firstName(),
+        Employee saved = jdbcAggregateTemplate.insert(new Employee(supabaseId, createEmployeeRequest.firstName(),
                 createEmployeeRequest.lastName(), createEmployeeRequest.email(), createEmployeeRequest.username(),
                 createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(), createEmployeeRequest.hireDate(),
-                true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(), now, now));
+                true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(),
+                createEmployeeRequest.grantDoorAccess(), now, now));
+
+        if (createEmployeeRequest.grantDoorAccess()) {
+            staffDoorAccessService.grantAccess(saved, createEmployeeRequest.pin());
+        }
+
+        return saved;
     }
 
     public void updateEmployeeRole(UUID id, int employeeTypeId) {
@@ -88,8 +103,30 @@ public class EmployeeService {
         employeeRepository.updateEmployeeType(employee.id(), employeeTypeId);
     }
 
-    public void updateEmployeePin(UUID id, String pin) {
+    public void updateEmployeePin(UUID id, String pin, boolean grantDoorAccess) {
+        if (grantDoorAccess && !PasscodeRules.isValidPin(pin)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PIN must be 6 digits with no repeated or sequential digits");
+        }
+
+        Employee employee = employeeRepository.findById(id)
+                                              .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
+
         supabaseAdminClient.resetPin(id, pin);
+        staffDoorAccessService.revokeAccess(employee);
+        employeeRepository.updateDoorAccessEnabled(id, grantDoorAccess);
+
+        if (grantDoorAccess) {
+            staffDoorAccessService.grantAccess(employee, pin);
+        }
+    }
+
+    public void deactivateEmployee(UUID id) {
+        Employee employee = employeeRepository.findById(id)
+                                              .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
+
+        staffDoorAccessService.revokeAccess(employee);
+        employeeRepository.updateDoorAccessEnabled(id, false);
+        employeeRepository.deactivate(id);
     }
 
     public void updateEmployeePersonalInfo(UUID id, UpdatePersonalInfoRequest request) throws JsonProcessingException {
