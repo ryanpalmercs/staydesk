@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { flagGuest, getGuest, unflagGuest } from "../api/guestApi"
+import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, unflagGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
+import { getReservations } from "../api/reservationApi"
+import { getRooms } from "../api/roomApi"
 
 function GuestProfilePage() {
     const { id } = useParams()
@@ -16,9 +18,13 @@ function GuestProfilePage() {
     const [showFlagForm, setShowFlagForm] = useState(false)
     const [flagReason, setFlagReason] = useState('')
     const [error, setError] = useState(null)
+    const [reservations, setReservations] = useState([])
+    const [rooms, setRooms] = useState([])
 
     useEffect(() => {
         fetchGuest()
+        getReservations().then(res => setReservations(res.data ?? []))
+        getRooms().then(res => setRooms(res.data ?? []))
     }, [id])
 
     async function fetchGuest() {
@@ -58,6 +64,20 @@ function GuestProfilePage() {
         }
     }
 
+    async function handleLegalHoldToggle() {
+        setError(null)
+        try {
+            if (guest.legalHold) {
+                await clearGuestLegalHold(id)
+            } else {
+                await setGuestLegalHold(id)
+            }
+            await fetchGuest()
+        } catch {
+            setError('Failed to update legal hold.')
+        }
+    }
+
     if (loading) {
         return <p className="text-gray-500">Loading...</p>
     }
@@ -66,11 +86,17 @@ function GuestProfilePage() {
         return <p className="text-muted">Guest not found.</p>
     }
 
+    const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
+    const guestReservations = reservations
+        .filter(r => r.guestId === guest.id)
+        .sort((a, b) => b.checkInDate.localeCompare(a.checkInDate))
+
     return (
         <div>
             <div className="page-header mb-6">
                 <h1 className="section-title">{guest.name}</h1>
                 {guest.flagged && <StatusBadge status="FLAGGED" />}
+                {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
             </div>
             <div className="flex gap-2 mb-6 flex-wrap">
                 <div>
@@ -92,7 +118,7 @@ function GuestProfilePage() {
             )}
 
             {canManage && (
-                <div className="mt-4">
+                <div className="mt-4 flex gap-4">
                     {guest.flagged ? (
                         <button onClick={handleUnflag} className="text-sm font-medium text-brown hover:text-rust">
                             Unflag Guest
@@ -100,8 +126,12 @@ function GuestProfilePage() {
                     ) : (
                         <button onClick={() => setShowFlagForm(!showFlagForm)} className="text-sm font-medium text-rust hover:text-rust-light">Flag Guest</button>
                     )}
+                    <button onClick={handleLegalHoldToggle} className="text-sm font-medium text-brown hover:text-rust">
+                        {guest.legalHold ? 'Clear Legal Hold' : 'Place Legal Hold'}
+                    </button>
                 </div>
             )}
+
 
             {showFlagForm && (
                 <form onSubmit={handleFlag} className="flex flex-col gap-2 mt-2 max-w-md">
@@ -115,6 +145,35 @@ function GuestProfilePage() {
             )}
 
             {error && <p className="text-sm text-rust mt-2">{error}</p>}
+
+            <div className="mt-8">
+                <h3 className="section-title mb-4">Reservation History</h3>
+                {guestReservations.length === 0 ? (
+                    <p className="text-sm text-muted">No reservations yet.</p>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {guestReservations.map(res => {
+                            const room = roomMap[res.roomId]
+                            return (
+                                <div key={res.id} className="feat-card">
+                                    <div className="flex items-start justify-between gap-4 mb-2">
+                                        <span className="font-semibold text-charcoal">
+                                            {room ? `Room ${room.roomNumber}` : res.roomId}
+                                        </span>
+                                        <div className="flex gap-2">
+                                            {res.legalHold && <StatusBadge status="LEGAL_HOLD" />}
+                                            <StatusBadge status={res.status} />
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-muted">
+                                        {res.checkInDate} → {res.checkOutDate}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

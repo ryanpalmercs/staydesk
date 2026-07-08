@@ -23,3 +23,11 @@ export function flagGuest(id, reason) {
 export function unflagGuest(id) {
     return api.delete(`/guests/${id}/flag`)
 }
+
+export function setGuestLegalHold(id) {
+    return api.post(`/guests/${id}/legal-hold`)
+}
+
+export function clearGuestLegalHold(id) {
+    return api.delete(`/guests/${id}/legal-hold`)
+}
