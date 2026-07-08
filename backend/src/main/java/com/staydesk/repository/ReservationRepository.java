@@ -29,4 +29,10 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Modifying
     @Query("UPDATE reservations SET legal_hold = FALSE WHERE id = :id")
     void clearLegalHold(@Param("id") Integer id);
+
+    List<Reservation> findByGuestId(Integer guestId);
+
+    @Modifying
+    @Query("UPDATE reservations SET guest_id = NULL WHERE guest_id = :guestId")
+    void anonymizeByGuestId(@Param("guestId") Integer guestId);
 }
