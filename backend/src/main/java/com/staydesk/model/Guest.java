@@ -11,8 +11,8 @@ import java.util.UUID;
 @Table("guests")
 public record Guest(@Id int id, String firstName, String lastName, String email, String phoneNumber,
                     boolean flagged, @Nullable String flagReason, @Nullable LocalDateTime flaggedDate,
-                    @Nullable UUID flaggedBy, LocalDateTime createdAt, LocalDateTime updatedAt) {
-    
+                    @Nullable UUID flaggedBy, boolean legalHold, LocalDateTime createdAt, LocalDateTime updatedAt) {
+
     @JsonProperty()
     public String name() {
         return firstName + " " + lastName;

@@ -1,6 +1,5 @@
 package com.staydesk.controller;
 
-import com.staydesk.exception.GuestNotFoundException;
 import com.staydesk.model.Guest;
 import com.staydesk.model.request.FlagGuestRequest;
 import com.staydesk.repository.GuestRepository;
@@ -64,7 +63,7 @@ public class GuestController {
         LocalDateTime now = LocalDateTime.now();
 
         Guest savedGuest = new Guest(0, guest.firstName(), guest.lastName(), guest.email(), guest.phoneNumber(),
-                false, null, null, null, now, now);
+                false, null, null, null, false, now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -81,7 +80,7 @@ public class GuestController {
 
         Guest updatedGuest = new Guest(id, guest.firstName(), guest.lastName(), guest.email(), guest.phoneNumber(),
                 existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
-                existing.createdAt(), LocalDateTime.now());
+                existing.legalHold(), existing.createdAt(), LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
     }
@@ -97,5 +96,17 @@ public class GuestController {
     public ResponseEntity<Guest> unflagGuest(@PathVariable Integer id) {
         LOGGER.info("Unflagging guest {}", id);
         return ResponseEntity.ok(guestService.unflagGuest(id));
+    }
+
+    @PostMapping("{id}/legal-hold")
+    public ResponseEntity<Guest> setLegalHold(@PathVariable Integer id) {
+        LOGGER.info("Placing legal hold on guest {}", id);
+        return ResponseEntity.ok(guestService.setLegalHold(id));
+    }
+
+    @DeleteMapping("{id}/legal-hold")
+    public ResponseEntity<Guest> clearLegalHold(@PathVariable Integer id) {
+        LOGGER.info("Clearing legal hold on guest {}", id);
+        return ResponseEntity.ok(guestService.clearLegalHold(id));
     }
 }

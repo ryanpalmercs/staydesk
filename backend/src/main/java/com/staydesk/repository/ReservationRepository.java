@@ -21,4 +21,12 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Modifying
     @Query("UPDATE reservations SET status = 'CHECKED_OUT', checked_out_at = now() WHERE id = :id")
     void updateReservationStatusToCheckedOut(@Param("id") Integer id);
+
+    @Modifying
+    @Query("UPDATE reservations SET legal_hold = TRUE WHERE id = :id")
+    void setLegalHold(@Param("id") Integer id);
+
+    @Modifying
+    @Query("UPDATE reservations SET legal_hold = FALSE WHERE id = :id")
+    void clearLegalHold(@Param("id") Integer id);
 }

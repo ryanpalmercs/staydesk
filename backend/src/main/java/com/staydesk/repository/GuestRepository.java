@@ -20,4 +20,12 @@ public interface GuestRepository extends ListCrudRepository<Guest, Integer> {
     @Modifying
     @Query("UPDATE guests SET flagged = FALSE, flag_reason = NULL, flagged_date = NULL, flagged_by = NULL WHERE id = :id")
     void unflagGuest(@Param("id") Integer id);
+
+    @Modifying
+    @Query("UPDATE guests SET legal_hold = TRUE WHERE id = :id")
+    void setLegalHold(@Param("id") Integer id);
+
+    @Modifying
+    @Query("UPDATE guests SET legal_hold = FALSE WHERE id = :id")
+    void clearLegalHold(@Param("id") Integer id);
 }

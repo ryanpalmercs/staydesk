@@ -34,4 +34,18 @@ public class GuestService {
 
         return guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
     }
+
+    @Transactional
+    public Guest setLegalHold(int id) {
+        guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
+        guestRepository.setLegalHold(id);
+        return guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
+    }
+
+    @Transactional
+    public Guest clearLegalHold(int id) {
+        guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
+        guestRepository.clearLegalHold(id);
+        return guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
+    }
 }
