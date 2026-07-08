@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, BarChart2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import DoorAccessToast from './DoorAccessToast'
 import './Layout.css'
 
 export default function Layout() {
@@ -18,6 +19,8 @@ export default function Layout() {
 
     return (
         <div className="layout">
+
+            {showReservations && <DoorAccessToast />}
 
             {/* Mobile top bar — hidden on desktop */}
             <div className="mobile-topbar">

@@ -89,9 +89,9 @@ function ReservationsPage() {
     }
 
     async function handleCheckInConfirmed(incidentalsPaymentMethodId) {
-        await checkIn(checkInTarget, incidentalsPaymentMethodId)
-        setCheckInTarget(null)
+        const res = await checkIn(checkInTarget, incidentalsPaymentMethodId)
         await fetchReservations()
+        return res.data.doorAccessStatus
     }
 
     async function handleCheckOut(id) {

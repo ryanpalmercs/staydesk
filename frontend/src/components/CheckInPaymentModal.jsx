@@ -8,6 +8,8 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
     const elements = useElements()
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
+    const [slowNotice, setSlowNotice] = useState(false)
+    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -28,12 +30,40 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
             return
         }
 
+        const slowTimer = setTimeout(() => setSlowNotice(true), 2000)
+
         try {
-            await onConfirm(incidentalsResult.paymentMethod.id)
+            const doorAccessStatus = await onConfirm(incidentalsResult.paymentMethod.id)
+            if (doorAccessStatus === 'FAILED') {
+                setDoorAccessFailed(true)
+            } else {
+                onClose()
+            }
         } catch (err) {
             setError('Failed to check in. Please try a different card.')
+        } finally {
+            clearTimeout(slowTimer)
             setSubmitting(false)
+            setSlowNotice(false)
         }
+    }
+
+    if (doorAccessFailed) {
+        return (
+            <div className="flex flex-col gap-4">
+                <p className="text-sm text-rust font-medium">Door lock code couldn't be issued</p>
+                <p className="text-sm text-muted">
+                    Guest has been checked in, but the smart lock didn't respond. Please give the guest a
+                    physical key at the front desk. We'll keep retrying in the background and notify front
+                    desk staff if the code goes through.
+                </p>
+                <div className="flex justify-end mt-2">
+                    <button type="button" onClick={onClose} className="btn btn-primary">
+                        Got it
+                    </button>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -49,7 +79,7 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
                     Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={!stripe || submitting}>
-                    {submitting ? 'Checking in...' : 'Check In'}
+                    {submitting ? (slowNotice ? 'Still setting up door access...' : 'Checking in...') : 'Check In'}
                 </button>
             </div>
         </form>
