@@ -13,7 +13,6 @@ import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -28,14 +27,14 @@ public class PaymentService {
 
     private final StripeConnectionService stripeConnectionService;
     private final FolioPaymentRepository folioPaymentRepository;
-
-    @Value("${app.incidentals-hold-amount}")
-    private BigDecimal incidentalsHoldAmount;
+    private final PropertySettingsService propertySettingsService;
 
     public PaymentService(StripeConnectionService stripeConnectionService,
-                          FolioPaymentRepository folioPaymentRepository) {
+                          FolioPaymentRepository folioPaymentRepository,
+                          PropertySettingsService propertySettingsService) {
         this.stripeConnectionService = stripeConnectionService;
         this.folioPaymentRepository = folioPaymentRepository;
+        this.propertySettingsService = propertySettingsService;
     }
 
     private static long toCents(BigDecimal amount) {
@@ -52,19 +51,39 @@ public class PaymentService {
                              .build();
     }
 
-    public List<FolioPayment> createHolds(Folio folio, BigDecimal estimatedStayAmount,
-                                          String roomPaymentMethodId, String incidentalsPaymentMethodId) {
+    public void createIncidentalHold(Folio folio, String incidentalsPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
         RequestOptions options = connectedAccountOptions();
 
-        FolioPayment roomHold = createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, roomPaymentMethodId, options, now);
-        FolioPayment incidentalsHold = createHold(folio.id(), PaymentKind.INCIDENTALS, incidentalsHoldAmount, incidentalsPaymentMethodId, options, now);
+        String holdAmountString = propertySettingsService.getProperty("incidentals_hold_amount").value();
+        BigDecimal holdAmount = BigDecimal.ZERO;
 
-        return List.of(roomHold, incidentalsHold);
+        try {
+            holdAmount = new BigDecimal(holdAmountString);
+        } catch (NumberFormatException e) {
+            LOGGER.error("Could not parse hold amount", e);
+        }
+
+        createHold(folio.id(), PaymentKind.INCIDENTALS, holdAmount, incidentalsPaymentMethodId, options, now);
     }
 
-    private FolioPayment createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId,
-                                    RequestOptions options, LocalDateTime now) {
+    public void createRoomHold(Folio folio, BigDecimal estimatedStayAmount, String roomPaymentMethodId) {
+        LocalDateTime now = LocalDateTime.now();
+        RequestOptions options = connectedAccountOptions();
+
+        createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, roomPaymentMethodId, options, now);
+    }
+
+    public void cancelOpenHolds(Folio folio) {
+        RequestOptions options = connectedAccountOptions();
+
+        folioPaymentRepository.findByFolioId(folio.id()).stream()
+                              .filter(p -> p.status() == PaymentStatus.REQUIRES_CAPTURE)
+                              .forEach(p -> cancelHold(p, options));
+    }
+
+    private void createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId,
+                            RequestOptions options, LocalDateTime now) {
 
         try {
             PaymentIntent intent = PaymentIntent.create(
@@ -79,7 +98,7 @@ public class PaymentService {
                     options
             );
 
-            return folioPaymentRepository.save(new FolioPayment(0, folioId, kind, intent.getId(),
+            folioPaymentRepository.save(new FolioPayment(0, folioId, kind, intent.getId(),
                     PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
         } catch (StripeException e) {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folioId, e);

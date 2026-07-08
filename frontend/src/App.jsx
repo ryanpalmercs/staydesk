@@ -8,12 +8,19 @@ import RoomsPage from './pages/RoomsPage'
 import ReservationsPage from './pages/ReservationsPage'
 import PayrollPage from './pages/PayrollPage'
 import DashboardPage from './pages/DashboardPage'
+import HousekeepingDashboardPage from './pages/HousekeepingDashboardPage'
 import SettingsPage from './pages/SettingsPage'
+import EmployeesPage from './pages/EmployeesPage'
 import { useEffect, useState } from 'react'
 import api from './api/baseApi'
+import TimesheetPage from './pages/TimesheetPage'
+import ReportsPage from './pages/ReportsPage'
+import RoomAccessLogPage from './pages/RoomAccessLogPage'
+import GuestProfilePage from './pages/GuestProfilePage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
+
 
 export default function App() {
     const [wakingUp, setWakingUp] = useState(false)
@@ -34,27 +41,41 @@ export default function App() {
 
     return (
         <>
-        {wakingUp && (
-            <div className="waking-up-banner">
-                Server waking up, please wait...
-            </div>
-        )}
-        <BrowserRouter>
-            <AuthProvider>
-                <Routes>
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route element={<ProtectedRoute />}>
-                        <Route element={<Layout />}>
-                            <Route path="/" element={<DashboardPage />} />
-                            <Route path="/rooms" element={<RoomsPage />} />
-                            <Route path="/reservations" element={<ReservationsPage />} />
-                            <Route path="/payroll" element={<PayrollPage />} />
-                            <Route path="/settings" element={<SettingsPage />} />
+            {wakingUp && (
+                <div className="waking-up-banner">
+                    Server waking up, please wait...
+                </div>
+            )}
+            <BrowserRouter>
+                <AuthProvider>
+                    <Routes>
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route element={<ProtectedRoute />}>
+                            <Route element={<Layout />}>
+                                <Route path="/" element={<DashboardPage />} />
+                                <Route path="/rooms" element={<RoomsPage />} />
+                                <Route path="/reservations" element={<ReservationsPage />} />
+                                <Route path="/timesheet/:id" element={<TimesheetPage />} />
+                                <Route path="/guest/:id" element={<GuestProfilePage />} />
+                            </Route>
                         </Route>
-                    </Route>
-                </Routes>
-            </AuthProvider>
-        </BrowserRouter>
+                        <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
+                            <Route element={<Layout />}>
+                                <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                            </Route>
+                        </Route>
+                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                            <Route element={<Layout />}>
+                                <Route path="/employees" element={<EmployeesPage />} />
+                                <Route path="/payroll" element={<PayrollPage />} />
+                                <Route path="/settings" element={<SettingsPage />} />
+                                <Route path="/reports" element={<ReportsPage />} />
+                                <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
+                            </Route>
+                        </Route>
+                    </Routes>
+                </AuthProvider>
+            </BrowserRouter>
         </>
     )
 }

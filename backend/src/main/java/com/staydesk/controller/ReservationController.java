@@ -10,8 +10,10 @@ import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomUnavailableException;
-import com.staydesk.model.CheckInRequest;
 import com.staydesk.model.Reservation;
+import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.request.CheckInRequest;
+import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
 import org.slf4j.Logger;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -60,11 +63,15 @@ public class ReservationController {
     }
 
     @PostMapping
-    public ResponseEntity<Reservation> createReservation(@RequestBody Reservation reservation) {
-        LOGGER.info("Creating reservation {}", reservation);
+    public ResponseEntity<Reservation> createReservation(@RequestBody CreateReservationRequest request) {
+        LOGGER.info("Creating reservation {}", request);
 
         try {
-            Reservation savedReservation = reservationService.createReservation(reservation);
+            Reservation savedReservation = reservationService.createReservation(
+                    new Reservation(0, request.guestId(), request.roomId(), request.checkInDate(),
+                            request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
+                            null, request.rateType(), request.guestCount(), false, LocalDateTime.now(), LocalDateTime.now()),
+                    request.roomPaymentMethodId());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
         } catch (RoomNotFoundException | RateNotFoundException e) {
@@ -101,11 +108,11 @@ public class ReservationController {
     }
 
     @PostMapping("{id}/check-in")
-    public ResponseEntity<Reservation> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
+    public ResponseEntity<CheckInResult> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {
-            return ResponseEntity.ok(reservationService.checkIn(id, request.roomPaymentMethodId(), request.incidentalsPaymentMethodId()));
+            return ResponseEntity.ok(reservationService.checkIn(id, request.incidentalsPaymentMethodId()));
         } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException e) {
@@ -124,7 +131,8 @@ public class ReservationController {
 
         try {
             return ResponseEntity.ok(reservationService.checkOut(id));
-        } catch (ReservationNotFoundException | RoomNotFoundException | FolioNotFoundException | RateNotFoundException e) {
+        } catch (ReservationNotFoundException | RoomNotFoundException | FolioNotFoundException |
+                 RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedOutException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
@@ -149,6 +157,28 @@ public class ReservationController {
         } catch (Exception e) {
             LOGGER.error("An error occurred while canceling reservation with id {}", id, e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("{id}/legal-hold")
+    public ResponseEntity<Reservation> setLegalHold(@PathVariable Integer id) {
+        LOGGER.info("Placing legal hold on reservation {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.setLegalHold(id));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("{id}/legal-hold")
+    public ResponseEntity<Reservation> clearLegalHold(@PathVariable Integer id) {
+        LOGGER.info("Clearing legal hold on reservation {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.clearLegalHold(id));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
         }
     }
 }

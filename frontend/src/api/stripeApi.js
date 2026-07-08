@@ -7,3 +7,7 @@ export function getConnectStatus() {
 export function disconnectStripe() {
     return api.delete('/stripe/connect')
 }
+
+export function connectStripe() {
+    return api.get('/stripe/connect')
+}

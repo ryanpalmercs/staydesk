@@ -4,7 +4,7 @@ import com.staydesk.exception.ExtraNotFoundException;
 import com.staydesk.exception.FolioClosedException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
-import com.staydesk.model.AddFolioItemRequest;
+import com.staydesk.model.request.AddFolioItemRequest;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
 import com.staydesk.repository.FolioItemRepository;

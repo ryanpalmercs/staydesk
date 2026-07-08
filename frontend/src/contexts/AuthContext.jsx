@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
         <AuthContext.Provider value={{
             session,
             user: session?.user ?? null,
+            role: session?.user?.app_metadata?.role ?? null,
             loading: session === undefined,
             signOut: () => supabase.auth.signOut()
         }}>

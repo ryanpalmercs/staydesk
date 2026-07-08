@@ -9,7 +9,8 @@ import com.staydesk.model.FolioItem;
 import com.staydesk.repository.ExtraRepository;
 import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioRepository;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,23 +20,32 @@ import java.time.LocalDateTime;
 
 @Service
 public class FolioService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FolioService.class);
 
     private final FolioRepository folioRepository;
     private final FolioItemRepository folioItemRepository;
     private final ExtraRepository extraRepository;
-
-    @Value("${app.lodging-tax-rate}")
-    private BigDecimal lodgingTaxRate;
+    private final PropertySettingsService propertySettingsService;
 
     public FolioService(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
-                        ExtraRepository extraRepository) {
+                        ExtraRepository extraRepository, PropertySettingsService propertySettingsService) {
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
         this.extraRepository = extraRepository;
+        this.propertySettingsService = propertySettingsService;
     }
 
     private BigDecimal taxOn(BigDecimal amount) {
-        return amount.multiply(lodgingTaxRate).setScale(2, RoundingMode.HALF_UP);
+        String taxRateString = propertySettingsService.getProperty("lodging_tax_rate").value();
+        BigDecimal taxRate = BigDecimal.ZERO;
+
+        try {
+            taxRate = new BigDecimal(taxRateString);
+        } catch (NumberFormatException e) {
+            LOGGER.error("Could not parse tax rate from property settings.", e);
+        }
+
+        return amount.multiply(taxRate).setScale(2, RoundingMode.HALF_UP);
     }
 
     public BigDecimal estimateWithTax(BigDecimal amount) {

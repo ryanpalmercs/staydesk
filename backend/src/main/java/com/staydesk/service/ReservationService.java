@@ -14,7 +14,9 @@ import com.staydesk.model.Folio;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.repository.FolioRepository;
+import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
@@ -34,16 +36,23 @@ public class ReservationService {
     private final RateRepository rateRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
+    private final GuestRepository guestRepository;
+    private final SmsService smsService;
+    private final LockPasscodeService lockPasscodeService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               FolioRepository folioRepository, RateRepository rateRepository,
-                              PaymentService paymentService, FolioService folioService) {
+                              PaymentService paymentService, FolioService folioService, GuestRepository guestRepository,
+                              SmsService smsService, LockPasscodeService lockPasscodeService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.folioRepository = folioRepository;
         this.rateRepository = rateRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
+        this.guestRepository = guestRepository;
+        this.smsService = smsService;
+        this.lockPasscodeService = lockPasscodeService;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -73,7 +82,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation createReservation(Reservation reservation) {
+    public Reservation createReservation(Reservation reservation, String roomPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
 
         Room room = roomRepository.findById(reservation.roomId())
@@ -91,9 +100,8 @@ public class ReservationService {
             throw new DateConflictException();
         }
 
-        if (rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount()).isEmpty()) {
-            throw new RateNotFoundException();
-        }
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
 
         if ((reservation.rateType().equals(Rate.RateType.WEEKLY_5) && ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) % 5 != 0)
             || (reservation.rateType().equals(Rate.RateType.WEEKLY_7) && ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) % 7 != 0)) {
@@ -101,17 +109,28 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Reservation savedReservation = new Reservation(0, reservation.guestId(), reservation.roomId(),
+        Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), reservation.roomId(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), now, now);
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.legalHold(), now, now));
 
-        return reservationRepository.save(savedReservation);
+        Folio savedFolio = folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
+
+        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
+
+        BigDecimal estimatedStayAmount = folioService.estimateWithTax(
+                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
+
+        paymentService.createRoomHold(folio, estimatedStayAmount, roomPaymentMethodId);
+
+        guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation, room.roomNumber()));
+
+        return savedReservation;
     }
 
     @Transactional
     public Reservation updateReservation(int id, Reservation reservation) {
-        reservationRepository.findById(id)
-                             .orElseThrow(ReservationNotFoundException::new);
+        Reservation existing = reservationRepository.findById(id)
+                                                    .orElseThrow(ReservationNotFoundException::new);
 
         boolean hasOverlap = reservationRepository.findOverlapping(reservation.roomId(), reservation.checkOutDate(), reservation.checkInDate())
                                                   .stream()
@@ -127,7 +146,7 @@ public class ReservationService {
 
         Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.createdAt(), LocalDateTime.now());
+                reservation.rateType(), reservation.guestCount(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now());
 
         return reservationRepository.save(updated);
     }
@@ -141,11 +160,9 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation checkIn(int id, String roomPaymentMethodId, String incidentalsPaymentMethodId) {
+    public CheckInResult checkIn(int id, String incidentalsPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
-
-        LocalDateTime now = LocalDateTime.now();
 
         if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
             throw new AlreadyCheckedInException();
@@ -154,22 +171,22 @@ public class ReservationService {
         }
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.OCCUPIED);
-
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
-        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
-                                  .orElseThrow(RateNotFoundException::new);
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+        paymentService.createIncidentalHold(folio, incidentalsPaymentMethodId);
 
-        Folio savedFolio = folioRepository.save(new Folio(0, id, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
+        Room room = roomRepository.findById(reservation.roomId()).orElseThrow(RoomNotFoundException::new);
 
-        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
+        LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(reservation, room);
 
-        BigDecimal estimatedStayAmount = folioService.estimateWithTax(
-                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
+        if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED) {
+            guestRepository.findById(reservation.guestId())
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, reservation, room.roomNumber(), passcodeResult.passcode()));
+        }
 
-        paymentService.createHolds(folio, estimatedStayAmount, roomPaymentMethodId, incidentalsPaymentMethodId);
-        
-        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        Reservation updated = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        return new CheckInResult(updated, passcodeResult.outcome());
     }
 
     @Transactional
@@ -188,6 +205,8 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedOut(id);
 
         roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
+
+        lockPasscodeService.revokePasscodes(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id())
                                      .orElseThrow(FolioNotFoundException::new);
@@ -216,10 +235,27 @@ public class ReservationService {
         }
 
         folioRepository.getFolioByReservationId(reservation.id())
-                       .ifPresent(f -> folioRepository.closeFolio(f.id()));
+                       .ifPresent(f -> {
+                           paymentService.cancelOpenHolds(f);
+                           folioRepository.closeFolio(f.id());
+                       });
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
                 reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.createdAt(), LocalDateTime.now()));
+                reservation.rateType(), reservation.guestCount(), reservation.legalHold(), reservation.createdAt(), LocalDateTime.now()));
+    }
+
+    @Transactional
+    public Reservation setLegalHold(int id) {
+        reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        reservationRepository.setLegalHold(id);
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    @Transactional
+    public Reservation clearLegalHold(int id) {
+        reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        reservationRepository.clearLegalHold(id);
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 }
