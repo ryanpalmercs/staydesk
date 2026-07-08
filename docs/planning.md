@@ -167,6 +167,21 @@ All tables include `created_at` and `updated_at` audit columns.
 ### Customer-Facing Booking Site
 - [ ] Public booking site for direct online reservations
 
+### Payment & Lock Provider Abstraction
+Time-permitting before launch; otherwise slips to post-launch. Goal is per-deployment vendor swap (each property still runs its own single-tenant instance) — not concurrent multi-tenancy in one running instance.
+- [ ] `PaymentProvider` interface (`com.staydesk.payment`): `authorize`, `capture`, `void_`, `refund`, `tokenize` — result records (`AuthResult`, `CaptureResult`, `VoidResult`, `RefundResult`, `TokenResult`) each with at minimum `success`/`transactionId`/`message`
+- [ ] Move existing Stripe integration into `StripePaymentProvider implements PaymentProvider` — Martin House's real, current provider
+- [ ] Stub `AuthorizeNetPaymentProvider implements PaymentProvider` for the planned switch once terminal hardware + Authorize.net/Elavon credentials arrive from the client
+- [ ] `LockProvider` interface (`com.staydesk.lock`): `generateCode`, `revokeCode`, `getStatus` — `CodeResult` (success, codeId, code, message) and `LockStatus` (online, locked, lastSeen)
+- [ ] Move existing Sifely integration into `SifelyLockProvider implements LockProvider`
+- [ ] Stub `SeamLockProvider implements LockProvider` for future use
+- [ ] New Flyway migration inserting `lock_provider`/`payment_provider` rows into `property_settings` (existing name/value table, not new columns) — defaults `sifely`/`stripe` to match current behavior exactly
+- [ ] `ProviderFactory` service — inject `Map<String, LockProvider>`/`Map<String, PaymentProvider>` (Spring bean name as key), reads the configured provider name from `PropertySettingsService`
+- [ ] Update existing services (`LockPasscodeService`, `StaffDoorAccessService`, `PaymentService`, etc.) to call through `ProviderFactory` instead of the concrete Sifely/Stripe classes directly
+- [ ] No Lombok; plain records for result/status types, matching existing code style
+- Constraint: default config (sifely + stripe) must produce identical behavior to what exists today — this is a refactor, not a functional change
+- Tracked as issue #105
+
 ## Decisions Log
 | Date | Decision | Reason |
 |------|----------|--------|
