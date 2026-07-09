@@ -27,10 +27,26 @@ function formatExpiry(digits) {
 }
 
 function maskCardNumber(digits) {
-    if (digits.length <= 4) {
-        return formatCardNumber(digits)
+    return digits.slice(-4)
+}
+
+function isLuhnValid(digits) {
+    let sum = 0
+    let shouldDouble = false
+
+    for (let i = digits.length - 1; i >= 0; i--) {
+        let digit = Number(digits[i])
+        if (shouldDouble) {
+            digit *= 2
+            if (digit > 9) {
+                digit -= 9
+            }
+        }
+        sum += digit
+        shouldDouble = !shouldDouble
     }
-    return formatCardNumber('•'.repeat(digits.length - 4) + digits.slice(-4))
+
+    return sum % 10 === 0
 }
 
 function detectBrand(digits) {
@@ -50,14 +66,14 @@ function CardBrandIcon({ brand }) {
         case 'visa':
             return (
                 <svg viewBox="0 0 32 20" className={className} aria-label="Visa">
-                    <rect width="32" height="20" rx="3" fill="#1A1F71" />
-                    <text x="16" y="14" textAnchor="middle" fontSize="9" fontStyle="italic" fontWeight="700" fill="#fff">VISA</text>
+                    <rect x="0.5" y="0.5" width="31" height="19" rx="2.5" fill="#fff" stroke="#E0E0E0" />
+                    <text x="16" y="14" textAnchor="middle" fontSize="9" fontStyle="italic" fontWeight="700" fill="#1A1F71">VISA</text>
                 </svg>
             )
         case 'mastercard':
             return (
                 <svg viewBox="0 0 32 20" className={className} aria-label="Mastercard">
-                    <rect width="32" height="20" rx="3" fill="#F0E0C8" />
+                    <rect width="32" height="20" rx="3" fill="#000" />
                     <circle cx="13" cy="10" r="6" fill="#EB001B" />
                     <circle cx="19" cy="10" r="6" fill="#F79E1B" fillOpacity="0.85" />
                 </svg>
@@ -93,8 +109,38 @@ function CardBrandIcon({ brand }) {
                 </svg>
             )
         default:
-            return null
+            return (
+                <svg viewBox="0 0 32 20" className={className} aria-label="Card">
+                    <rect x="0.5" y="0.5" width="31" height="19" rx="2.5" fill="none" stroke="var(--color-muted)" />
+                    <rect x="4" y="6" width="7" height="5" rx="1" fill="var(--color-muted)" opacity="0.4" />
+                    <rect x="14" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-muted)" opacity="0.4" />
+                    <rect x="19" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-muted)" opacity="0.4" />
+                    <rect x="24" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-muted)" opacity="0.4" />
+                </svg>
+            )
     }
+}
+
+function CardInvalidIcon() {
+    return (
+        <svg viewBox="0 0 32 20" className="w-8 h-5 flex-shrink-0" aria-label="Invalid card">
+            <rect x="0.5" y="0.5" width="31" height="19" rx="2.5" fill="none" stroke="var(--color-rust)" />
+            <rect x="4" y="6" width="7" height="5" rx="1" fill="var(--color-rust)" opacity="0.4" />
+            <rect x="14" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-rust)" opacity="0.4" />
+            <rect x="19" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-rust)" opacity="0.4" />
+            <rect x="24" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-rust)" opacity="0.4" />
+        </svg>
+    )
+}
+
+function CardErrorBadge() {
+    return (
+        <svg viewBox="0 0 20 20" className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5" aria-label="Invalid card number">
+            <circle cx="10" cy="10" r="9" fill="var(--color-rust)" />
+            <rect x="9" y="4.5" width="2" height="7" rx="1" fill="#fff" />
+            <circle cx="10" cy="14.5" r="1.2" fill="#fff" />
+        </svg>
+    )
 }
 
 function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
@@ -104,14 +150,20 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
     const [cardNumber, setCardNumber] = useState('')
     const [expiry, setExpiry] = useState('')
     const [cardCode, setCardCode] = useState('')
+    const [zip, setZip] = useState('')
     const [cardNumberFocused, setCardNumberFocused] = useState(false)
+    const [cardNumberTouched, setCardNumberTouched] = useState(false)
 
     const expiryRef = useRef(null)
     const cvcRef = useRef(null)
+    const zipRef = useRef(null)
 
     const cardDigits = cardNumber.replace(/\s/g, '')
     const brand = detectBrand(cardDigits)
     const cardNumberDisplay = cardNumberFocused ? cardNumber : maskCardNumber(cardDigits)
+    const cardNumberInvalid = cardNumberTouched && !cardNumberFocused && cardDigits.length > 0 &&
+        (cardDigits.length < 16 || !isLuhnValid(cardDigits))
+    const cvcLength = brand === 'amex' ? 4 : 3
 
     useEffect(() => {
         loadAcceptJs().then(() => setReady(true)).catch(() => setError('Failed to load payment form.'))
@@ -119,6 +171,12 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
 
     function handleSubmit(e) {
         e.preventDefault()
+
+        if (cardNumberInvalid) {
+            setError('Card number is invalid.')
+            return
+        }
+
         setSubmitting(true)
         setError(null)
 
@@ -133,7 +191,8 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                 cardNumber: cardNumber.replace(/\s/g, ''),
                 month,
                 year,
-                cardCode
+                cardCode,
+                zip
             }
         }
 
@@ -161,8 +220,14 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* No name attributes: Accept.js requires these fields never be part of a form POST (PCI SAQ-A-EP) */}
-            <div className="filter-input flex items-center gap-2">
-                {brand && <CardBrandIcon brand={brand} />}
+            <div
+                className="filter-input flex items-center gap-2"
+                style={cardNumberInvalid ? { borderColor: 'var(--color-rust)' } : undefined}
+            >
+                <div className="relative flex-shrink-0">
+                    {cardNumberInvalid ? <CardInvalidIcon /> : <CardBrandIcon brand={brand} />}
+                    {cardNumberInvalid && <CardErrorBadge />}
+                </div>
                 <input
                     placeholder="1234 1234 1234 1234"
                     value={cardNumberDisplay}
@@ -174,10 +239,13 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                         }
                     }}
                     onFocus={() => setCardNumberFocused(true)}
-                    onBlur={() => setCardNumberFocused(false)}
+                    onBlur={() => {
+                        setCardNumberFocused(false)
+                        setCardNumberTouched(true)
+                    }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className="flex-1 min-w-0 outline-none bg-transparent text-sm"
+                    className={`flex-1 min-w-0 outline-none bg-transparent text-base ${cardNumberInvalid ? 'text-rust' : ''}`}
                     required
                 />
                 <input
@@ -193,19 +261,37 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                     }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className="w-14 outline-none bg-transparent text-sm"
+                    className="w-14 outline-none bg-transparent text-base"
                     required
                 />
                 <input
                     ref={cvcRef}
                     placeholder="CVC"
                     value={cardCode}
-                    onChange={e => setCardCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    onChange={e => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, cvcLength)
+                        setCardCode(digits)
+                        if (digits.length === cvcLength) {
+                            zipRef.current?.focus()
+                        }
+                    }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className="w-12 outline-none bg-transparent text-sm"
+                    className="w-12 outline-none bg-transparent text-base"
                     required
                 />
+                {cardDigits.length === 16 && (
+                    <input
+                        ref={zipRef}
+                        placeholder="ZIP"
+                        value={zip}
+                        onChange={e => setZip(e.target.value.slice(0, 10))}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        className="w-16 outline-none bg-transparent text-base"
+                        required
+                    />
+                )}
             </div>
 
             {error && <p className="text-sm text-rust">{error}</p>}

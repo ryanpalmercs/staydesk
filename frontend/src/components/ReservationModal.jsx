@@ -10,6 +10,7 @@ import { getConnectStatus } from "../api/stripeApi"
 import { loadStripe } from "@stripe/stripe-js"
 import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
 import AcceptJsCardForm from "./AcceptJsCardForm"
+import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 import { getPropertySetting } from "../api/settingsApi"
 
 
@@ -42,7 +43,7 @@ function CardCaptureForm({ onCapture, onCancel }) {
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="filter-input">
-                <CardElement options={{ style: { base: { fontSize: '16px' } } }} />
+                <CardElement options={stripeCardElementOptions} />
             </div>
             {error && <p className="text-sm text-rust">{error}</p>}
             <div className="flex justify-end gap-3 mt-2">

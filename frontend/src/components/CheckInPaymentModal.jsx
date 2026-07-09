@@ -4,6 +4,7 @@ import { loadStripe } from "@stripe/stripe-js"
 import { getConnectStatus } from "../api/stripeApi"
 import { getPropertySetting } from "../api/settingsApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
+import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 
 function DoorAccessFailedNotice({ onClose }) {
     return (
@@ -75,7 +76,7 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="filter-input">
-                <CardElement options={{ style: { base: { fontSize: '16px' } } }} />
+                <CardElement options={stripeCardElementOptions} />
             </div>
 
             {error && <p className="text-sm text-rust">{error}</p>}
