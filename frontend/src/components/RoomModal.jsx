@@ -16,11 +16,7 @@ function RoomModal({ room, onSaved, onClose }) {
 
     useEffect(() => {
         getRoomTypes().then(res => {
-            const types = res.data ?? []
-            setRoomTypes(types)
-            if (!isEditing && types.length > 0) {
-                setForm(f => ({ ...f, roomTypeId: types[0].id }))
-            }
+            setRoomTypes([...(res.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)))
         })
     }, [])
 
@@ -63,6 +59,7 @@ function RoomModal({ room, onSaved, onClose }) {
                     <div>
                         <label className="block text-sm text-muted mb-1">Type</label>
                         <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input">
+                            <option value="">Select a room type...</option>
                             {roomTypes.map(rt => (
                                 <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
                             ))}

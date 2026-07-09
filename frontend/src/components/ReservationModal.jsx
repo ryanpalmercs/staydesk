@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useCombobox } from "downshift"
-import { createReservation, updateReservation } from "../api/reservationApi"
+import { createReservation, getReservationEstimate, updateReservation } from "../api/reservationApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests } from "../api/guestApi"
-import { getRates } from "../api/rateApi"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import { getConnectStatus } from "../api/stripeApi"
@@ -13,6 +12,8 @@ import AcceptJsCardForm from "./AcceptJsCardForm"
 import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
+import { differenceInCalendarDays, parseISO } from "date-fns"
+import { CircleMinus, CirclePlus } from "lucide-react"
 
 
 function CardCaptureForm({ onCapture, onCancel }) {
@@ -23,7 +24,9 @@ function CardCaptureForm({ onCapture, onCancel }) {
 
     async function handleSubmit(e) {
         e.preventDefault()
-        if (!stripe || !elements) return
+        if (!stripe || !elements) {
+            return
+        }
         setSubmitting(true)
         setError(null)
         const card = elements.getElement(CardElement)
@@ -115,20 +118,37 @@ function SearchableSelect({ items, selectedId, itemKey = 'id', itemLabel, render
     )
 }
 
+function Stepper({ label, value, min, max, onChange }) {
+    return (
+        <div>
+            <label className="block text-sm text-muted mb-1">{label}</label>
+            <div className="flex items-center gap-3">
+                <button type="button stepper" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
+                    className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Decrease ${label}`}>
+                    <CircleMinus size={18} />
+                </button>
+                <span className="w-6 text-center">{value}</span>
+                <button type="button stepper" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
+                    className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Increase ${label}`}>
+                    <CirclePlus size={18} />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
     const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
 
     const [roomTypes, setRoomTypes] = useState([])
     const [guests, setGuests] = useState([])
-    const [rates, setRates] = useState([])
-    const [getsCount, setGuestCount] = useState('1')
     const [guestMode, setGuestMode] = useState('search')
     let [form, setForm] = useState({
         guestId: reservation?.guestId ?? '',
         roomTypeId: reservation?.roomTypeId ?? '',
-        rateType: reservation?.rateType ?? 'NIGHTLY',
-        guestCount: reservation?.guestCount ?? '1',
+        adults: reservation?.guestCount ?? 1,
+        children: 0,
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED'
@@ -166,10 +186,21 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
         ))
 
+    const totalNights = form.checkInDate && form.checkOutDate
+        ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
+        : 0
+
+    const rateType = totalNights > 0 && totalNights % 7 === 0 ? 'WEEKLY_7'
+        : totalNights > 0 && totalNights % 5 === 0 ? 'WEEKLY_5'
+            : 'NIGHTLY'
+    const maxGuestCount = rateType === 'NIGHTLY' ? 2 : 3
+    const guestCount = form.adults + form.children
+
+    const [estimate, setEstimate] = useState(null)
+
     useEffect(() => {
         getRoomTypes().then(res => setRoomTypes(res.data ?? [])),
-            getGuests().then(res => setGuests(res.data ?? [])),
-            getRates().then(res => setRates(res.data ?? []))
+            getGuests().then(res => setGuests(res.data ?? []))
 
         if (canAddExtras) {
             getFolioByReservationId(reservation.id).then(res => setFolioId(res.data.id))
@@ -191,6 +222,33 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
     }, [])
 
+    useEffect(() => {
+        if (form.adults + form.children <= maxGuestCount) {
+            return
+        }
+        setForm(f => ({ ...f, children: Math.max(0, maxGuestCount - f.adults) }))
+    }, [maxGuestCount])
+
+    useEffect(() => {
+        if (!form.checkInDate || !form.checkOutDate) {
+            setEstimate(null)
+            return
+        }
+        let cancelled = false
+        getReservationEstimate({ rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate })
+            .then(res => {
+                if (!cancelled) {
+                    setEstimate(res.data)
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setEstimate(null)
+                }
+            })
+        return () => { cancelled = true }
+    }, [rateType, guestCount, form.checkInDate, form.checkOutDate])
+
     async function handleAddExtra() {
         if (!selectedExtraId || !folioId) return
 
@@ -208,15 +266,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
-    }
-
-    function handleRateChange(e) {
-        const newRateType = e.target.value
-        setForm({
-            ...form,
-            rateType: newRateType,
-            guestCount: newRateType === 'NIGHTLY' && form.guestCount === '3' ? '2' : form.guestCount
-        })
     }
 
     function handleGuestFieldChange(e) {
@@ -248,14 +297,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        let submittedForm = { ...form }
+        const { adults, children, ...rest } = form
+        let submittedForm = { ...rest, rateType, guestCount }
 
         if (guestMode === 'create') {
-            console.log('Creating guest')
-
             try {
                 const res = await createGuest(guestForm)
-                submittedForm = { ...form, guestId: res.data.id }
+                submittedForm = { ...submittedForm, guestId: res.data.id }
                 console.debug(submittedForm)
                 setGuestMode('search')
                 const guestsRes = await getGuests()
@@ -354,30 +402,27 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm text-muted mb-1">Rate Type</label>
-                                    <select name="rateType" value={form.rateType} onChange={handleRateChange} className="filter-input" required>
-                                        <option value="NIGHTLY">Nightly</option>
-                                        <option value="WEEKLY_5">Weekly (5-night)</option>
-                                        <option value="WEEKLY_7">Weekly (7-night)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-muted mb-1">Number of Guests</label>
-                                    <select name="guestCount" value={form.guestCount} onChange={handleChange} className="filter-input" required>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        {form.rateType !== 'NIGHTLY' && <option value="3">3</option>}
-                                    </select>
-                                </div>
+                                <Stepper
+                                    label="Adults"
+                                    value={form.adults}
+                                    min={1}
+                                    max={maxGuestCount - form.children}
+                                    onChange={adults => setForm({ ...form, adults })}
+                                />
+                                <Stepper
+                                    label="Children"
+                                    value={form.children}
+                                    min={0}
+                                    max={maxGuestCount - form.adults}
+                                    onChange={children => setForm({ ...form, children })}
+                                />
                             </div>
 
                             <div>
                                 <label className="block text-sm text-muted mb-1">Room Type</label>
                                 <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
                                     <option value="">Select a room type...</option>
-                                    {roomTypes.map(rt => (
+                                    {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
                                         <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
                                     ))}
                                 </select>
@@ -434,7 +479,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </div>
 
                         <div className="flex flex-col gap-3 px-6 py-4 border-t border-tan flex-shrink-0">
+                            {estimate && <p className="text-sm text-charcoal font-medium">Grand Total: ${estimate.total.toFixed(2)}</p>}
+
                             {error && <p className="text-sm text-rust">{error}</p>}
+
                             <div className="flex justify-end gap-3">
                                 <button type="button" onClick={onClose} className="btn btn-secondary">
                                     Cancel

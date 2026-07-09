@@ -17,6 +17,7 @@ import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.RateRepository;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -49,7 +51,8 @@ public class ReservationService {
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
                               RateRepository rateRepository, PaymentService paymentService, FolioService folioService,
-                              GuestRepository guestRepository, SmsService smsService, LockPasscodeService lockPasscodeService) {
+                              GuestRepository guestRepository, SmsService smsService,
+                              LockPasscodeService lockPasscodeService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -75,15 +78,15 @@ public class ReservationService {
         return remainingPeriods;
     }
 
-    private static long getTotalPeriods(Reservation reservation) {
+    private static long getTotalPeriods(Rate.RateType rateType, LocalDate checkInDate, LocalDate checkOutDate) {
         long totalPeriods = 0;
 
-        if (reservation.rateType().equals(Rate.RateType.NIGHTLY)) {
-            totalPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate());
-        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_5)) {
-            totalPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) / 5;
-        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_7)) {
-            totalPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) / 7;
+        if (rateType.equals(Rate.RateType.NIGHTLY)) {
+            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
+        } else if (rateType.equals(Rate.RateType.WEEKLY_5)) {
+            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 5;
+        } else if (rateType.equals(Rate.RateType.WEEKLY_7)) {
+            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 7;
         }
         return totalPeriods;
     }
@@ -124,13 +127,26 @@ public class ReservationService {
         Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
 
         BigDecimal estimatedStayAmount = folioService.estimateWithTax(
-                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation))));
+                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
         paymentService.createRoomHold(folio, estimatedStayAmount, roomPaymentMethodId);
 
-        guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
+        if (savedReservation.guestId() != null) {
+            guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
+        }
 
         return savedReservation;
+    }
+
+    public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate, LocalDate checkOutDate) {
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(rateType, guestCount)
+                                  .orElseThrow(RateNotFoundException::new);
+
+        BigDecimal subtotal = rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(rateType, checkInDate, checkOutDate)));
+        BigDecimal total = folioService.estimateWithTax(subtotal);
+        BigDecimal tax = total.subtract(subtotal);
+
+        return new ReservationEstimateResponse(subtotal, tax, total);
     }
 
     @Transactional
@@ -215,7 +231,7 @@ public class ReservationService {
 
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
 
-        if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED) {
+        if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
             guestRepository.findById(checkedIn.guestId())
                            .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
         }
