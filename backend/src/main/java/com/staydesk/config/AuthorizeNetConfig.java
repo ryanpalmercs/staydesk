@@ -10,13 +10,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AuthorizeNetConfig {
 
-    @Value("${authorizenet.api-login-id")
+    @Value("${authorizenet.api-login-id}")
     private String apiLoginId;
 
     @Value("${authorizenet.transaction-key}")
     private String transactionKey;
 
-    @Value("${authroizenet.environment:SANDBOX}")
+    @Value("${authorizenet.environment:SANDBOX}")
     private String environment;
 
     @Bean
