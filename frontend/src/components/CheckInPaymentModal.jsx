@@ -2,6 +2,26 @@ import { useEffect, useState } from "react"
 import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
 import { loadStripe } from "@stripe/stripe-js"
 import { getConnectStatus } from "../api/stripeApi"
+import { getPropertySetting } from "../api/settingsApi"
+import AcceptJsCardForm from "./AcceptJsCardForm"
+
+function DoorAccessFailedNotice({ onClose }) {
+    return (
+        <div className="flex flex-col gap-4">
+            <p className="text-sm text-rust font-medium">Door lock code couldn't be issued</p>
+            <p className="text-sm text-muted">
+                Guest has been checked in, but the smart lock didn't respond. Please give the guest a
+                physical key at the front desk. We'll keep retrying in the background and notify front
+                desk staff if the code goes through.
+            </p>
+            <div className="flex justify-end mt-2">
+                <button type="button" onClick={onClose} className="btn btn-primary">
+                    Got it
+                </button>
+            </div>
+        </div>
+    )
+}
 
 function CheckInPaymentForm({ onConfirm, onClose }) {
     const stripe = useStripe()
@@ -49,21 +69,7 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
     }
 
     if (doorAccessFailed) {
-        return (
-            <div className="flex flex-col gap-4">
-                <p className="text-sm text-rust font-medium">Door lock code couldn't be issued</p>
-                <p className="text-sm text-muted">
-                    Guest has been checked in, but the smart lock didn't respond. Please give the guest a
-                    physical key at the front desk. We'll keep retrying in the background and notify front
-                    desk staff if the code goes through.
-                </p>
-                <div className="flex justify-end mt-2">
-                    <button type="button" onClick={onClose} className="btn btn-primary">
-                        Got it
-                    </button>
-                </div>
-            </div>
-        )
+        return <DoorAccessFailedNotice onClose={onClose} />
     }
 
     return (
@@ -86,18 +92,44 @@ function CheckInPaymentForm({ onConfirm, onClose }) {
     )
 }
 
+function AcceptJsCheckInForm({ onConfirm, onClose }) {
+    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+
+    async function handleCapture(token) {
+        const doorAccessStatus = await onConfirm(token)
+        if (doorAccessStatus === 'FAILED') {
+            setDoorAccessFailed(true)
+        } else {
+            onClose()
+        }
+    }
+
+    if (doorAccessFailed) {
+        return <DoorAccessFailedNotice onClose={onClose} />
+    }
+
+    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" />
+}
+
 function CheckInPaymentModal({ onConfirm, onClose }) {
     const [stripePromise, setStripePromise] = useState(null)
+    const [provider, setProvider] = useState(null)
     const [error, setError] = useState(null)
 
     useEffect(() => {
-        getConnectStatus().then(res => {
-            if (res.data.connected) {
-                setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, {
-                    stripeAccount: res.data.accountId
-                }))
-            } else {
-                setError('Stripe is not connected. Connect an account in Settings first.')
+        getPropertySetting('payment_provider').then(res => {
+            setProvider(res.data.value)
+
+            if (res.data.value === 'stripe') {
+                getConnectStatus().then(connectRes => {
+                    if (connectRes.data.connected) {
+                        setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, {
+                            stripeAccount: connectRes.data.accountId
+                        }))
+                    } else {
+                        setError('Stripe is not connected. Connect an account in Settings first.')
+                    }
+                })
             }
         })
     }, [])
@@ -110,7 +142,10 @@ function CheckInPaymentModal({ onConfirm, onClose }) {
                     We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout.
                 </p>
                 {error && <p className="text-sm text-rust mb-4">{error}</p>}
-                {stripePromise && (
+                {provider === 'authorizenet' && (
+                    <AcceptJsCheckInForm onConfirm={onConfirm} onClose={onClose} />
+                )}
+                {provider === 'stripe' && stripePromise && (
                     <Elements stripe={stripePromise}>
                         <CheckInPaymentForm onConfirm={onConfirm} onClose={onClose} />
                     </Elements>

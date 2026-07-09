@@ -47,7 +47,7 @@ server:
 app:
   base-url: ${APP_BASE_URL}
   frontend-url: ${APP_FRONTEND_URL}
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5174}
+  allowed-origins: ${ALLOWED_ORIGINS:https://localhost:5174}
 
 twilio:
   account-sid: ${TWILIO_ACCOUNT_SID}

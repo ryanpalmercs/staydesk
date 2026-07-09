@@ -7,3 +7,7 @@ export function getPropertySettings() {
 export function updatePropertySetting(name, value) {
     return api.put(`/admin/settings/property/${name}`, null, { params: { value } })
 }
+
+export function getPropertySetting(name) {
+    return api.get(`/admin/settings/property/${name}`)
+}

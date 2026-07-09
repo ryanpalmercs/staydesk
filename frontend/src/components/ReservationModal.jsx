@@ -9,6 +9,8 @@ import { getExtras } from "../api/extrasApi"
 import { getConnectStatus } from "../api/stripeApi"
 import { loadStripe } from "@stripe/stripe-js"
 import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
+import AcceptJsCardForm from "./AcceptJsCardForm"
+import { getPropertySetting } from "../api/settingsApi"
 
 
 function CardCaptureForm({ onCapture, onCancel }) {
@@ -53,7 +55,11 @@ function CardCaptureForm({ onCapture, onCancel }) {
     )
 }
 
-function CardCaptureStep({ stripePromise, onCapture, onCancel }) {
+function CardCaptureStep({ provider, stripePromise, onCapture, onCancel }) {
+    if (provider === 'authorizenet') {
+        return <AcceptJsCardForm onCapture={onCapture} onCancel={onCancel} submitLabel="Confirm & Reserve" />
+    }
+
     return (
         <Elements stripe={stripePromise}>
             <CardCaptureForm onCapture={onCapture} onCancel={onCancel} />
@@ -147,6 +153,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [step, setStep] = useState('form')
     const [pendingForm, setPendingForm] = useState(null)
     const [stripePromise, setStripePromise] = useState(null)
+    const [provider, setProvider] = useState(null)
+    const paymentReady = provider === 'authorizenet' || (provider === 'stripe' && stripePromise != null)
 
     const selectedRate = rates.find(r => r.rateType === form.rateType && r.guestCount === Number(form.guestCount))
 
@@ -169,9 +177,15 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
 
         if (!isEditing) {
-            getConnectStatus().then(res => {
-                if (res.data.connected) {
-                    setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, { stripeAccount: res.data.accountId }))
+            getPropertySetting('payment_provider').then(res => {
+                setProvider(res.data.value)
+
+                if (res.data.value === 'stripe') {
+                    getConnectStatus().then(connectRes => {
+                        if (connectRes.data.connected) {
+                            setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, { stripeAccount: connectRes.data.accountId }))
+                        }
+                    })
                 }
             })
         }
@@ -267,8 +281,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             if (isEditing) {
                 await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
-                if (!stripePromise) {
-                    setError('Stripe is not connected. Connect an account in Settings first.')
+                if (!paymentReady) {
+                    setError('Payment provider is not connected. Check Settings.')
                     return
                 }
                 setPendingForm(submittedForm)
@@ -440,6 +454,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         stripePromise={stripePromise}
                         onCapture={handleCapture}
                         onCancel={() => setStep('form')}
+                        provider={provider}
                     />
                 )}
             </div>
