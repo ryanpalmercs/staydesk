@@ -36,8 +36,6 @@ public class RoomAccessLogService {
         long end = System.currentTimeMillis();
         long start = end - Duration.ofDays(clampedDays).toMillis();
 
-        // recordType 47 ("Locked") is dropped as noise - every unlock has a corresponding lock
-        // shortly after, so this log is entry-focused rather than tracking every lock event too.
         return sifelyLockService.getLockRecords(lockId, start, end).stream()
                                 .filter(record -> record.recordType() != 47)
                                 .map(this::resolve)
