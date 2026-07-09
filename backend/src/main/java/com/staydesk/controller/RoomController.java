@@ -1,6 +1,8 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.Room;
+import com.staydesk.model.dto.OccupiedRangeDto;
+import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,9 +27,11 @@ public class RoomController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RoomController.class);
 
     private final RoomRepository roomRepository;
+    private final ReservationRepository reservationRepository;
 
-    public RoomController(RoomRepository roomRepository) {
+    public RoomController(RoomRepository roomRepository, ReservationRepository reservationRepository) {
         this.roomRepository = roomRepository;
+        this.reservationRepository = reservationRepository;
     }
 
     @GetMapping
@@ -79,6 +83,13 @@ public class RoomController {
         roomRepository.deleteById(id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("{roomId}/occupied-dates")
+    public List<OccupiedRangeDto> getOccupiedDates(@PathVariable int roomId) {
+        return reservationRepository.findActiveByRoomId(roomId).stream()
+                                    .map(r -> new OccupiedRangeDto(r.checkInDate(), r.checkOutDate()))
+                                    .toList();
     }
 
     private boolean checkRoomDoesNotExist(Integer id) {
