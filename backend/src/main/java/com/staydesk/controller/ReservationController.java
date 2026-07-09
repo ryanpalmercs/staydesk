@@ -6,11 +6,14 @@ import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
+import com.staydesk.exception.NoRoomAvailableException;
 import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
-import com.staydesk.exception.RoomUnavailableException;
+import com.staydesk.exception.RoomTypeNotFoundException;
+import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Reservation;
+import com.staydesk.model.Room;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
@@ -68,15 +71,15 @@ public class ReservationController {
 
         try {
             Reservation savedReservation = reservationService.createReservation(
-                    new Reservation(0, request.guestId(), request.roomId(), request.checkInDate(),
+                    new Reservation(0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), false, LocalDateTime.now(), LocalDateTime.now()),
                     request.roomPaymentMethodId());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
-        } catch (RoomNotFoundException | RateNotFoundException e) {
+        } catch (RoomTypeNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (RoomUnavailableException | DateConflictException e) {
+        } catch (RoomTypeUnavailableException | DateConflictException e) {
             return ResponseEntity.badRequest().build();
         }
     }
@@ -88,9 +91,9 @@ public class ReservationController {
 
         try {
             return ResponseEntity.ok(reservationService.updateReservation(id, reservation));
-        } catch (ReservationNotFoundException e) {
+        } catch (ReservationNotFoundException | RoomTypeNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (DateConflictException e) {
+        } catch (DateConflictException | RoomTypeUnavailableException e) {
             return ResponseEntity.badRequest().build();
         }
     }
@@ -107,15 +110,26 @@ public class ReservationController {
         }
     }
 
+    @GetMapping("{id}/available-rooms")
+    public ResponseEntity<List<Room>> getAvailableRoomsForCheckIn(@PathVariable Integer id) {
+        LOGGER.info("Getting available rooms for check-in of reservation {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.getAvailableRoomsForCheckIn(id));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PostMapping("{id}/check-in")
     public ResponseEntity<CheckInResult> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {
-            return ResponseEntity.ok(reservationService.checkIn(id, request.incidentalsPaymentMethodId()));
+            return ResponseEntity.ok(reservationService.checkIn(id, request.roomId(), request.incidentalsPaymentMethodId()));
         } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (AlreadyCheckedInException e) {
+        } catch (AlreadyCheckedInException | NoRoomAvailableException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (InvalidReservationException e) {
             return ResponseEntity.badRequest().build();

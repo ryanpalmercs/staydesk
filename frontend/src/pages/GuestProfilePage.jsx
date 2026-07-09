@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
 import { getReservations } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
+import { getRoomTypes } from "../api/roomTypeApi"
 
 function GuestProfilePage() {
     const { id } = useParams()
@@ -20,11 +21,13 @@ function GuestProfilePage() {
     const [error, setError] = useState(null)
     const [reservations, setReservations] = useState([])
     const [rooms, setRooms] = useState([])
+    const [roomTypes, setRoomTypes] = useState([])
 
     useEffect(() => {
         fetchGuest()
         getReservations().then(res => setReservations(res.data ?? []))
         getRooms().then(res => setRooms(res.data ?? []))
+        getRoomTypes().then(res => setRoomTypes(res.data ?? []))
     }, [id])
 
     async function fetchGuest() {
@@ -87,6 +90,7 @@ function GuestProfilePage() {
     }
 
     const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
+    const roomTypeMap = Object.fromEntries(roomTypes.map(rt => [rt.id, rt]))
     const guestReservations = reservations
         .filter(r => r.guestId === guest.id)
         .sort((a, b) => b.checkInDate.localeCompare(a.checkInDate))
@@ -154,11 +158,12 @@ function GuestProfilePage() {
                     <div className="flex flex-col gap-3">
                         {guestReservations.map(res => {
                             const room = roomMap[res.roomId]
+                            const roomType = roomTypeMap[res.roomTypeId]
                             return (
                                 <div key={res.id} className="feat-card">
                                     <div className="flex items-start justify-between gap-4 mb-2">
                                         <span className="font-semibold text-charcoal">
-                                            {room ? `Room ${room.roomNumber}` : res.roomId}
+                                            {room ? `Room ${room.roomNumber}` : `${roomType?.name.replace('_', ' ') ?? 'Room'} (unassigned)`}
                                         </span>
                                         <div className="flex gap-2">
                                             {res.legalHold && <StatusBadge status="LEGAL_HOLD" />}

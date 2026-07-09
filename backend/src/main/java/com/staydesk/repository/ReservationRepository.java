@@ -17,6 +17,17 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT') ORDER BY check_in_date")
     List<Reservation> findActiveByRoomId(@Param("roomId") int roomId);
 
+    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT')")
+    int countOverlappingByRoomType(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut, @Param("checkIn") LocalDate checkIn);
+
+    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND id != :excludingReservationId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT')")
+    int countOverlappingByRoomTypeExcludingReservation(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut,
+                                                       @Param("checkIn") LocalDate checkIn, @Param("excludingReservationId") int excludingReservationId);
+
+    @Modifying
+    @Query("UPDATE reservations SET room_id = :roomId WHERE id = :id")
+    void assignRoom(@Param("id") Integer id, @Param("roomId") Integer roomId);
+
     @Modifying
     @Query("UPDATE reservations SET status = 'CHECKED_IN', checked_in_at = now() WHERE id = :id")
     void updateReservationStatusToCheckedIn(@Param("id") Integer id);

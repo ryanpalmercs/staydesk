@@ -4,7 +4,7 @@ function formatDate(str) {
     return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function ReservationSummaryModal({ reservation, guest, room, onClose, onCheckOut, onCheckIn, onViewFolio }) {
+function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio }) {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust" onClick={e => e.stopPropagation()}>
@@ -13,7 +13,7 @@ function ReservationSummaryModal({ reservation, guest, room, onClose, onCheckOut
                         <h2 className="text-lg font-semibold text-charcoal">
                             {guest?.firstName} {guest?.lastName}
                         </h2>
-                        <p className="text-sm text-muted">Room {room?.roomNumber}</p>
+                        <p className="text-sm text-muted">{roomLabel}</p>
                     </div>
                     <StatusBadge status={reservation.status} />
                 </div>
