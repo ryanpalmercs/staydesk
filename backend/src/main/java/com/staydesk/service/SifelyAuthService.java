@@ -2,6 +2,7 @@ package com.staydesk.service;
 
 import com.staydesk.model.EncryptedToken;
 import com.staydesk.model.SifelyConnection;
+import com.staydesk.model.SifelyStatusResponse;
 import com.staydesk.model.dto.SifelyLoginResponse;
 import com.staydesk.repository.SifelyConnectionRepository;
 import org.slf4j.Logger;
@@ -86,5 +87,16 @@ public class SifelyAuthService {
                                          .orElseThrow(() -> new IllegalStateException("No Sifely account connected"))
                                          .clientToken()
                                          .value();
+    }
+
+    public SifelyStatusResponse getStatus() {
+        return sifelyConnectionRepository.findFirst()
+                                         .map(c -> new SifelyStatusResponse(true, c.clientId(), c.connectedAt()))
+                                         .orElse(new SifelyStatusResponse(false, null, null));
+    }
+
+    public void disconnect() {
+        LOGGER.info("Disconnecting Sifely account");
+        sifelyConnectionRepository.deleteAll();
     }
 }
