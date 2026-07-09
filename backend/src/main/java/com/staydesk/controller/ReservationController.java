@@ -12,9 +12,11 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
+import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.repository.ReservationRepository;
@@ -30,9 +32,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -192,6 +196,20 @@ public class ReservationController {
         try {
             return ResponseEntity.ok(reservationService.clearLegalHold(id));
         } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/estimate")
+    public ResponseEntity<ReservationEstimateResponse> getEstimate(@RequestParam Rate.RateType rateType,
+                                                                   @RequestParam int guestCount,
+                                                                   @RequestParam LocalDate checkInDate,
+                                                                   @RequestParam LocalDate checkOutDate) {
+        LOGGER.info("Estimating total for rateType={} guestCount={} {} to {}", rateType, guestCount, checkInDate, checkOutDate);
+
+        try {
+            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate));
+        } catch (RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         }
     }

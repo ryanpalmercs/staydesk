@@ -43,3 +43,7 @@ export function setReservationLegalHold(id) {
 export function clearReservationLegalHold(id) {
     return api.delete(`/reservations/${id}/legal-hold`)
 }
+
+export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
+    return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
+}
