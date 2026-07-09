@@ -131,7 +131,8 @@ button {
     outline: none;
 }
 
-.filter-input:focus {
+.filter-input:focus,
+.filter-input:focus-within {
     border-color: var(--color-rust);
     box-shadow: 0 0 0 1px var(--color-rust);
 }

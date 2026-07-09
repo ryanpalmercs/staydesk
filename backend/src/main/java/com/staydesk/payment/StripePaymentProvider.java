@@ -3,6 +3,7 @@ package com.staydesk.payment;
 import com.staydesk.service.StripeConnectionService;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.PaymentMethod;
 import com.stripe.model.Refund;
 import com.stripe.model.SetupIntent;
 import com.stripe.net.RequestOptions;
@@ -41,6 +42,7 @@ public class StripePaymentProvider implements PaymentProvider {
     @Override
     public AuthResult authorize(BigDecimal amount, String token, String description) {
         try {
+            RequestOptions options = connectedAccountOptions();
             PaymentIntent intent = PaymentIntent.create(
                     PaymentIntentCreateParams.builder()
                                              .setAmount(toCents(amount))
@@ -51,11 +53,13 @@ public class StripePaymentProvider implements PaymentProvider {
                                              .setConfirm(true)
                                              .setDescription(description)
                                              .build(),
-                    connectedAccountOptions()
+                    options
             );
-            return new AuthResult(true, intent.getId(), null);
+            PaymentMethod paymentMethod = PaymentMethod.retrieve(token, options);
+            String last4 = paymentMethod.getCard() != null ? paymentMethod.getCard().getLast4() : null;
+            return new AuthResult(true, intent.getId(), null, last4);
         } catch (StripeException e) {
-            return new AuthResult(false, null, e.getMessage());
+            return new AuthResult(false, null, e.getMessage(), null);
         }
     }
 
@@ -89,7 +93,7 @@ public class StripePaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public RefundResult refund(String transactionId, BigDecimal amount) {
+    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4) {
         try {
             Refund refund = Refund.create(
                     RefundCreateParams.builder()
