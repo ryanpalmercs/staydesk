@@ -1,9 +1,11 @@
 package com.staydesk.service;
 
+import com.staydesk.lock.CodeResult;
 import com.staydesk.model.LockPasscode;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.dto.UnacknowledgedDoorAccessNotification;
+import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.LockPasscodeRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
@@ -26,14 +28,14 @@ public class LockPasscodeService {
     private static final int MAX_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MILLIS = 1500;
 
-    private final SifelyLockService sifelyLockService;
+    private final ProviderFactory providerFactory;
     private final LockPasscodeRepository lockPasscodeRepository;
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
 
-    public LockPasscodeService(SifelyLockService sifelyLockService, LockPasscodeRepository lockPasscodeRepository,
+    public LockPasscodeService(ProviderFactory providerFactory, LockPasscodeRepository lockPasscodeRepository,
                                ReservationRepository reservationRepository, RoomRepository roomRepository) {
-        this.sifelyLockService = sifelyLockService;
+        this.providerFactory = providerFactory;
         this.lockPasscodeRepository = lockPasscodeRepository;
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
@@ -77,11 +79,11 @@ public class LockPasscodeService {
 
     private void compensateOrphanedPasscode(Reservation reservation, long lockId, long keyboardPwdId) {
         try {
-            sifelyLockService.deletePasscode(lockId, keyboardPwdId);
+            providerFactory.getLockProvider().revokeCode(String.valueOf(lockId), String.valueOf(keyboardPwdId));
             LOGGER.warn("Compensated: deleted orphaned Sifely passcode {} for reservation {} on lock {} after a DB save failure",
                     keyboardPwdId, reservation.id(), lockId);
         } catch (Exception e) {
-            LOGGER.error("CRITICAL: reservation {} has an untracked working passcode {} on lock {} - DB save failed and the compensating Sifely delete also failed. Manual cleanup required.",
+            LOGGER.error("CRITICAL: reservation {} has an untracked working passcode {} on lock {} - DB save failed and the compensating service delete also failed. Manual cleanup required.",
                     reservation.id(), keyboardPwdId, lockId, e);
         }
     }
@@ -89,25 +91,23 @@ public class LockPasscodeService {
     private Long attemptIssue(Reservation reservation, long lockId, String passcode, LocalDateTime startDate,
                               LocalDateTime endDate) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            try {
-                String keyboardPwdId = sifelyLockService.createPasscode(
-                        lockId, passcode, PasscodeLabels.forReservation(reservation.id()),
-                        startDate.atZone(PROPERTY_ZONE).toInstant().toEpochMilli(),
-                        endDate.atZone(PROPERTY_ZONE).toInstant().toEpochMilli(),
-                        3
-                );
-                return Long.parseLong(keyboardPwdId);
-            } catch (Exception e) {
-                LOGGER.warn("Sifely passcode attempt {}/{} failed for reservation {} on lock {}: {}",
-                        attempt, MAX_ATTEMPTS, reservation.id(), lockId, e.getMessage());
+            CodeResult result = providerFactory.getLockProvider().issueCode(
+                    String.valueOf(lockId), passcode, PasscodeLabels.forReservation(reservation.id()),
+                    startDate, endDate, null);
 
-                if (attempt < MAX_ATTEMPTS) {
-                    sleep(RETRY_DELAY_MILLIS);
-                }
+            if (result.success()) {
+                return Long.parseLong(result.codeId());
+            }
+
+            LOGGER.warn("Lock passcode attempt {}/{} failed for reservation {} on lock {}: {}",
+                    attempt, MAX_ATTEMPTS, reservation.id(), lockId, result.message());
+
+            if (attempt < MAX_ATTEMPTS) {
+                sleep(RETRY_DELAY_MILLIS);
             }
         }
 
-        LOGGER.error("Failed to issue Sifely passcode for reservation {} on lock {} after {} attempts - will retry in background",
+        LOGGER.error("Failed to issue lock passcode for reservation {} on lock {} after {} attempts - will retry in background",
                 reservation.id(), lockId, MAX_ATTEMPTS);
         return null;
     }
@@ -128,7 +128,8 @@ public class LockPasscodeService {
                                               lockPasscode.id(), reservationId);
                                   } else {
                                       try {
-                                          sifelyLockService.deletePasscode(lockPasscode.lockId(), lockPasscode.keyboardPwdId());
+                                          providerFactory.getLockProvider().revokeCode(
+                                                  String.valueOf(lockPasscode.lockId()), String.valueOf(lockPasscode.keyboardPwdId()));
                                       } catch (Exception e) {
                                           LOGGER.error("Failed to revoke Sifely passcode {} for reservation {} - marking revoked anyway",
                                                   lockPasscode.keyboardPwdId(), reservationId, e);
