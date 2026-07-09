@@ -56,7 +56,7 @@ public class SmsService {
         return result;
     }
 
-    public void sendConfirmation(Guest guest, Reservation reservation, int roomNumber) {
+    public void sendConfirmation(Guest guest, Reservation reservation) {
         String template = propertySettingsService.getProperty("sms_confirmation_template").value();
 
         Map<String, String> variables = Map.of(
@@ -64,7 +64,6 @@ public class SmsService {
                 "guestLastName", guest.lastName().value(),
                 "checkInDate", reservation.checkInDate().toString(),
                 "checkOutDate", reservation.checkOutDate().toString(),
-                "roomNumber", String.valueOf(roomNumber),
                 "confirmationNumber", String.valueOf(reservation.id())
         );
 

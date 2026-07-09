@@ -1,17 +1,28 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createRoom, updateRoom } from "../api/roomApi"
+import { getRoomTypes } from "../api/roomTypeApi"
 
 function RoomModal({ room, onSaved, onClose }) {
     const isEditing = room != null
 
+    const [roomTypes, setRoomTypes] = useState([])
     const [form, setForm] = useState({
         roomNumber: room?.roomNumber ?? '',
-        type: room?.type ?? 'TYPE_1',
-        nightlyRate: room?.nightlyRate ?? '',
+        roomTypeId: room?.roomTypeId ?? '',
         status: room?.status ?? 'AVAILABLE'
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
+
+    useEffect(() => {
+        getRoomTypes().then(res => {
+            const types = res.data ?? []
+            setRoomTypes(types)
+            if (!isEditing && types.length > 0) {
+                setForm(f => ({ ...f, roomTypeId: types[0].id }))
+            }
+        })
+    }, [])
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
@@ -51,15 +62,11 @@ function RoomModal({ room, onSaved, onClose }) {
 
                     <div>
                         <label className="block text-sm text-muted mb-1">Type</label>
-                        <select name="type" value={form.type} onChange={handleChange} className="filter-input">
-                            <option value="TYPE_1">Type 1</option>
-                            <option value="TYPE_2">Type 2</option>
+                        <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input">
+                            {roomTypes.map(rt => (
+                                <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                            ))}
                         </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm text-muted mb-1">Nightly Rate</label>
-                        <input type="number" name="nightlyRate" value={form.nightlyRate} onChange={handleChange} className="filter-input" step="0.01" required />
                     </div>
 
                     {isEditing && (

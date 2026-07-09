@@ -1,31 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { DateRange } from 'react-date-range'
-import { eachDayOfInterval, format, parseISO, subDays } from 'date-fns'
-import { getOccupiedDates } from '../api/roomApi'
+import { format, parseISO } from 'date-fns'
+import { getRoomTypeOccupiedDates } from '../api/roomTypeApi'
 import 'react-date-range/dist/styles.css'
 import 'react-date-range/dist/theme/default.css'
 import './ReservationDatePicker.css'
 
-function ReservationDatePicker({ roomId, checkInDate, checkOutDate, onRangeSelected }) {
+function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeSelected }) {
     const [disabledDates, setDisabledDates] = useState([])
     const [months, setMonths] = useState(window.innerWidth < 768 ? 1 : 2)
     const containerRef = useRef(null)
 
     useEffect(() => {
-        if (!roomId) {
+        if (!roomTypeId) {
             setDisabledDates([])
             return
         }
-        getOccupiedDates(roomId).then(res => {
-            const dates = (res.data ?? []).flatMap(range =>
-                eachDayOfInterval({
-                    start: parseISO(range.checkIn),
-                    end: subDays(parseISO(range.checkOut), 1)
-                })
-            )
-            setDisabledDates(dates)
+        getRoomTypeOccupiedDates(roomTypeId).then(res => {
+            setDisabledDates((res.data ?? []).map(date => parseISO(date)))
         })
-    }, [roomId])
+    }, [roomTypeId])
 
     useEffect(() => {
         if (!containerRef.current) {

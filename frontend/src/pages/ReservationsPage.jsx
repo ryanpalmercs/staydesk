@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
+import { getRoomTypes } from "../api/roomTypeApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
 import StatusBadge from "../components/StatusBadge"
@@ -11,6 +12,7 @@ import FolioModal from "../components/FolioModal"
 function ReservationsPage() {
     const [reservations, setReservations] = useState([])
     const [rooms, setRooms] = useState([])
+    const [roomTypes, setRoomTypes] = useState([])
     const [guests, setGuests] = useState([])
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
@@ -35,6 +37,7 @@ function ReservationsPage() {
         Promise.all([
             fetchReservations(),
             getRooms().then(res => setRooms(res.data)),
+            getRoomTypes().then(res => setRoomTypes(res.data)),
             getGuests().then(res => setGuests(res.data))
         ])
     }, [])
@@ -88,8 +91,8 @@ function ReservationsPage() {
         setCheckInTarget(id)
     }
 
-    async function handleCheckInConfirmed(incidentalsPaymentMethodId) {
-        const res = await checkIn(checkInTarget, incidentalsPaymentMethodId)
+    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
+        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
         await fetchReservations()
         return res.data.doorAccessStatus
     }
@@ -110,6 +113,7 @@ function ReservationsPage() {
     }
 
     const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]))
+    const roomTypeMap = Object.fromEntries(roomTypes.map(rt => [rt.id, rt]))
 
     const guestMap = Object.fromEntries(guests.map(g => [g.id, g]))
 
@@ -203,6 +207,7 @@ function ReservationsPage() {
                     {sorted.map(res => {
                         const guest = guestMap[res.guestId]
                         const room = roomMap[res.roomId]
+                        const roomType = roomTypeMap[res.roomTypeId]
                         return (
                             <div key={res.id} className="feat-card">
                                 <div className="flex items-start justify-between gap-4 mb-2">
@@ -212,7 +217,7 @@ function ReservationsPage() {
                                     <StatusBadge status={res.status} />
                                 </div>
                                 <div className="flex gap-4 text-sm text-muted mb-3">
-                                    <span>{room ? `Room ${room.roomNumber}` : res.roomId}</span>
+                                    <span>{room ? `Room ${room.roomNumber}` : `${roomType?.name.replace('_', ' ') ?? 'Room'} (unassigned)`}</span>
                                     <span>{res.checkInDate} → {res.checkOutDate}</span>
                                 </div>
                                 <div className="flex gap-4 justify-end">
@@ -241,7 +246,7 @@ function ReservationsPage() {
             )}
 
             {checkInTarget != null && (
-                <CheckInPaymentModal onConfirm={handleCheckInConfirmed} onClose={() => setCheckInTarget(null)} />
+                <CheckInPaymentModal reservationId={checkInTarget} onConfirm={handleCheckInConfirmed} onClose={() => setCheckInTarget(null)} />
             )}
 
             {reviewFolioId != null && (

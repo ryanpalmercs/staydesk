@@ -5,6 +5,6 @@ import com.staydesk.model.Reservation;
 
 import java.time.LocalDate;
 
-public record CreateReservationRequest(int guestId, int roomId, LocalDate checkInDate, LocalDate checkOutDate,
+public record CreateReservationRequest(int guestId, int roomTypeId, LocalDate checkInDate, LocalDate checkOutDate,
                                        Rate.RateType rateType, int guestCount, String roomPaymentMethodId) {
 }

@@ -6,32 +6,38 @@ import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
+import com.staydesk.exception.NoRoomAvailableException;
 import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
-import com.staydesk.exception.RoomNotFoundException;
-import com.staydesk.exception.RoomUnavailableException;
+import com.staydesk.exception.RoomTypeNotFoundException;
+import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
+import com.staydesk.repository.RoomTypeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.List;
 
 @Service
 public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
+    private final RoomTypeRepository roomTypeRepository;
     private final FolioRepository folioRepository;
     private final RateRepository rateRepository;
     private final PaymentService paymentService;
@@ -41,11 +47,12 @@ public class ReservationService {
     private final LockPasscodeService lockPasscodeService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
-                              FolioRepository folioRepository, RateRepository rateRepository,
-                              PaymentService paymentService, FolioService folioService, GuestRepository guestRepository,
-                              SmsService smsService, LockPasscodeService lockPasscodeService) {
+                              RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
+                              RateRepository rateRepository, PaymentService paymentService, FolioService folioService,
+                              GuestRepository guestRepository, SmsService smsService, LockPasscodeService lockPasscodeService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
+        this.roomTypeRepository = roomTypeRepository;
         this.folioRepository = folioRepository;
         this.rateRepository = rateRepository;
         this.paymentService = paymentService;
@@ -85,19 +92,18 @@ public class ReservationService {
     public Reservation createReservation(Reservation reservation, String roomPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
 
-        Room room = roomRepository.findById(reservation.roomId())
-                                  .orElseThrow(RoomNotFoundException::new);
-
-        if (room.status() == Room.RoomStatus.MAINTENANCE) {
-            throw new RoomUnavailableException();
-        }
+        RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
+                                              .orElseThrow(RoomTypeNotFoundException::new);
 
         if (!reservation.checkOutDate().isAfter(reservation.checkInDate())) {
             throw new InvalidReservationException();
         }
 
-        if (!reservationRepository.findOverlapping(reservation.roomId(), reservation.checkOutDate(), reservation.checkInDate()).isEmpty()) {
-            throw new DateConflictException();
+        int overlapping = reservationRepository.countOverlappingByRoomType(
+                roomType.id(), reservation.checkOutDate(), reservation.checkInDate());
+
+        if (overlapping >= roomType.availableCount()) {
+            throw new RoomTypeUnavailableException();
         }
 
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
@@ -109,7 +115,7 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), reservation.roomId(),
+        Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), null, roomType.id(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.legalHold(), now, now));
 
@@ -122,7 +128,7 @@ public class ReservationService {
 
         paymentService.createRoomHold(folio, estimatedStayAmount, roomPaymentMethodId);
 
-        guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation, room.roomNumber()));
+        guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
 
         return savedReservation;
     }
@@ -132,19 +138,31 @@ public class ReservationService {
         Reservation existing = reservationRepository.findById(id)
                                                     .orElseThrow(ReservationNotFoundException::new);
 
-        boolean hasOverlap = reservationRepository.findOverlapping(reservation.roomId(), reservation.checkOutDate(), reservation.checkInDate())
-                                                  .stream()
-                                                  .anyMatch(r -> r.id() != id);
+        if (existing.roomId() != null) {
+            boolean hasOverlap = reservationRepository.findOverlapping(existing.roomId(), reservation.checkOutDate(), reservation.checkInDate())
+                                                      .stream()
+                                                      .anyMatch(r -> r.id() != id);
 
-        if (hasOverlap) {
-            throw new DateConflictException();
+            if (hasOverlap) {
+                throw new DateConflictException();
+            }
+        } else {
+            RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
+                                                  .orElseThrow(RoomTypeNotFoundException::new);
+
+            int overlapping = reservationRepository.countOverlappingByRoomTypeExcludingReservation(
+                    reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id);
+
+            if (overlapping >= roomType.availableCount()) {
+                throw new RoomTypeUnavailableException();
+            }
         }
 
         if (!reservation.checkOutDate().isAfter(reservation.checkInDate())) {
             throw new InvalidReservationException();
         }
 
-        Reservation updated = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
+        Reservation updated = new Reservation(id, reservation.guestId(), existing.roomId(), reservation.roomTypeId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
                 reservation.rateType(), reservation.guestCount(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now());
 
@@ -159,8 +177,18 @@ public class ReservationService {
         reservationRepository.deleteById(id);
     }
 
+    public List<Room> getAvailableRoomsForCheckIn(int id) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        return roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
+                             .stream()
+                             .sorted(Comparator.comparingInt(Room::roomNumber))
+                             .toList();
+    }
+
     @Transactional
-    public CheckInResult checkIn(int id, String incidentalsPaymentMethodId) {
+    public CheckInResult checkIn(int id, int roomId, String incidentalsPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -170,23 +198,29 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.OCCUPIED);
+        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
+                                  .stream()
+                                  .filter(r -> r.id() == roomId)
+                                  .findFirst()
+                                  .orElseThrow(NoRoomAvailableException::new);
+
+        reservationRepository.assignRoom(id, room.id());
+        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
         paymentService.createIncidentalHold(folio, incidentalsPaymentMethodId);
 
-        Room room = roomRepository.findById(reservation.roomId()).orElseThrow(RoomNotFoundException::new);
+        Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
-        LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(reservation, room);
+        LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED) {
-            guestRepository.findById(reservation.guestId())
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, reservation, room.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(checkedIn.guestId())
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
         }
 
-        Reservation updated = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
-        return new CheckInResult(updated, passcodeResult.outcome());
+        return new CheckInResult(checkedIn, passcodeResult.outcome());
     }
 
     @Transactional
@@ -240,9 +274,10 @@ public class ReservationService {
                            folioRepository.closeFolio(f.id());
                        });
 
-        return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.checkInDate(),
-                reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.legalHold(), reservation.createdAt(), LocalDateTime.now()));
+        return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(),
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.legalHold(),
+                reservation.createdAt(), LocalDateTime.now()));
     }
 
     @Transactional

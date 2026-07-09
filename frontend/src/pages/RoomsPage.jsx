@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getRooms, deleteRoom } from '../api/roomApi'
+import { getRoomTypes } from '../api/roomTypeApi'
 import RoomModal from '../components/RoomModal'
 import RoomAccessLogModal from '../components/RoomAccessLogModal'
 import StatusBadge from "../components/StatusBadge";
@@ -8,6 +9,7 @@ import { useAuth } from "../contexts/AuthContext"
 function RoomsPage() {
     const { role } = useAuth()
     const [rooms, setRooms] = useState([])
+    const [roomTypes, setRoomTypes] = useState([])
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedRoom, setSelectedRoom] = useState(null)
@@ -15,9 +17,11 @@ function RoomsPage() {
     const [statusFilter, setStatusFilter] = useState('ALL')
     const displayed = rooms.filter(r => statusFilter === 'ALL' || r.status === statusFilter)
         .sort((a, b) => a.roomNumber - b.roomNumber)
+    const roomTypeName = id => roomTypes.find(rt => rt.id === id)?.name.replace('_', ' ') ?? ''
 
     useEffect(() => {
         fetchRooms()
+        getRoomTypes().then(res => setRoomTypes(res.data ?? []))
     }, [])
 
     async function fetchRooms() {
@@ -77,7 +81,7 @@ function RoomsPage() {
                                     <span className="font-semibold text-charcoal">Room {room.roomNumber}</span>
                                     <StatusBadge status={room.status} />
                                 </div>
-                                <p className="text-sm text-muted">{room.type}</p>
+                                <p className="text-sm text-muted">{roomTypeName(room.roomTypeId)}</p>
                                 <div className="flex gap-3 justify-end">
                                     {role === 'ADMIN' && room.sifelyLockId != null && (
                                         <button onClick={() => setAccessLogRoom(room)} className="text-brown hover:text-rust text-sm font-medium">Access Log</button>

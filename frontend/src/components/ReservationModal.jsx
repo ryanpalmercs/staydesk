@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useCombobox } from "downshift"
 import { createReservation, updateReservation } from "../api/reservationApi"
-import { getRooms } from "../api/roomApi"
+import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests } from "../api/guestApi"
 import { getRates } from "../api/rateApi"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
@@ -119,14 +119,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
     const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
 
-    const [rooms, setRooms] = useState([])
+    const [roomTypes, setRoomTypes] = useState([])
     const [guests, setGuests] = useState([])
     const [rates, setRates] = useState([])
     const [getsCount, setGuestCount] = useState('1')
     const [guestMode, setGuestMode] = useState('search')
     let [form, setForm] = useState({
         guestId: reservation?.guestId ?? '',
-        roomId: reservation?.roomId ?? '',
+        roomTypeId: reservation?.roomTypeId ?? '',
         rateType: reservation?.rateType ?? 'NIGHTLY',
         guestCount: reservation?.guestCount ?? '1',
         checkInDate: reservation?.checkInDate ?? '',
@@ -167,7 +167,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         ))
 
     useEffect(() => {
-        getRooms().then(res => setRooms(res.data ?? [])),
+        getRoomTypes().then(res => setRoomTypes(res.data ?? [])),
             getGuests().then(res => setGuests(res.data ?? [])),
             getRates().then(res => setRates(res.data ?? []))
 
@@ -238,8 +238,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        if (!form.roomId) {
-            setError('Please select a room.')
+        if (!form.roomTypeId) {
+            setError('Please select a room type.')
             return
         }
 
@@ -293,9 +293,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             onSaved()
         } catch (err) {
             if (err.response?.status === 400) {
-                setError('Room is unavailable or dates conflict with an existing reservation.')
+                setError('No room of this type is available for the selected dates.')
             } else if (err.response?.status === 404) {
-                setError('Room not found.')
+                setError('Room type not found.')
             } else {
                 setError('Something went wrong.')
             }
@@ -309,7 +309,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         } catch (err) {
             setStep('form')
             if (err.response?.status === 400) {
-                setError('Room is unavailable or dates conflict with an existing reservation.')
+                setError('No room of this type is available for the selected dates.')
             } else {
                 setError('Something went wrong.')
             }
@@ -374,20 +374,19 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-muted mb-1">Room</label>
-                                <SearchableSelect
-                                    items={rooms}
-                                    selectedId={form.roomId}
-                                    itemLabel={r => `Room ${r.roomNumber}`}
-                                    onSelect={roomId => setForm({ ...form, roomId })}
-                                    placeholder="Search rooms..."
-                                />
+                                <label className="block text-sm text-muted mb-1">Room Type</label>
+                                <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
+                                    <option value="">Select a room type...</option>
+                                    {roomTypes.map(rt => (
+                                        <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div>
                                 <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
                                 <ReservationDatePicker
-                                    roomId={form.roomId}
+                                    roomTypeId={form.roomTypeId}
                                     checkInDate={form.checkInDate}
                                     checkOutDate={form.checkOutDate}
                                     onRangeSelected={({ checkInDate, checkOutDate }) => setForm({ ...form, checkInDate, checkOutDate })}

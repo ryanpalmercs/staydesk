@@ -22,4 +22,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleGuestNotFoundException(GuestNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
+
+    @ExceptionHandler(RoomTypeNotFoundException.class)
+    public ResponseEntity<String> handleRoomTypeNotFoundException(RoomTypeNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(RoomTypeUnavailableException.class)
+    public ResponseEntity<String> handleRoomTypeUnavailableException(RoomTypeUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(NoRoomAvailableException.class)
+    public ResponseEntity<String> handleNoRoomAvailableException(NoRoomAvailableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
 }
