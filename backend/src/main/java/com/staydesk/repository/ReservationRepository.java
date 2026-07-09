@@ -14,6 +14,9 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("SELECT * FROM reservations WHERE room_id = :roomId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT')")
     List<Reservation> findOverlapping(@Param("roomId") int roomId, @Param("checkOut") LocalDate checkOut, @Param("checkIn") LocalDate checkIn);
 
+    @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT') ORDER BY check_in_date")
+    List<Reservation> findActiveByRoomId(@Param("roomId") int roomId);
+
     @Modifying
     @Query("UPDATE reservations SET status = 'CHECKED_IN', checked_in_at = now() WHERE id = :id")
     void updateReservationStatusToCheckedIn(@Param("id") Integer id);

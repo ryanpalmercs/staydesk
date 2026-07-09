@@ -12,6 +12,7 @@ import { CardElement, Elements, useElements, useStripe } from "@stripe/react-str
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 import { getPropertySetting } from "../api/settingsApi"
+import ReservationDatePicker from "./ReservationDatePicker"
 
 
 function CardCaptureForm({ onCapture, onCancel }) {
@@ -156,8 +157,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [stripePromise, setStripePromise] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet' || (provider === 'stripe' && stripePromise != null)
-
-    const selectedRate = rates.find(r => r.rateType === form.rateType && r.guestCount === Number(form.guestCount))
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
     const flaggedMatch = guestMode === 'search'
@@ -320,143 +319,144 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">
+            <div className="bg-warm-white rounded-lg shadow-lg border-t-4 border-rust w-full max-w-md sm:max-w-3xl max-h-[90vh] flex flex-col">
+                <h2 className="text-lg text-charcoal font-semibold px-6 pt-6 pb-4">
                     {step === 'payment' ? 'Card Details' : isEditing ? 'Edit Reservation' : 'New Reservation'}
                 </h2>
+
                 {step === 'form' && (
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                        <div>
-                            <div className="flex items-baseline gap-2">
-                                <label className="text-sm text-muted">Guest</label>
-                                <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
-                                    {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
-                                </button>
+                    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                        <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
+                            <div>
+                                <div className="flex items-baseline gap-2">
+                                    <label className="text-sm text-muted">Guest</label>
+                                    <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
+                                        {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
+                                    </button>
+                                </div>
+                                {guestMode === 'search' ? (
+                                    <SearchableSelect
+                                        items={guests}
+                                        selectedId={form.guestId}
+                                        itemLabel={g => `${g.firstName} ${g.lastName}`}
+                                        renderBadge={g => g.flagged && <span className="text-xs text-rust font-medium">Flagged</span>}
+                                        onSelect={guestId => setForm({ ...form, guestId })}
+                                        placeholder="Search guests..."
+                                    />
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
+                                    </div>
+                                )}
                             </div>
-                            {guestMode === 'search' ? (
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Rate Type</label>
+                                    <select name="rateType" value={form.rateType} onChange={handleRateChange} className="filter-input" required>
+                                        <option value="NIGHTLY">Nightly</option>
+                                        <option value="WEEKLY_5">Weekly (5-night)</option>
+                                        <option value="WEEKLY_7">Weekly (7-night)</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Number of Guests</label>
+                                    <select name="guestCount" value={form.guestCount} onChange={handleChange} className="filter-input" required>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        {form.rateType !== 'NIGHTLY' && <option value="3">3</option>}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Room</label>
                                 <SearchableSelect
-                                    items={guests}
-                                    selectedId={form.guestId}
-                                    itemLabel={g => `${g.firstName} ${g.lastName}`}
-                                    renderBadge={g => g.flagged && <span className="text-xs text-rust font-medium">Flagged</span>}
-                                    onSelect={guestId => setForm({ ...form, guestId })}
-                                    placeholder="Search guests..."
+                                    items={rooms}
+                                    selectedId={form.roomId}
+                                    itemLabel={r => `Room ${r.roomNumber}`}
+                                    onSelect={roomId => setForm({ ...form, roomId })}
+                                    placeholder="Search rooms..."
                                 />
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                                <ReservationDatePicker
+                                    roomId={form.roomId}
+                                    checkInDate={form.checkInDate}
+                                    checkOutDate={form.checkOutDate}
+                                    onRangeSelected={({ checkInDate, checkOutDate }) => setForm({ ...form, checkInDate, checkOutDate })}
+                                />
+                            </div>
+
+                            {isEditing && (
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Status</label>
+                                    <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
+                                        <option value="CONFIRMED">Confirmed</option>
+                                        <option value="CANCELLED">Cancelled</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {canAddExtras && (
+                                <div>
+                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-rust hover:text-rust-light">
+                                        {showExtras ? 'Hide Extras' : 'Add Extras'}
+                                    </button>
+
+                                    {showExtras && (
+                                        <div className="flex gap-2 items-end mt-2">
+                                            <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
+                                                <option value="">Select an extra...</option>
+                                                {extras.map(extra => (
+                                                    <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
+                                                ))}
+                                            </select>
+                                            <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
+                                            <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                                        </div>
+                                    )}
+
+                                    {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                                </div>
+                            )}
+
+                            {flaggedMatch && (
+                                <div className="bg-red-100 text-red-700 text-sm rounded p-2">
+                                    Warning: this guest is flagged — {flaggedMatch.flagReason}
                                 </div>
                             )}
                         </div>
 
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Rate Type</label>
-                            <select name="rateType" value={form.rateType} onChange={handleRateChange} className="filter-input" required>
-                                <option value="NIGHTLY">Nightly</option>
-                                <option value="WEEKLY_5">Weekly (5-night)</option>
-                                <option value="WEEKLY_7">Weekly (7-night)</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Number of Guests</label>
-                            <select name="guestCount" value={form.guestCount} onChange={handleChange} className="filter-input" required>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                {form.rateType !== 'NIGHTLY' && <option value="3">3</option>}
-                            </select>
-                        </div>
-
-                        {selectedRate &&
-                            <div className="flex items-baseline gap-2">
-                                <label className="block text-sm text-muted mb-1">Rate</label>
-                                <p className="text-sm font-medium text-charcoal mt-1">${selectedRate.amount}</p>
-                            </div>
-                        }
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Room</label>
-                            <SearchableSelect
-                                items={rooms}
-                                selectedId={form.roomId}
-                                itemLabel={r => `Room ${r.roomNumber}`}
-                                onSelect={roomId => setForm({ ...form, roomId })}
-                                placeholder="Search rooms..."
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Check-in</label>
-                            <input type="date" name="checkInDate" value={form.checkInDate} onChange={handleChange} className="filter-input" required />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Check-out</label>
-                            <input type="date" name="checkOutDate" value={form.checkOutDate} min={form.checkInDate || undefined} onChange={handleChange} className="filter-input" required />
-                        </div>
-
-                        {isEditing && (
-                            <div>
-                                <label className="block text-sm text-muted mb-1">Status</label>
-                                <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
-                                    <option value="CONFIRMED">Confirmed</option>
-                                    <option value="CANCELLED">Cancelled</option>
-                                </select>
-                            </div>
-                        )}
-
-                        {canAddExtras && (
-                            <div>
-                                <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-rust hover:text-rust-light">
-                                    {showExtras ? 'Hide Extras' : 'Add Extras'}
+                        <div className="flex flex-col gap-3 px-6 py-4 border-t border-tan flex-shrink-0">
+                            {error && <p className="text-sm text-rust">{error}</p>}
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={onClose} className="btn btn-secondary">
+                                    Cancel
                                 </button>
-
-                                {showExtras && (
-                                    <div className="flex gap-2 items-end mt-2">
-                                        <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
-                                            <option value="">Select an extra...</option>
-                                            {extras.map(extra => (
-                                                <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
-                                            ))}
-                                        </select>
-                                        <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
-                                        <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
-                                    </div>
-                                )}
-
-                                {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                                <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
+                                    {isEditing ? 'Save' : 'Create'}
+                                </button>
                             </div>
-                        )}
-
-                        {flaggedMatch && (
-                            <div className="bg-red-100 text-red-700 text-sm rounded p-2">
-                                Warning: this guest is flagged — {flaggedMatch.flagReason}
-                            </div>
-                        )}
-
-                        {error && <p className="text-sm text-rust">{error}</p>}
-
-                        <div className="flex justify-end gap-3 mt-2">
-                            <button type="button" onClick={onClose} className="btn btn-secondary">
-                                Cancel
-                            </button>
-                            <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
-                                {isEditing ? 'Save' : 'Create'}
-                            </button>
                         </div>
                     </form>
                 )}
 
                 {step === 'payment' && (
-                    <CardCaptureStep
-                        stripePromise={stripePromise}
-                        onCapture={handleCapture}
-                        onCancel={() => setStep('form')}
-                        provider={provider}
-                    />
+                    <div className="px-6 pb-6 overflow-y-auto">
+                        <CardCaptureStep
+                            stripePromise={stripePromise}
+                            onCapture={handleCapture}
+                            onCancel={() => setStep('form')}
+                            provider={provider}
+                        />
+                    </div>
                 )}
             </div>
         </div>
