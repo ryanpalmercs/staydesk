@@ -24,8 +24,10 @@ public class SifelyWebhookService {
     // recordType catalog: events that tell us the bolt was successfully unlocked or locked.
     // Everything else (alarms, door-sensor/system status, special modes) doesn't tell us
     // current bolt position, so it only updates battery/lastSeen, not state.
+    // 47 ("Locked") isn't in Sifely's documented webhook event catalog, but confirmed via
+    // timestamp cross-reference against the Sifely app's own access log.
     private static final Set<Integer> UNLOCK_EVENTS = Set.of(1, 4, 7, 8, 9, 12, 49, 57, 67, 84, 92);
-    private static final Set<Integer> LOCK_EVENTS = Set.of(11, 33, 34, 35, 52, 61, 69, 86);
+    private static final Set<Integer> LOCK_EVENTS = Set.of(11, 33, 34, 35, 47, 52, 61, 69, 86);
 
     private final LockStateRepository lockStateRepository;
     private final ObjectMapper objectMapper;

@@ -37,6 +37,7 @@ public class RoomAccessLogService {
         long start = end - Duration.ofDays(clampedDays).toMillis();
 
         return sifelyLockService.getLockRecords(lockId, start, end).stream()
+                                .filter(record -> record.recordType() != 47)
                                 .map(this::resolve)
                                 .sorted(Comparator.comparing(RoomAccessEvent::occurredAt).reversed())
                                 .toList();
@@ -48,11 +49,7 @@ public class RoomAccessLogService {
         boolean success = record.success() == 1;
 
         if (!success) {
-            return new RoomAccessEvent(occurredAt, eventType, false, "Failed attempt", RoomAccessEvent.ActorType.UNKNOWN);
-        }
-
-        if (record.recordType() == 47) {
-            return new RoomAccessEvent(occurredAt, eventType, true, "Physical key", RoomAccessEvent.ActorType.UNKNOWN);
+            return new RoomAccessEvent(occurredAt, eventType, false, "Failed attempt", RoomAccessEvent.ActorType.UNAUTHORIZED);
         }
 
         String username = record.username();
@@ -79,10 +76,6 @@ public class RoomAccessLogService {
     }
 
     private String eventTypeLabel(int recordType) {
-        return switch (recordType) {
-            case 4 -> "Passcode";
-            case 47 -> "Physical key";
-            default -> "Event type " + recordType;
-        };
+        return recordType == 4 ? "Passcode" : "Event type " + recordType;
     }
 }
