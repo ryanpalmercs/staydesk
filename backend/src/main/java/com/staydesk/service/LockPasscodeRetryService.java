@@ -1,5 +1,6 @@
 package com.staydesk.service;
 
+import com.staydesk.lock.CodeResult;
 import com.staydesk.model.AuthRole;
 import com.staydesk.model.ContactInfo;
 import com.staydesk.model.Employee;
@@ -7,6 +8,7 @@ import com.staydesk.model.LockPasscode;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.TimeEntry;
+import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.EmployeeTypeRepository;
 import com.staydesk.repository.LockPasscodeRepository;
@@ -19,7 +21,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,7 +28,6 @@ import java.util.Optional;
 @Service
 public class LockPasscodeRetryService {
     private static final Logger LOGGER = LoggerFactory.getLogger(LockPasscodeRetryService.class);
-    private static final ZoneId PROPERTY_ZONE = ZoneId.of("America/Chicago");
 
     private final LockPasscodeRepository lockPasscodeRepository;
     private final ReservationRepository reservationRepository;
@@ -35,14 +35,14 @@ public class LockPasscodeRetryService {
     private final TimeEntryRepository timeEntryRepository;
     private final EmployeeRepository employeeRepository;
     private final EmployeeTypeRepository employeeTypeRepository;
-    private final SifelyLockService sifelyLockService;
+    private final ProviderFactory providerFactory;
     private final SmsService smsService;
 
     public LockPasscodeRetryService(LockPasscodeRepository lockPasscodeRepository,
                                     ReservationRepository reservationRepository,
                                     RoomRepository roomRepository, TimeEntryRepository timeEntryRepository,
                                     EmployeeRepository employeeRepository,
-                                    EmployeeTypeRepository employeeTypeRepository, SifelyLockService sifelyLockService,
+                                    EmployeeTypeRepository employeeTypeRepository, ProviderFactory providerFactory,
                                     SmsService smsService) {
         this.lockPasscodeRepository = lockPasscodeRepository;
         this.reservationRepository = reservationRepository;
@@ -50,7 +50,7 @@ public class LockPasscodeRetryService {
         this.timeEntryRepository = timeEntryRepository;
         this.employeeRepository = employeeRepository;
         this.employeeTypeRepository = employeeTypeRepository;
-        this.sifelyLockService = sifelyLockService;
+        this.providerFactory = providerFactory;
         this.smsService = smsService;
     }
 
@@ -74,23 +74,18 @@ public class LockPasscodeRetryService {
             return;
         }
 
-        String keyboardPwdId;
+        CodeResult result = providerFactory.getLockProvider().issueCode(
+                String.valueOf(failed.lockId()), failed.passcode(), PasscodeLabels.forReservation(failed.reservationId()),
+                failed.startDate(), failed.endDate(), null);
 
-        try {
-            keyboardPwdId = sifelyLockService.createPasscode(
-                    failed.lockId(), failed.passcode(), PasscodeLabels.forReservation(failed.reservationId()),
-                    failed.startDate().atZone(PROPERTY_ZONE).toInstant().toEpochMilli(),
-                    failed.endDate().atZone(PROPERTY_ZONE).toInstant().toEpochMilli(),
-                    3
-            );
-        } catch (Exception e) {
+        if (!result.success()) {
             LOGGER.warn("Background retry still failing for reservation {} on lock {}: {}",
-                    failed.reservationId(), failed.lockId(), e.getMessage());
+                    failed.reservationId(), failed.lockId(), result.message());
             return;
         }
 
         LockPasscode resolved = failed.withStatus(LockPasscode.Status.ACTIVE)
-                                      .withKeyboardPwdId(Long.parseLong(keyboardPwdId))
+                                      .withKeyboardPwdId(Long.parseLong(result.codeId()))
                                       .withAcknowledged(false)
                                       .withResolvedAt(LocalDateTime.now());
 

@@ -36,6 +36,7 @@ public class SecurityConfig {
                    .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                    .authorizeHttpRequests(auth -> auth
                            .requestMatchers("/auth/employee/login", "/error", "/stripe/connect/return", "/stripe/connect/refresh").permitAll()
+                           .requestMatchers("/webhooks/sifely/**").permitAll()
                            .requestMatchers("/actuator/health").permitAll()
                            .requestMatchers(HttpMethod.POST, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")
                            .requestMatchers(HttpMethod.DELETE, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")

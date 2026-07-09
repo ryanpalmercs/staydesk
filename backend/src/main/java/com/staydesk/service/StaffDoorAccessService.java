@@ -1,8 +1,10 @@
 package com.staydesk.service;
 
+import com.staydesk.lock.CodeResult;
 import com.staydesk.model.Employee;
 import com.staydesk.model.Room;
 import com.staydesk.model.StaffLockPasscode;
+import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.RoomRepository;
 import com.staydesk.repository.StaffLockPasscodeRepository;
 import org.slf4j.Logger;
@@ -20,13 +22,13 @@ import java.util.stream.Collectors;
 public class StaffDoorAccessService {
     private static final Logger LOGGER = LoggerFactory.getLogger(StaffDoorAccessService.class);
 
-    private final SifelyLockService sifelyLockService;
+    private final ProviderFactory providerFactory;
     private final RoomRepository roomRepository;
     private final StaffLockPasscodeRepository staffLockPasscodeRepository;
 
-    public StaffDoorAccessService(SifelyLockService sifelyLockService, RoomRepository roomRepository,
+    public StaffDoorAccessService(ProviderFactory providerFactory, RoomRepository roomRepository,
                                   StaffLockPasscodeRepository staffLockPasscodeRepository) {
-        this.sifelyLockService = sifelyLockService;
+        this.providerFactory = providerFactory;
         this.roomRepository = roomRepository;
         this.staffLockPasscodeRepository = staffLockPasscodeRepository;
     }
@@ -71,7 +73,8 @@ public class StaffDoorAccessService {
         staffLockPasscodeRepository.findByEmployeeIdAndStatus(employee.id(), StaffLockPasscode.Status.ACTIVE)
                                    .forEach(slp -> {
                                        try {
-                                           sifelyLockService.deletePasscode(slp.lockId(), slp.keyboardPwdId());
+                                           providerFactory.getLockProvider().revokeCode(
+                                                   String.valueOf(slp.lockId()), String.valueOf(slp.keyboardPwdId()));
                                        } catch (Exception e) {
                                            LOGGER.error("Failed to revoke staff passcode {} for employee {} - marking revoked anyway",
                                                    slp.keyboardPwdId(), employee.id(), e);
@@ -96,13 +99,19 @@ public class StaffDoorAccessService {
             Long lockId = room.sifelyLockId();
             try {
                 if (lockId == null) {
-                    throw new IllegalStateException("Room " + room.roomNumber() + " has no Sifely lock ID configured.");
+                    throw new IllegalStateException("Room " + room.roomNumber() + " has no lock ID configured.");
                 }
 
-                String keyboardPwdId = sifelyLockService.createPermanentPasscode(lockId, pin, PasscodeLabels.forStaff(employee.username()));
+                CodeResult result = providerFactory.getLockProvider().issueCode(
+                        String.valueOf(lockId), pin, PasscodeLabels.forStaff(employee.username()),
+                        LocalDateTime.now(), null, null);
+
+                if (!result.success()) {
+                    throw new IllegalStateException(result.message());
+                }
 
                 staffLockPasscodeRepository.save(new StaffLockPasscode(0, employee.id(), lockId,
-                        Long.parseLong(keyboardPwdId), StaffLockPasscode.Status.ACTIVE, LocalDateTime.now(), null));
+                        Long.parseLong(result.codeId()), StaffLockPasscode.Status.ACTIVE, LocalDateTime.now(), null));
 
                 succeeded++;
             } catch (Exception e) {

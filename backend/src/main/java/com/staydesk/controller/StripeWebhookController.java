@@ -1,5 +1,6 @@
 package com.staydesk.controller;
 
+import com.staydesk.payment.StripePaymentProvider;
 import com.staydesk.service.PaymentService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
@@ -43,7 +44,10 @@ public class StripeWebhookController {
 
         if ("payment_intent.succeeded".equals(event.getType())) {
             event.getDataObjectDeserializer().getObject().ifPresentOrElse(
-                    stripeObject -> paymentService.handlePaymentIntentSucceeded((PaymentIntent) stripeObject),
+                    stripeObject -> {
+                        PaymentIntent intent = (PaymentIntent) stripeObject;
+                        paymentService.confirmCapture(intent.getId(), StripePaymentProvider.fromCents(intent.getAmountReceived()));
+                    },
                     () -> LOGGER.warn("payment_intent.succeeded event {} missing deserialized object (API version mismatch?)", event.getId())
             );
         }
