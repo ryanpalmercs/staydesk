@@ -64,3 +64,10 @@ sifely:
 guest:
   pii-encryption-key: ${GUEST_PII_ENCRYPTION_KEY}
   pii-hash-key: ${GUEST_PII_HASH_KEY}
+
+# Authorize.net
+authorizenet:
+  api-login-id: ${AUTHORIZE_NET_API_LOGIN_ID}
+  transaction-key: ${AUTHORIZE_NET_TRANSACTION_KEY}
+  client-key: ${AUTHORIZE_NET_CLIENT_KEY}
+  environment: ${AUTHORIZE_NET_ENVIRONMENT:SANDBOX}

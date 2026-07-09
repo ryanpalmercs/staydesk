@@ -39,6 +39,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
 
     implementation("com.stripe:stripe-java:33.0.0")
+    implementation("net.authorize:anet-java-sdk:3.0.0")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
