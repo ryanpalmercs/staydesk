@@ -10,7 +10,7 @@ import java.util.Optional;
 
 public interface RoomTypeRepository extends ListCrudRepository<RoomType, Integer> {
 
-    Optional<RoomType> findByName(RoomType.Name name);
+    Optional<RoomType> findByName(String name);
 
     @Modifying
     @Query("UPDATE room_types SET available_count = available_count + 1 WHERE id = :id")

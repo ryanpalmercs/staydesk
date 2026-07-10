@@ -7,3 +7,7 @@ export function getRoomTypes() {
 export function getRoomTypeOccupiedDates(roomTypeId) {
     return api.get(`/room-types/${roomTypeId}/occupied-dates`)
 }
+
+export function updateRoomType(id, roomType) {
+    return api.put(`/room-types/${id}`, roomType)
+}

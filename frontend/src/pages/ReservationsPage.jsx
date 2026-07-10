@@ -8,8 +8,12 @@ import StatusBadge from "../components/StatusBadge"
 import { getFolioByReservationId } from "../api/folioApi"
 import CheckInPaymentModal from "../components/CheckInPaymentModal"
 import FolioModal from "../components/FolioModal"
+import DoorCodeModal from "../components/DoorCodeModal"
+import { useAuth } from "../contexts/AuthContext"
 
 function ReservationsPage() {
+    const { role } = useAuth()
+    const canViewDoorCode = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
     const [reservations, setReservations] = useState([])
     const [rooms, setRooms] = useState([])
     const [roomTypes, setRoomTypes] = useState([])
@@ -19,6 +23,7 @@ function ReservationsPage() {
     const [selectedReservation, setSelectedReservation] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [reviewFolioId, setReviewFolioId] = useState(null)
+    const [doorCodeTarget, setDoorCodeTarget] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
     const [error, setError] = useState(null)
     const [sortKey, setSortKey] = useState('checkInDate')
@@ -118,7 +123,11 @@ function ReservationsPage() {
     const guestMap = Object.fromEntries(guests.map(g => [g.id, g]))
 
     const filtered = reservations.filter(res => {
-        if (filters.roomId && res.roomId !== Number(filters.roomId)) {
+        if (filters.roomId === 'unassigned') {
+            if (res.roomId != null) {
+                return false
+            }
+        } else if (filters.roomId && res.roomId !== Number(filters.roomId)) {
             return false
         }
         if (filters.dateFrom && res.checkOutDate < filters.dateFrom) {
@@ -172,6 +181,7 @@ function ReservationsPage() {
                     <label className="text-muted block text-xs mb-1">Room</label>
                     <select name="roomId" value={filters.roomId} onChange={handleFilterChange} className="filter-input">
                         <option value="">All rooms</option>
+                        <option value="unassigned">Unassigned</option>
                         {rooms.map(room => (
                             <option key={room.id} value={room.id}>Room {room.roomNumber}</option>
                         ))}
@@ -227,6 +237,9 @@ function ReservationsPage() {
                                     {res.status === 'CHECKED_IN' && (
                                         <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check Out</button>
                                     )}
+                                    {res.status === 'CHECKED_IN' && canViewDoorCode && (
+                                        <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-brown hover:text-rust">Door Code</button>
+                                    )}
                                     <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust">Edit</button>
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
@@ -251,6 +264,14 @@ function ReservationsPage() {
 
             {reviewFolioId != null && (
                 <FolioModal folioId={reviewFolioId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
+            )}
+
+            {doorCodeTarget != null && (
+                <DoorCodeModal
+                    reservationId={doorCodeTarget.id}
+                    roomNumber={roomMap[doorCodeTarget.roomId]?.roomNumber ?? '—'}
+                    onClose={() => setDoorCodeTarget(null)}
+                />
             )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}

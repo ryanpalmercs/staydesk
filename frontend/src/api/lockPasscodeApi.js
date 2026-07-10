@@ -7,3 +7,7 @@ export function getUnacknowledgedLockPasscodes() {
 export function acknowledgeLockPasscode(id) {
     return api.put(`/lock-passcodes/${id}/acknowledge`)
 }
+
+export function getActiveLockPasscode(reservationId) {
+    return api.get(`/lock-passcodes/reservation/${reservationId}`)
+}
