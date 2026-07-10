@@ -22,10 +22,6 @@ function formatCardNumber(digits) {
     return digits.replace(/(.{4})/g, '$1 ').trim()
 }
 
-function formatExpiry(digits) {
-    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
-}
-
 function maskCardNumber(digits) {
     return digits.slice(-4)
 }
@@ -56,6 +52,40 @@ function detectBrand(digits) {
     if (/^(6011|65|64[4-9]|622)/.test(digits)) return 'discover'
     if (/^3(0[0-5]|[68])/.test(digits)) return 'diners'
     if (/^35(2[89]|[3-8]\d)/.test(digits)) return 'jcb'
+    return null
+}
+
+function formatExpiry(digits) {
+    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+}
+
+function padExpiryDigits(digits) {
+    if (digits.length === 1 && Number(digits) > 1) {
+        return `0${digits}`
+    }
+    return digits
+}
+
+function getExpiryError(digits) {
+    if (digits.length < 4) {
+        return 'Expiration date is invalid.'
+    }
+
+    const month = Number(digits.slice(0, 2))
+    const year = Number(digits.slice(2, 4))
+
+    if (month < 1 || month > 12) {
+        return 'Expiration date is invalid.'
+    }
+
+    const now = new Date()
+    const currentYear = now.getFullYear() % 100
+    const currentMonth = now.getMonth() + 1
+
+    if (year < currentYear || (year === currentYear && month < currentMonth)) {
+        return 'Card has expired.'
+    }
+
     return null
 }
 
@@ -153,6 +183,8 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
     const [zip, setZip] = useState('')
     const [cardNumberFocused, setCardNumberFocused] = useState(false)
     const [cardNumberTouched, setCardNumberTouched] = useState(false)
+    const [expiryFocused, setExpiryFocused] = useState(false)
+    const [expiryTouched, setExpiryTouched] = useState(false)
 
     const expiryRef = useRef(null)
     const cvcRef = useRef(null)
@@ -163,6 +195,9 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
     const cardNumberDisplay = cardNumberFocused ? cardNumber : maskCardNumber(cardDigits)
     const cardNumberInvalid = cardNumberTouched && !cardNumberFocused && cardDigits.length > 0 &&
         (cardDigits.length < 16 || !isLuhnValid(cardDigits))
+    const expiryDigits = expiry.replace(/\D/g, '')
+    const expiryError = getExpiryError(expiryDigits)
+    const expiryInvalid = expiryTouched && !expiryFocused && expiryDigits.length > 0 && expiryError !== null
     const cvcLength = brand === 'amex' ? 4 : 3
 
     useEffect(() => {
@@ -174,6 +209,16 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
 
         if (cardNumberInvalid) {
             setError('Card number is invalid.')
+            return
+        }
+
+        if (cardNumberInvalid) {
+            setError('Card number is invalid.')
+            return
+        }
+
+        if (expiryError) {
+            setError(expiryError)
             return
         }
 
@@ -219,11 +264,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* No name attributes: Accept.js requires these fields never be part of a form POST (PCI SAQ-A-EP) */}
-            <div
-                className="filter-input flex items-center gap-2"
-                style={cardNumberInvalid ? { borderColor: 'var(--color-rust)' } : undefined}
-            >
+            <div className="filter-input flex items-center gap-2">
                 <div className="relative flex-shrink-0">
                     {cardNumberInvalid ? <CardInvalidIcon /> : <CardBrandIcon brand={brand} />}
                     {cardNumberInvalid && <CardErrorBadge />}
@@ -253,15 +294,20 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                     placeholder="MM/YY"
                     value={expiry}
                     onChange={e => {
-                        const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+                        const digits = padExpiryDigits(e.target.value.replace(/\D/g, '').slice(0, 4))
                         setExpiry(formatExpiry(digits))
                         if (digits.length === 4) {
                             cvcRef.current?.focus()
                         }
                     }}
+                    onFocus={() => setExpiryFocused(true)}
+                    onBlur={() => {
+                        setExpiryFocused(false)
+                        setExpiryTouched(true)
+                    }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className="w-14 outline-none bg-transparent text-base"
+                    className={`w-14 outline-none bg-transparent text-base ${expiryInvalid ? 'text-rust' : ''}`}
                     required
                 />
                 <input
