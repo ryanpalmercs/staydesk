@@ -32,6 +32,7 @@ export default function DoorAccessToast() {
             {notifications.map(n => (
                 <div key={n.lockPasscodeId} className="bg-warm-white border-l-4 border-green-600 rounded-lg shadow-lg p-4">
                     <p className="text-sm font-medium text-charcoal">Door code issued — Room {n.roomNumber}</p>
+                    <p className="text-2xl font-semibold tracking-widest text-charcoal mt-2">{n.passcode}</p>
                     <p className="text-xs text-muted mt-1">
                         Resolved {new Date(n.resolvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>

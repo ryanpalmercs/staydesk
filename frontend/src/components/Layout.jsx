@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, BarChart2 } from 'lucide-react'
+import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import DoorAccessToast from './DoorAccessToast'
 import './Layout.css'
@@ -64,6 +64,12 @@ export default function Layout() {
                         <NavLink to="/reservations" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <CalendarDays size={18} />
                             <span>Reservations</span>
+                        </NavLink>
+                    )}
+                    {showReservations && (
+                        <NavLink to="/guests" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                            <UserSearch size={18} />
+                            <span>Guests</span>
                         </NavLink>
                     )}
                     {adminOnly && (

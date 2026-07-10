@@ -5,6 +5,7 @@ import { getConnectStatus } from "../api/stripeApi"
 import { getPropertySetting } from "../api/settingsApi"
 import { getAvailableRoomsForCheckIn } from "../api/reservationApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
+import DoorCode from "./DoorCode"
 import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
@@ -81,7 +82,7 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function CheckInPaymentForm({ roomId, onConfirm, onClose }) {
+function CheckInPaymentForm({ roomId, onConfirm, onClose, onCheckedIn }) {
     const stripe = useStripe()
     const elements = useElements()
     const [submitting, setSubmitting] = useState(false)
@@ -115,7 +116,7 @@ function CheckInPaymentForm({ roomId, onConfirm, onClose }) {
             if (doorAccessStatus === 'FAILED') {
                 setDoorAccessFailed(true)
             } else {
-                onClose()
+                onCheckedIn(doorAccessStatus)
             }
         } catch (err) {
             setError('Failed to check in. Please try a different card.')
@@ -150,7 +151,7 @@ function CheckInPaymentForm({ roomId, onConfirm, onClose }) {
     )
 }
 
-function AcceptJsCheckInForm({ roomId, onConfirm, onClose }) {
+function AcceptJsCheckInForm({ roomId, onConfirm, onClose, onCheckedIn }) {
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
 
     async function handleCapture(token) {
@@ -158,7 +159,7 @@ function AcceptJsCheckInForm({ roomId, onConfirm, onClose }) {
         if (doorAccessStatus === 'FAILED') {
             setDoorAccessFailed(true)
         } else {
-            onClose()
+            onCheckedIn(doorAccessStatus)
         }
     }
 
@@ -199,11 +200,19 @@ function CheckInPaymentModal({ reservationId, onConfirm, onClose }) {
         setStep('payment')
     }
 
+    function handleCheckedIn(doorAccessStatus) {
+        if (doorAccessStatus === 'ISSUED') {
+            setStep('code')
+        } else {
+            onClose()
+        }
+    }
+
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
                 <h2 className="text-lg text-charcoal font-semibold mb-4">
-                    {step === 'room' ? 'Assign a Room' : 'Card for Incidentals'}
+                    {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
                 </h2>
 
                 {step === 'room' && (
@@ -217,14 +226,24 @@ function CheckInPaymentModal({ reservationId, onConfirm, onClose }) {
                         </p>
                         {error && <p className="text-sm text-rust mb-4">{error}</p>}
                         {provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} />
+                            <AcceptJsCheckInForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
                         )}
                         {provider === 'stripe' && stripePromise && (
                             <Elements stripe={stripePromise}>
-                                <CheckInPaymentForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} />
+                                <CheckInPaymentForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
                             </Elements>
                         )}
                     </>
+                )}
+
+                {step === 'code' && (
+                    <div className="flex flex-col gap-4">
+                        <p className="text-sm text-muted">Give this code to the guest for door access.</p>
+                        <DoorCode reservationId={reservationId} />
+                        <div className="flex justify-end mt-2">
+                            <button onClick={onClose} className="btn btn-primary">Done</button>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

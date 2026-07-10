@@ -1,5 +1,6 @@
 package com.staydesk.controller;
 
+import com.staydesk.model.LockPasscode;
 import com.staydesk.model.dto.UnacknowledgedDoorAccessNotification;
 import com.staydesk.repository.LockPasscodeRepository;
 import com.staydesk.service.LockPasscodeService;
@@ -27,6 +28,14 @@ public class LockPasscodeController {
     @GetMapping("unacknowledged")
     public List<UnacknowledgedDoorAccessNotification> getUnacknowledged() {
         return lockPasscodeService.getUnacknowledgedNotifications();
+    }
+
+    @GetMapping("reservation/{reservationId}")
+    public ResponseEntity<LockPasscode> getActiveForReservation(@PathVariable int reservationId) {
+        return lockPasscodeRepository.findByReservationIdAndStatus(reservationId, LockPasscode.Status.ACTIVE)
+                                      .stream().findFirst()
+                                      .map(ResponseEntity::ok)
+                                      .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("{id}/acknowledge")

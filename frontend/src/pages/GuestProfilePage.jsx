@@ -4,6 +4,7 @@ import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, unflagGues
 import { formatPhone } from "../utils/phone"
 import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
+import GuestEditModal from "../components/GuestEditModal"
 import { getReservations } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
@@ -17,6 +18,7 @@ function GuestProfilePage() {
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)
     const [showFlagForm, setShowFlagForm] = useState(false)
+    const [editModalOpen, setEditModalOpen] = useState(false)
     const [flagReason, setFlagReason] = useState('')
     const [error, setError] = useState(null)
     const [reservations, setReservations] = useState([])
@@ -101,6 +103,9 @@ function GuestProfilePage() {
                 <h1 className="section-title">{guest.name}</h1>
                 {guest.flagged && <StatusBadge status="FLAGGED" />}
                 {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
+                {canManage && (
+                    <button onClick={() => setEditModalOpen(true)} className="btn btn-secondary">Edit</button>
+                )}
             </div>
             <div className="flex gap-2 mb-6 flex-wrap">
                 <div>
@@ -179,6 +184,14 @@ function GuestProfilePage() {
                     </div>
                 )}
             </div>
+
+            {editModalOpen && (
+                <GuestEditModal
+                    guest={guest}
+                    onSaved={() => { setEditModalOpen(false); fetchGuest() }}
+                    onClose={() => setEditModalOpen(false)}
+                />
+            )}
         </div>
     )
 }

@@ -3,10 +3,45 @@ import { connectStripe, disconnectStripe, getConnectStatus } from "../api/stripe
 import { connectSifely, disconnectSifely, getSifelyStatus } from "../api/sifelyApi"
 import { useSearchParams } from "react-router-dom"
 import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
+import { getRoomTypes, updateRoomType } from "../api/roomTypeApi"
+import { getRates, updateRate } from "../api/rateApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 
 const STRIPE_SETTINGS_ENABLED = import.meta.env.VITE_ENABLE_STRIPE_SETTINGS === 'true'
+
+const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
+const RATE_TYPE_ORDER = ['NIGHTLY', 'WEEKLY_5', 'WEEKLY_7']
+
+function RoomTypeRow({ roomType, onChange }) {
+    return (
+        <input
+            value={roomType.name}
+            onChange={e => onChange(roomType.id, e.target.value)}
+            className="filter-input w-full"
+        />
+    )
+}
+
+function RateRow({ rate, onChange }) {
+    const [focused, setFocused] = useState(false)
+
+    return (
+        <div className="flex items-center gap-3">
+            <span className="text-sm text-charcoal flex-1">
+                {RATE_TYPE_LABELS[rate.rateType] ?? rate.rateType} — {rate.guestCount} guest{rate.guestCount === 1 ? '' : 's'}
+            </span>
+            <input
+                type="text"
+                className="filter-input w-32"
+                value={focused ? rate.amount : displayPrice(rate.amount)}
+                onChange={e => onChange(rate.id, sanitizePrice(e.target.value))}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+            />
+        </div>
+    )
+}
 
 function SettingsPage() {
     const [loading, setLoading] = useState(true)
@@ -28,11 +63,18 @@ function SettingsPage() {
     const [confirmationTemplate, setConfirmationTemplate] = useState('')
     const [checkInLinkTemplate, setCheckInLinkTemplate] = useState('')
     const [checkInCompleteTemplate, setCheckInCompleteTemplate] = useState('')
+    const [roomTypes, setRoomTypes] = useState([])
+    const [rates, setRates] = useState([])
+    const [roomTypesSaving, setRoomTypesSaving] = useState(false)
+    const [roomTypesError, setRoomTypesError] = useState(null)
+    const [ratesSaving, setRatesSaving] = useState(false)
     const confirmationRef = useRef(null)
     const checkInLinkRef = useRef(null)
     const checkInCompleteRef = useRef(null)
     const error = searchParams.get('error')
     const originalSettings = useRef({})
+    const originalRoomTypes = useRef([])
+    const originalRates = useRef([])
 
     useEffect(() => {
         if (STRIPE_SETTINGS_ENABLED) {
@@ -40,7 +82,69 @@ function SettingsPage() {
         }
         getSifelySettings()
         loadPropertySettings()
+        getRoomTypes().then(res => {
+            const data = res.data ?? []
+            setRoomTypes(data)
+            originalRoomTypes.current = data
+        })
+        getRates().then(res => {
+            const data = (res.data ?? []).map(r => ({ ...r, amount: formatPrice(r.amount) }))
+            setRates(data)
+            originalRates.current = data
+        })
     }, [])
+
+    function handleRoomTypeChange(id, name) {
+        setRoomTypes(prev => prev.map(rt => rt.id === id ? { ...rt, name } : rt))
+    }
+
+    function handleRateChange(id, amount) {
+        setRates(prev => prev.map(r => r.id === id ? { ...r, amount } : r))
+    }
+
+    const roomTypesDirty = roomTypes.some(rt =>
+        rt.name !== originalRoomTypes.current.find(o => o.id === rt.id)?.name)
+
+    const ratesDirty = rates.some(r =>
+        r.amount !== originalRates.current.find(o => o.id === r.id)?.amount)
+
+    async function handleSaveRoomTypes() {
+        setRoomTypesSaving(true)
+        setRoomTypesError(null)
+
+        const dirty = roomTypes.filter(rt =>
+            rt.name !== originalRoomTypes.current.find(o => o.id === rt.id)?.name)
+
+        try {
+            const responses = await Promise.all(dirty.map(rt => updateRoomType(rt.id, { name: rt.name })))
+            const updated = responses.map(r => r.data)
+            setRoomTypes(prev => prev.map(rt => updated.find(u => u.id === rt.id) ?? rt))
+            originalRoomTypes.current = originalRoomTypes.current.map(o => updated.find(u => u.id === o.id) ?? o)
+        } catch (err) {
+            setRoomTypesError(err.response?.status === 409 ? 'A room type with that name already exists.' : 'Failed to save.')
+        }
+
+        setRoomTypesSaving(false)
+    }
+
+    async function handleSaveRates() {
+        setRatesSaving(true)
+
+        const dirty = rates.filter(r =>
+            r.amount !== originalRates.current.find(o => o.id === r.id)?.amount)
+
+        const responses = await Promise.all(dirty.map(r => updateRate(r.id, { ...r, amount: sanitizePrice(r.amount) })))
+        const updated = responses.map(r => ({ ...r.data, amount: formatPrice(r.data.amount) }))
+        setRates(prev => prev.map(r => updated.find(u => u.id === r.id) ?? r))
+        originalRates.current = originalRates.current.map(o => updated.find(u => u.id === o.id) ?? o)
+
+        setRatesSaving(false)
+    }
+
+    const sortedRates = [...rates].sort((a, b) => {
+        const typeDiff = RATE_TYPE_ORDER.indexOf(a.rateType) - RATE_TYPE_ORDER.indexOf(b.rateType)
+        return typeDiff !== 0 ? typeDiff : a.guestCount - b.guestCount
+    })
 
     async function getStripeSettings() {
         setLoading(true)
@@ -199,128 +303,157 @@ function SettingsPage() {
                 <p className="text-rust text-sm mb-6">Failed to connect Stripe account. Please try again.</p>
             )}
 
-            {STRIPE_SETTINGS_ENABLED && (
-                <div className="feat-card max-w-lg">
-                    <h3>Stripe</h3>
-                    <p>Connect your Stripe account to enable payment processing.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-                    {loading ? (
+                <div className="feat-card lg:col-span-2">
+                    <h3>Configurable Settings</h3>
+                    <div>
+                        <label className="block text-sm text-muted mb-1">Incidentals Hold Amount ($)</label>
+                        <input type="text" className="filter-input" value={incidentalsFocused ? incidentalsHoldAmount : displayPrice(incidentalsHoldAmount)} onChange={e => setIncidentalsHoldAmount(sanitizePrice(e.target.value))} onBlur={() => setIncidentalsFocused(false)} onFocus={() => setIncidentalsFocused(true)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Lodging Tax Rate</label>
+                        <input type="text" className="filter-input" value={taxFocused ? lodgingTaxRate : displayPercent(lodgingTaxRate)} onChange={e => setLodgingTaxRate(e.target.value)} onBlur={() => setTaxFocused(false)} onFocus={() => setTaxFocused(true)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Reservation Confirmation SMS</label>
+                        <details>
+                            <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                {CONFIRMATION_VARS.map(v => (
+                                    <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setConfirmationTemplate, confirmationRef, v)}>
+                                        {`{{${v}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </details>
+                        <textarea ref={confirmationRef} className="filter-input w-full" rows={3} value={confirmationTemplate} onChange={e => setConfirmationTemplate(e.target.value)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Remote Check-In Link SMS</label>
+                        <details>
+                            <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                {CHECKIN_LINK_VARS.map(v => (
+                                    <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setCheckInLinkTemplate, checkInLinkRef, v)}>
+                                        {`{{${v}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </details>
+                        <textarea ref={checkInLinkRef} className="filter-input w-full" rows={3} value={checkInLinkTemplate} onChange={e => setCheckInLinkTemplate(e.target.value)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Check-In Complete SMS</label>
+                        <details>
+                            <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                {CHECKIN_COMPLETE_VARS.map(v => (
+                                    <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setCheckInCompleteTemplate, checkInCompleteRef, v)}>
+                                        {`{{${v}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </details>
+                        <textarea ref={checkInCompleteRef} className="filter-input w-full" rows={3} value={checkInCompleteTemplate} onChange={e => setCheckInCompleteTemplate(e.target.value)} />
+                    </div>
+                    <button className="btn-primary mt-6" onClick={handleSave} disabled={saving || !isDirty}>
+                        {saving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
+
+                {STRIPE_SETTINGS_ENABLED && (
+                    <div className="feat-card">
+                        <h3>Stripe</h3>
+                        <p>Connect your Stripe account to enable payment processing.</p>
+
+                        {loading ? (
+                            <p className="text-muted text-sm mt-4">Loading...</p>
+                        ) : connected ? (
+                            <div className="mt-4">
+                                <p className="text-sm text-muted mb-3">
+                                    Connected account: <span className="font-medium text-charcoal">{accountId}</span>
+                                </p>
+                                <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
+                            </div>
+                        ) : (
+                            <div className="mt-4">
+                                <button className="btn-primary" onClick={async () => {
+                                    const response = await connectStripe()
+                                    window.location.href = response.data.url
+                                }}>Connect Stripe Account</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="feat-card">
+                    <h3>Sifely Smart Lock</h3>
+                    <p>Connect your Sifely account to enable electronic door lock access.</p>
+
+                    {sifelyLoading ? (
                         <p className="text-muted text-sm mt-4">Loading...</p>
-                    ) : connected ? (
+                    ) : sifelyConnected ? (
                         <div className="mt-4">
                             <p className="text-sm text-muted mb-3">
-                                Connected account: <span className="font-medium text-charcoal">{accountId}</span>
+                                Client ID: <span className="font-medium text-charcoal">{sifelyClientId}</span>
                             </p>
-                            <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
+                            <p className="text-sm text-muted mb-3">
+                                Connected: <span className="font-medium text-charcoal">{new Date(sifelyConnectedAt).toLocaleString()}</span>
+                            </p>
+                            <button onClick={handleSifelyDisconnect} className="btn-secondary">Disconnect</button>
                         </div>
                     ) : (
-                        <div className="mt-4">
-                            <button className="btn-primary" onClick={async () => {
-                                const response = await connectStripe()
-                                window.location.href = response.data.url
-                            }}>Connect Stripe Account</button>
-                        </div>
+                        <form onSubmit={handleSifelyConnect} className="flex flex-col gap-3 mt-4">
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Account</label>
+                                <input name="account" value={sifelyForm.account} onChange={handleSifelyFieldChange} className="filter-input" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Password</label>
+                                <input type="password" name="password" value={sifelyForm.password} onChange={handleSifelyFieldChange} className="filter-input" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Client ID</label>
+                                <input name="clientId" value={sifelyForm.clientId} onChange={handleSifelyFieldChange} className="filter-input" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Client Secret</label>
+                                <input type="password" name="clientSecret" value={sifelyForm.clientSecret} onChange={handleSifelyFieldChange} className="filter-input" required />
+                            </div>
+                            {sifelyError && <p className="text-sm text-rust">{sifelyError}</p>}
+                            <button type="submit" className="btn-primary self-start" disabled={sifelyConnecting}>
+                                {sifelyConnecting ? 'Connecting...' : 'Connect Sifely Account'}
+                            </button>
+                        </form>
                     )}
                 </div>
-            )}
 
-            <div className="feat-card max-w-lg mt-6">
-                <h3>Sifely Smart Lock</h3>
-                <p>Connect your Sifely account to enable electronic door lock access.</p>
-
-                {sifelyLoading ? (
-                    <p className="text-muted text-sm mt-4">Loading...</p>
-                ) : sifelyConnected ? (
-                    <div className="mt-4">
-                        <p className="text-sm text-muted mb-3">
-                            Client ID: <span className="font-medium text-charcoal">{sifelyClientId}</span>
-                        </p>
-                        <p className="text-sm text-muted mb-3">
-                            Connected: <span className="font-medium text-charcoal">{new Date(sifelyConnectedAt).toLocaleString()}</span>
-                        </p>
-                        <button onClick={handleSifelyDisconnect} className="btn-secondary">Disconnect</button>
+                <div className="feat-card">
+                    <h3>Room Types</h3>
+                    <div className="flex flex-col gap-3 mt-4">
+                        {roomTypes.map(roomType => (
+                            <RoomTypeRow key={roomType.id} roomType={roomType} onChange={handleRoomTypeChange} />
+                        ))}
                     </div>
-                ) : (
-                    <form onSubmit={handleSifelyConnect} className="flex flex-col gap-3 mt-4">
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Account</label>
-                            <input name="account" value={sifelyForm.account} onChange={handleSifelyFieldChange} className="filter-input" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Password</label>
-                            <input type="password" name="password" value={sifelyForm.password} onChange={handleSifelyFieldChange} className="filter-input" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Client ID</label>
-                            <input name="clientId" value={sifelyForm.clientId} onChange={handleSifelyFieldChange} className="filter-input" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Client Secret</label>
-                            <input type="password" name="clientSecret" value={sifelyForm.clientSecret} onChange={handleSifelyFieldChange} className="filter-input" required />
-                        </div>
-                        {sifelyError && <p className="text-sm text-rust">{sifelyError}</p>}
-                        <button type="submit" className="btn-primary self-start" disabled={sifelyConnecting}>
-                            {sifelyConnecting ? 'Connecting...' : 'Connect Sifely Account'}
-                        </button>
-                    </form>
-                )}
-            </div>
+                    {roomTypesError && <p className="text-sm text-rust mt-2">{roomTypesError}</p>}
+                    <button className="btn-primary mt-4" onClick={handleSaveRoomTypes} disabled={!roomTypesDirty || roomTypesSaving}>
+                        {roomTypesSaving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
 
-            <div className="feat-card max-w-lg mt-6">
-                <h3>Configurable Settings</h3>
-                <div>
-                    <label className="block text-sm text-muted mb-1">Incidentals Hold Amount ($)</label>
-                    <input type="text" className="filter-input" value={incidentalsFocused ? incidentalsHoldAmount : displayPrice(incidentalsHoldAmount)} onChange={e => setIncidentalsHoldAmount(sanitizePrice(e.target.value))} onBlur={() => setIncidentalsFocused(false)} onFocus={() => setIncidentalsFocused(true)} />
+                <div className="feat-card">
+                    <h3>Rates</h3>
+                    <div className="flex flex-col gap-3 mt-4">
+                        {sortedRates.map(rate => (
+                            <RateRow key={rate.id} rate={rate} onChange={handleRateChange} />
+                        ))}
+                    </div>
+                    <button className="btn-primary mt-4" onClick={handleSaveRates} disabled={!ratesDirty || ratesSaving}>
+                        {ratesSaving ? 'Saving...' : 'Save'}
+                    </button>
                 </div>
-                <div className="mt-4">
-                    <label className="block text-sm text-muted mb-1">Lodging Tax Rate</label>
-                    <input type="text" className="filter-input" value={taxFocused ? lodgingTaxRate : displayPercent(lodgingTaxRate)} onChange={e => setLodgingTaxRate(e.target.value)} onBlur={() => setTaxFocused(false)} onFocus={() => setTaxFocused(true)} />
-                </div>
-                <div className="mt-4">
-                    <label className="block text-sm text-muted mb-1">Reservation Confirmation SMS</label>
-                    <details>
-                        <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
-                        <div className="flex flex-wrap gap-1 mt-1 mb-2">
-                            {CONFIRMATION_VARS.map(v => (
-                                <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setConfirmationTemplate, confirmationRef, v)}>
-                                    {`{{${v}}}`}
-                                </button>
-                            ))}
-                        </div>
-                    </details>
-                    <textarea ref={confirmationRef} className="filter-input w-full" rows={3} value={confirmationTemplate} onChange={e => setConfirmationTemplate(e.target.value)} />
-                </div>
-                <div className="mt-4">
-                    <label className="block text-sm text-muted mb-1">Remote Check-In Link SMS</label>
-                    <details>
-                        <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
-                        <div className="flex flex-wrap gap-1 mt-1 mb-2">
-                            {CHECKIN_LINK_VARS.map(v => (
-                                <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setCheckInLinkTemplate, checkInLinkRef, v)}>
-                                    {`{{${v}}}`}
-                                </button>
-                            ))}
-                        </div>
-                    </details>
-                    <textarea ref={checkInLinkRef} className="filter-input w-full" rows={3} value={checkInLinkTemplate} onChange={e => setCheckInLinkTemplate(e.target.value)} />
-                </div>
-                <div className="mt-4">
-                    <label className="block text-sm text-muted mb-1">Check-In Complete SMS</label>
-                    <details>
-                        <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
-                        <div className="flex flex-wrap gap-1 mt-1 mb-2">
-                            {CHECKIN_COMPLETE_VARS.map(v => (
-                                <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setCheckInCompleteTemplate, checkInCompleteRef, v)}>
-                                    {`{{${v}}}`}
-                                </button>
-                            ))}
-                        </div>
-                    </details>
-                    <textarea ref={checkInCompleteRef} className="filter-input w-full" rows={3} value={checkInCompleteTemplate} onChange={e => setCheckInCompleteTemplate(e.target.value)} />
-                </div>
-                <button className="btn-primary mt-6" onClick={handleSave} disabled={saving || !isDirty}>
-                    {saving ? 'Saving...' : 'Save'}
-                </button>
+
             </div>
         </div>
     )

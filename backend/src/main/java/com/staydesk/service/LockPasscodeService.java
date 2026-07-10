@@ -157,7 +157,7 @@ public class LockPasscodeService {
                                                                                .flatMap(r -> roomRepository.findById(r.roomId()))
                                                                                .map(Room::roomNumber)
                                                                                .orElse(0);
-                                         return new UnacknowledgedDoorAccessNotification(lp.id(), lp.reservationId(), roomNumber, lp.resolvedAt());
+                                         return new UnacknowledgedDoorAccessNotification(lp.id(), lp.reservationId(), roomNumber, lp.passcode(), lp.resolvedAt());
                                      })
                                      .toList();
     }
