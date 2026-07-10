@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Table("rooms")
 public record Room(@Id int id, int roomNumber, int roomTypeId, RoomStatus status, @Nullable Long sifelyLockId,
-                   LocalDateTime createdAt, LocalDateTime updatedAt) {
+                   @Nullable String maintenanceNote, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum RoomStatus {
         AVAILABLE, OCCUPIED, MAINTENANCE

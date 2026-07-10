@@ -5,6 +5,7 @@ import RoomModal from '../components/RoomModal'
 import RoomAccessLogModal from '../components/RoomAccessLogModal'
 import StatusBadge from "../components/StatusBadge";
 import { useAuth } from "../contexts/AuthContext"
+import { StickyNote } from "lucide-react";
 
 function RoomsPage() {
     const { role } = useAuth()
@@ -18,6 +19,7 @@ function RoomsPage() {
     const displayed = rooms.filter(r => statusFilter === 'ALL' || r.status === statusFilter)
         .sort((a, b) => a.roomNumber - b.roomNumber)
     const roomTypeName = id => roomTypes.find(rt => rt.id === id)?.name.replace('_', ' ') ?? ''
+    const [expandedNoteId, setExpandedNoteId] = useState(null)
 
     useEffect(() => {
         fetchRooms()
@@ -79,9 +81,24 @@ function RoomsPage() {
                             <div key={room.id} className="feat-card flex flex-col gap-3">
                                 <div className="flex items-center justify-between">
                                     <span className="font-semibold text-charcoal">Room {room.roomNumber}</span>
-                                    <StatusBadge status={room.status} />
+                                    <div className="flex items-center gap-2">
+                                        {room.status === 'MAINTENANCE' && room.maintenanceNote && (
+                                            <button
+                                                type="button"
+                                                title={room.maintenanceNote}
+                                                onClick={() => setExpandedNoteId(prev => prev === room.id ? null : room.id)}
+                                                className="text-muted cursor-help"
+                                            >
+                                                <StickyNote size={16} />
+                                            </button>
+                                        )}
+                                        <StatusBadge status={room.status} />
+                                    </div>
                                 </div>
                                 <p className="text-sm text-muted">{roomTypeName(room.roomTypeId)}</p>
+                                {expandedNoteId === room.id && (
+                                    <p className="text-xs text-muted italic">{room.maintenanceNote}</p>
+                                )}
                                 <div className="flex gap-3 justify-end">
                                     {role === 'ADMIN' && room.sifelyLockId != null && (
                                         <button onClick={() => setAccessLogRoom(room)} className="text-brown hover:text-rust text-sm font-medium">Access Log</button>

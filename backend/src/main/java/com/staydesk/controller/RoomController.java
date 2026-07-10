@@ -57,7 +57,7 @@ public class RoomController {
     public ResponseEntity<Room> createRoom(@RequestBody Room room) {
         LOGGER.info("Saving room {}", room);
         LocalDateTime now = LocalDateTime.now();
-        Room savedRoom = new Room(0, room.roomNumber(), room.roomTypeId(), room.status(), room.sifelyLockId(), now, now);
+        Room savedRoom = new Room(0, room.roomNumber(), room.roomTypeId(), room.status(), room.sifelyLockId(), room.maintenanceNote(), now, now);
         Room saved = roomRepository.save(savedRoom);
         adjustRoomTypeCount(saved.roomTypeId(), saved.status(), 1);
         URI location = URI.create("/rooms/" + saved.id());
@@ -74,7 +74,7 @@ public class RoomController {
             return ResponseEntity.notFound().build();
         }
 
-        Room updatedRoom = new Room(id, room.roomNumber(), room.roomTypeId(), room.status(), room.sifelyLockId(), room.createdAt(), LocalDateTime.now());
+        Room updatedRoom = new Room(id, room.roomNumber(), room.roomTypeId(), room.status(), room.sifelyLockId(), room.maintenanceNote(), room.createdAt(), LocalDateTime.now());
         Room saved = roomRepository.save(updatedRoom);
 
         if (existing.roomTypeId() != saved.roomTypeId() || existing.status() != saved.status()) {

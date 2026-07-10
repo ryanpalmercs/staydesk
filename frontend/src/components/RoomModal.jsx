@@ -9,7 +9,8 @@ function RoomModal({ room, onSaved, onClose }) {
     const [form, setForm] = useState({
         roomNumber: room?.roomNumber ?? '',
         roomTypeId: room?.roomTypeId ?? '',
-        status: room?.status ?? 'AVAILABLE'
+        status: room?.status ?? 'AVAILABLE',
+        maintenanceNote: room?.maintenanceNote ?? ''
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -75,6 +76,12 @@ function RoomModal({ room, onSaved, onClose }) {
                                 <option value="MAINTENANCE">Maintenance</option>
                             </select>
                         </div>
+                    )}
+
+                    {form.status === 'MAINTENANCE' && (
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Maintenance Note</label>
+                            <textarea name="maintenanceNote" value={form.maintenanceNote} onChange={handleChange} className="filter-input w-full" rows={3} required />                        </div>
                     )}
 
                     <div className="flex justify-end gap-3 mt-2">
