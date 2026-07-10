@@ -17,6 +17,7 @@ import TimesheetPage from './pages/TimesheetPage'
 import ReportsPage from './pages/ReportsPage'
 import RoomAccessLogPage from './pages/RoomAccessLogPage'
 import GuestProfilePage from './pages/GuestProfilePage'
+import PrivacyPolicyPage from './pages/PrivacyPolicy'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -50,6 +51,7 @@ export default function App() {
                 <AuthProvider>
                     <Routes>
                         <Route path="/login" element={<LoginPage />} />
+                        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                         <Route element={<ProtectedRoute />}>
                             <Route element={<Layout />}>
                                 <Route path="/" element={<DashboardPage />} />
