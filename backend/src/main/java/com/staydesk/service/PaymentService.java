@@ -60,7 +60,8 @@ public class PaymentService {
                               .forEach(this::cancelHold);
     }
 
-    private void createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId, LocalDateTime now) {
+    private void createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId,
+                            LocalDateTime now) {
         AuthResult result = providerFactory.getPaymentProvider()
                                            .authorize(amount, paymentMethodId, kind + " hold for folio " + folioId);
 
@@ -68,7 +69,7 @@ public class PaymentService {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folioId + ": " + result.message());
         }
 
-        folioPaymentRepository.save(new FolioPayment(0, folioId, kind, result.transactionId(),
+        folioPaymentRepository.save(new FolioPayment(0, folioId, kind, result.transactionId(), result.cardLast4(),
                 PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
     }
 
@@ -109,11 +110,11 @@ public class PaymentService {
 
         if (!result.success()) {
             throw new RuntimeException("Failed to capture " + hold.kind() + " hold " + hold.stripePaymentIntentId()
-                    + ": " + result.message());
+                                       + ": " + result.message());
         }
 
         return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
-                hold.stripePaymentIntentId(), PaymentStatus.CAPTURED, hold.authorizedAmount(), amount,
+                hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CAPTURED, hold.authorizedAmount(), amount,
                 hold.createdAt(), LocalDateTime.now()));
     }
 
@@ -122,12 +123,12 @@ public class PaymentService {
 
         if (!result.success()) {
             throw new RuntimeException("Failed to cancel " + hold.kind() + " hold " + hold.stripePaymentIntentId()
-                    + ": " + result.message());
+                                       + ": " + result.message());
         }
 
         return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
-                hold.stripePaymentIntentId(), PaymentStatus.CANCELED, hold.authorizedAmount(), BigDecimal.ZERO,
-                hold.createdAt(), LocalDateTime.now()));
+                hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CANCELED, hold.authorizedAmount(),
+                BigDecimal.ZERO, hold.createdAt(), LocalDateTime.now()));
     }
 
     public void confirmCapture(String transactionId, BigDecimal amountReceived) {

@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useCombobox } from "downshift"
-import { createReservation, updateReservation } from "../api/reservationApi"
-import { getRooms } from "../api/roomApi"
+import { createReservation, getReservationEstimate, updateReservation } from "../api/reservationApi"
+import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests } from "../api/guestApi"
-import { getRates } from "../api/rateApi"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import { getConnectStatus } from "../api/stripeApi"
 import { loadStripe } from "@stripe/stripe-js"
 import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
+import AcceptJsCardForm from "./AcceptJsCardForm"
+import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
+import { getPropertySetting } from "../api/settingsApi"
+import ReservationDatePicker from "./ReservationDatePicker"
+import { differenceInCalendarDays, parseISO } from "date-fns"
+import { CircleMinus, CirclePlus } from "lucide-react"
 
 
 function CardCaptureForm({ onCapture, onCancel }) {
@@ -19,7 +24,9 @@ function CardCaptureForm({ onCapture, onCancel }) {
 
     async function handleSubmit(e) {
         e.preventDefault()
-        if (!stripe || !elements) return
+        if (!stripe || !elements) {
+            return
+        }
         setSubmitting(true)
         setError(null)
         const card = elements.getElement(CardElement)
@@ -40,7 +47,7 @@ function CardCaptureForm({ onCapture, onCancel }) {
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="filter-input">
-                <CardElement options={{ style: { base: { fontSize: '16px' } } }} />
+                <CardElement options={stripeCardElementOptions} />
             </div>
             {error && <p className="text-sm text-rust">{error}</p>}
             <div className="flex justify-end gap-3 mt-2">
@@ -53,7 +60,11 @@ function CardCaptureForm({ onCapture, onCancel }) {
     )
 }
 
-function CardCaptureStep({ stripePromise, onCapture, onCancel }) {
+function CardCaptureStep({ provider, stripePromise, onCapture, onCancel }) {
+    if (provider === 'authorizenet') {
+        return <AcceptJsCardForm onCapture={onCapture} onCancel={onCancel} submitLabel="Confirm & Reserve" />
+    }
+
     return (
         <Elements stripe={stripePromise}>
             <CardCaptureForm onCapture={onCapture} onCancel={onCancel} />
@@ -107,20 +118,37 @@ function SearchableSelect({ items, selectedId, itemKey = 'id', itemLabel, render
     )
 }
 
+function Stepper({ label, value, min, max, onChange }) {
+    return (
+        <div>
+            <label className="block text-sm text-muted mb-1">{label}</label>
+            <div className="flex items-center gap-3">
+                <button type="button stepper" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
+                    className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Decrease ${label}`}>
+                    <CircleMinus size={18} />
+                </button>
+                <span className="w-6 text-center">{value}</span>
+                <button type="button stepper" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
+                    className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Increase ${label}`}>
+                    <CirclePlus size={18} />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 function ReservationModal({ reservation, onSaved, onClose }) {
     const isEditing = reservation != null
     const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
 
-    const [rooms, setRooms] = useState([])
+    const [roomTypes, setRoomTypes] = useState([])
     const [guests, setGuests] = useState([])
-    const [rates, setRates] = useState([])
-    const [getsCount, setGuestCount] = useState('1')
     const [guestMode, setGuestMode] = useState('search')
     let [form, setForm] = useState({
         guestId: reservation?.guestId ?? '',
-        roomId: reservation?.roomId ?? '',
-        rateType: reservation?.rateType ?? 'NIGHTLY',
-        guestCount: reservation?.guestCount ?? '1',
+        roomTypeId: reservation?.roomTypeId ?? '',
+        adults: reservation?.guestCount ?? 1,
+        children: 0,
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED'
@@ -147,8 +175,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [step, setStep] = useState('form')
     const [pendingForm, setPendingForm] = useState(null)
     const [stripePromise, setStripePromise] = useState(null)
-
-    const selectedRate = rates.find(r => r.rateType === form.rateType && r.guestCount === Number(form.guestCount))
+    const [provider, setProvider] = useState(null)
+    const paymentReady = provider === 'authorizenet' || (provider === 'stripe' && stripePromise != null)
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
     const flaggedMatch = guestMode === 'search'
@@ -158,10 +186,21 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
         ))
 
+    const totalNights = form.checkInDate && form.checkOutDate
+        ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
+        : 0
+
+    const rateType = totalNights > 0 && totalNights % 7 === 0 ? 'WEEKLY_7'
+        : totalNights > 0 && totalNights % 5 === 0 ? 'WEEKLY_5'
+            : 'NIGHTLY'
+    const maxGuestCount = rateType === 'NIGHTLY' ? 2 : 3
+    const guestCount = form.adults + form.children
+
+    const [estimate, setEstimate] = useState(null)
+
     useEffect(() => {
-        getRooms().then(res => setRooms(res.data ?? [])),
-            getGuests().then(res => setGuests(res.data ?? [])),
-            getRates().then(res => setRates(res.data ?? []))
+        getRoomTypes().then(res => setRoomTypes(res.data ?? [])),
+            getGuests().then(res => setGuests(res.data ?? []))
 
         if (canAddExtras) {
             getFolioByReservationId(reservation.id).then(res => setFolioId(res.data.id))
@@ -169,13 +208,46 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
 
         if (!isEditing) {
-            getConnectStatus().then(res => {
-                if (res.data.connected) {
-                    setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, { stripeAccount: res.data.accountId }))
+            getPropertySetting('payment_provider').then(res => {
+                setProvider(res.data.value)
+
+                if (res.data.value === 'stripe') {
+                    getConnectStatus().then(connectRes => {
+                        if (connectRes.data.connected) {
+                            setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, { stripeAccount: connectRes.data.accountId }))
+                        }
+                    })
                 }
             })
         }
     }, [])
+
+    useEffect(() => {
+        if (form.adults + form.children <= maxGuestCount) {
+            return
+        }
+        setForm(f => ({ ...f, children: Math.max(0, maxGuestCount - f.adults) }))
+    }, [maxGuestCount])
+
+    useEffect(() => {
+        if (!form.checkInDate || !form.checkOutDate) {
+            setEstimate(null)
+            return
+        }
+        let cancelled = false
+        getReservationEstimate({ rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate })
+            .then(res => {
+                if (!cancelled) {
+                    setEstimate(res.data)
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setEstimate(null)
+                }
+            })
+        return () => { cancelled = true }
+    }, [rateType, guestCount, form.checkInDate, form.checkOutDate])
 
     async function handleAddExtra() {
         if (!selectedExtraId || !folioId) return
@@ -194,15 +266,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
-    }
-
-    function handleRateChange(e) {
-        const newRateType = e.target.value
-        setForm({
-            ...form,
-            rateType: newRateType,
-            guestCount: newRateType === 'NIGHTLY' && form.guestCount === '3' ? '2' : form.guestCount
-        })
     }
 
     function handleGuestFieldChange(e) {
@@ -224,8 +287,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        if (!form.roomId) {
-            setError('Please select a room.')
+        if (!form.roomTypeId) {
+            setError('Please select a room type.')
             return
         }
 
@@ -234,14 +297,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        let submittedForm = { ...form }
+        const { adults, children, ...rest } = form
+        let submittedForm = { ...rest, rateType, guestCount }
 
         if (guestMode === 'create') {
-            console.log('Creating guest')
-
             try {
                 const res = await createGuest(guestForm)
-                submittedForm = { ...form, guestId: res.data.id }
+                submittedForm = { ...submittedForm, guestId: res.data.id }
                 console.debug(submittedForm)
                 setGuestMode('search')
                 const guestsRes = await getGuests()
@@ -267,8 +329,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             if (isEditing) {
                 await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
-                if (!stripePromise) {
-                    setError('Stripe is not connected. Connect an account in Settings first.')
+                if (!paymentReady) {
+                    setError('Payment provider is not connected. Check Settings.')
                     return
                 }
                 setPendingForm(submittedForm)
@@ -279,9 +341,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             onSaved()
         } catch (err) {
             if (err.response?.status === 400) {
-                setError('Room is unavailable or dates conflict with an existing reservation.')
+                setError('No room of this type is available for the selected dates.')
             } else if (err.response?.status === 404) {
-                setError('Room not found.')
+                setError('Room type not found.')
             } else {
                 setError('Something went wrong.')
             }
@@ -295,7 +357,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         } catch (err) {
             setStep('form')
             if (err.response?.status === 400) {
-                setError('Room is unavailable or dates conflict with an existing reservation.')
+                setError('No room of this type is available for the selected dates.')
             } else {
                 setError('Something went wrong.')
             }
@@ -305,142 +367,143 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">
+            <div className="bg-warm-white rounded-lg shadow-lg border-t-4 border-rust w-full max-w-md sm:max-w-3xl max-h-[90vh] flex flex-col">
+                <h2 className="text-lg text-charcoal font-semibold px-6 pt-6 pb-4">
                     {step === 'payment' ? 'Card Details' : isEditing ? 'Edit Reservation' : 'New Reservation'}
                 </h2>
+
                 {step === 'form' && (
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                        <div>
-                            <div className="flex items-baseline gap-2">
-                                <label className="text-sm text-muted">Guest</label>
-                                <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
-                                    {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
-                                </button>
+                    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                        <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
+                            <div>
+                                <div className="flex items-baseline gap-2">
+                                    <label className="text-sm text-muted">Guest</label>
+                                    <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
+                                        {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
+                                    </button>
+                                </div>
+                                {guestMode === 'search' ? (
+                                    <SearchableSelect
+                                        items={guests}
+                                        selectedId={form.guestId}
+                                        itemLabel={g => `${g.firstName} ${g.lastName}`}
+                                        renderBadge={g => g.flagged && <span className="text-xs text-rust font-medium">Flagged</span>}
+                                        onSelect={guestId => setForm({ ...form, guestId })}
+                                        placeholder="Search guests..."
+                                    />
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
+                                    </div>
+                                )}
                             </div>
-                            {guestMode === 'search' ? (
-                                <SearchableSelect
-                                    items={guests}
-                                    selectedId={form.guestId}
-                                    itemLabel={g => `${g.firstName} ${g.lastName}`}
-                                    renderBadge={g => g.flagged && <span className="text-xs text-rust font-medium">Flagged</span>}
-                                    onSelect={guestId => setForm({ ...form, guestId })}
-                                    placeholder="Search guests..."
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Stepper
+                                    label="Adults"
+                                    value={form.adults}
+                                    min={1}
+                                    max={maxGuestCount - form.children}
+                                    onChange={adults => setForm({ ...form, adults })}
                                 />
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
+                                <Stepper
+                                    label="Children"
+                                    value={form.children}
+                                    min={0}
+                                    max={maxGuestCount - form.adults}
+                                    onChange={children => setForm({ ...form, children })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Room Type</label>
+                                <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
+                                    <option value="">Select a room type...</option>
+                                    {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
+                                        <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                                <ReservationDatePicker
+                                    roomTypeId={form.roomTypeId}
+                                    checkInDate={form.checkInDate}
+                                    checkOutDate={form.checkOutDate}
+                                    onRangeSelected={({ checkInDate, checkOutDate }) => setForm({ ...form, checkInDate, checkOutDate })}
+                                />
+                            </div>
+
+                            {isEditing && (
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Status</label>
+                                    <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
+                                        <option value="CONFIRMED">Confirmed</option>
+                                        <option value="CANCELLED">Cancelled</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {canAddExtras && (
+                                <div>
+                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-rust hover:text-rust-light">
+                                        {showExtras ? 'Hide Extras' : 'Add Extras'}
+                                    </button>
+
+                                    {showExtras && (
+                                        <div className="flex gap-2 items-end mt-2">
+                                            <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
+                                                <option value="">Select an extra...</option>
+                                                {extras.map(extra => (
+                                                    <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
+                                                ))}
+                                            </select>
+                                            <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
+                                            <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                                        </div>
+                                    )}
+
+                                    {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                                </div>
+                            )}
+
+                            {flaggedMatch && (
+                                <div className="bg-red-100 text-red-700 text-sm rounded p-2">
+                                    Warning: this guest is flagged — {flaggedMatch.flagReason}
                                 </div>
                             )}
                         </div>
 
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Rate Type</label>
-                            <select name="rateType" value={form.rateType} onChange={handleRateChange} className="filter-input" required>
-                                <option value="NIGHTLY">Nightly</option>
-                                <option value="WEEKLY_5">Weekly (5-night)</option>
-                                <option value="WEEKLY_7">Weekly (7-night)</option>
-                            </select>
-                        </div>
+                        <div className="flex flex-col gap-3 px-6 py-4 border-t border-tan flex-shrink-0">
+                            {estimate && <p className="text-sm text-charcoal font-medium">Grand Total: ${estimate.total.toFixed(2)}</p>}
 
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Number of Guests</label>
-                            <select name="guestCount" value={form.guestCount} onChange={handleChange} className="filter-input" required>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                {form.rateType !== 'NIGHTLY' && <option value="3">3</option>}
-                            </select>
-                        </div>
+                            {error && <p className="text-sm text-rust">{error}</p>}
 
-                        {selectedRate &&
-                            <div className="flex items-baseline gap-2">
-                                <label className="block text-sm text-muted mb-1">Rate</label>
-                                <p className="text-sm font-medium text-charcoal mt-1">${selectedRate.amount}</p>
-                            </div>
-                        }
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Room</label>
-                            <SearchableSelect
-                                items={rooms}
-                                selectedId={form.roomId}
-                                itemLabel={r => `Room ${r.roomNumber}`}
-                                onSelect={roomId => setForm({ ...form, roomId })}
-                                placeholder="Search rooms..."
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Check-in</label>
-                            <input type="date" name="checkInDate" value={form.checkInDate} onChange={handleChange} className="filter-input" required />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm text-muted mb-1">Check-out</label>
-                            <input type="date" name="checkOutDate" value={form.checkOutDate} min={form.checkInDate || undefined} onChange={handleChange} className="filter-input" required />
-                        </div>
-
-                        {isEditing && (
-                            <div>
-                                <label className="block text-sm text-muted mb-1">Status</label>
-                                <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
-                                    <option value="CONFIRMED">Confirmed</option>
-                                    <option value="CANCELLED">Cancelled</option>
-                                </select>
-                            </div>
-                        )}
-
-                        {canAddExtras && (
-                            <div>
-                                <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-rust hover:text-rust-light">
-                                    {showExtras ? 'Hide Extras' : 'Add Extras'}
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={onClose} className="btn btn-secondary">
+                                    Cancel
                                 </button>
-
-                                {showExtras && (
-                                    <div className="flex gap-2 items-end mt-2">
-                                        <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
-                                            <option value="">Select an extra...</option>
-                                            {extras.map(extra => (
-                                                <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
-                                            ))}
-                                        </select>
-                                        <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
-                                        <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
-                                    </div>
-                                )}
-
-                                {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                                <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
+                                    {isEditing ? 'Save' : 'Create'}
+                                </button>
                             </div>
-                        )}
-
-                        {flaggedMatch && (
-                            <div className="bg-red-100 text-red-700 text-sm rounded p-2">
-                                Warning: this guest is flagged — {flaggedMatch.flagReason}
-                            </div>
-                        )}
-
-                        {error && <p className="text-sm text-rust">{error}</p>}
-
-                        <div className="flex justify-end gap-3 mt-2">
-                            <button type="button" onClick={onClose} className="btn btn-secondary">
-                                Cancel
-                            </button>
-                            <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
-                                {isEditing ? 'Save' : 'Create'}
-                            </button>
                         </div>
                     </form>
                 )}
 
                 {step === 'payment' && (
-                    <CardCaptureStep
-                        stripePromise={stripePromise}
-                        onCapture={handleCapture}
-                        onCancel={() => setStep('form')}
-                    />
+                    <div className="px-6 pb-6 overflow-y-auto">
+                        <CardCaptureStep
+                            stripePromise={stripePromise}
+                            onCapture={handleCapture}
+                            onCancel={() => setStep('form')}
+                            provider={provider}
+                        />
+                    </div>
                 )}
             </div>
         </div>

@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from "react"
 import { connectStripe, disconnectStripe, getConnectStatus } from "../api/stripeApi"
+import { connectSifely, disconnectSifely, getSifelyStatus } from "../api/sifelyApi"
 import { useSearchParams } from "react-router-dom"
 import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 
+const STRIPE_SETTINGS_ENABLED = import.meta.env.VITE_ENABLE_STRIPE_SETTINGS === 'true'
+
 function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [connected, setConnected] = useState(true)
     const [accountId, setAccountId] = useState(null)
+    const [sifelyLoading, setSifelyLoading] = useState(true)
+    const [sifelyConnected, setSifelyConnected] = useState(false)
+    const [sifelyClientId, setSifelyClientId] = useState(null)
+    const [sifelyConnectedAt, setSifelyConnectedAt] = useState(null)
+    const [sifelyForm, setSifelyForm] = useState({ account: '', password: '', clientId: '', clientSecret: '' })
+    const [sifelyError, setSifelyError] = useState(null)
+    const [sifelyConnecting, setSifelyConnecting] = useState(false)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState('')
     const [lodgingTaxRate, setLodgingTaxRate] = useState('')
     const [incidentalsFocused, setIncidentalsFocused] = useState(false)
@@ -25,7 +35,10 @@ function SettingsPage() {
     const originalSettings = useRef({})
 
     useEffect(() => {
-        getStripeSettings()
+        if (STRIPE_SETTINGS_ENABLED) {
+            getStripeSettings()
+        }
+        getSifelySettings()
         loadPropertySettings()
     }, [])
 
@@ -40,6 +53,40 @@ function SettingsPage() {
     async function handleDisconnect() {
         await disconnectStripe()
         await getStripeSettings()
+    }
+
+    async function getSifelySettings() {
+        setSifelyLoading(true)
+        const response = await getSifelyStatus()
+        setSifelyConnected(response?.data?.connected)
+        setSifelyClientId(response?.data?.clientId)
+        setSifelyConnectedAt(response?.data?.connectedAt)
+        setSifelyLoading(false)
+    }
+
+    function handleSifelyFieldChange(e) {
+        setSifelyForm({ ...sifelyForm, [e.target.name]: e.target.value })
+    }
+
+    async function handleSifelyConnect(e) {
+        e.preventDefault()
+        setSifelyError(null)
+        setSifelyConnecting(true)
+
+        try {
+            await connectSifely(sifelyForm)
+            setSifelyForm({ account: '', password: '', clientId: '', clientSecret: '' })
+            await getSifelySettings()
+        } catch {
+            setSifelyError('Failed to connect Sifely account. Check your credentials and try again.')
+        } finally {
+            setSifelyConnecting(false)
+        }
+    }
+
+    async function handleSifelyDisconnect() {
+        await disconnectSifely()
+        await getSifelySettings()
     }
 
     async function loadPropertySettings() {
@@ -148,30 +195,74 @@ function SettingsPage() {
         <div>
             <h1 className="section-title">Settings</h1>
 
-            {error === 'stripe_connect_failed' && (
+            {STRIPE_SETTINGS_ENABLED && error === 'stripe_connect_failed' && (
                 <p className="text-rust text-sm mb-6">Failed to connect Stripe account. Please try again.</p>
             )}
 
-            <div className="feat-card max-w-lg">
-                <h3>Stripe</h3>
-                <p>Connect your Stripe account to enable payment processing.</p>
+            {STRIPE_SETTINGS_ENABLED && (
+                <div className="feat-card max-w-lg">
+                    <h3>Stripe</h3>
+                    <p>Connect your Stripe account to enable payment processing.</p>
 
-                {loading ? (
+                    {loading ? (
+                        <p className="text-muted text-sm mt-4">Loading...</p>
+                    ) : connected ? (
+                        <div className="mt-4">
+                            <p className="text-sm text-muted mb-3">
+                                Connected account: <span className="font-medium text-charcoal">{accountId}</span>
+                            </p>
+                            <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
+                        </div>
+                    ) : (
+                        <div className="mt-4">
+                            <button className="btn-primary" onClick={async () => {
+                                const response = await connectStripe()
+                                window.location.href = response.data.url
+                            }}>Connect Stripe Account</button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div className="feat-card max-w-lg mt-6">
+                <h3>Sifely Smart Lock</h3>
+                <p>Connect your Sifely account to enable electronic door lock access.</p>
+
+                {sifelyLoading ? (
                     <p className="text-muted text-sm mt-4">Loading...</p>
-                ) : connected ? (
+                ) : sifelyConnected ? (
                     <div className="mt-4">
                         <p className="text-sm text-muted mb-3">
-                            Connected account: <span className="font-medium text-charcoal">{accountId}</span>
+                            Client ID: <span className="font-medium text-charcoal">{sifelyClientId}</span>
                         </p>
-                        <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
+                        <p className="text-sm text-muted mb-3">
+                            Connected: <span className="font-medium text-charcoal">{new Date(sifelyConnectedAt).toLocaleString()}</span>
+                        </p>
+                        <button onClick={handleSifelyDisconnect} className="btn-secondary">Disconnect</button>
                     </div>
                 ) : (
-                    <div className="mt-4">
-                        <button className="btn-primary" onClick={async () => {
-                            const response = await connectStripe()
-                            window.location.href = response.data.url
-                        }}>Connect Stripe Account</button>
-                    </div>
+                    <form onSubmit={handleSifelyConnect} className="flex flex-col gap-3 mt-4">
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Account</label>
+                            <input name="account" value={sifelyForm.account} onChange={handleSifelyFieldChange} className="filter-input" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Password</label>
+                            <input type="password" name="password" value={sifelyForm.password} onChange={handleSifelyFieldChange} className="filter-input" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Client ID</label>
+                            <input name="clientId" value={sifelyForm.clientId} onChange={handleSifelyFieldChange} className="filter-input" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Client Secret</label>
+                            <input type="password" name="clientSecret" value={sifelyForm.clientSecret} onChange={handleSifelyFieldChange} className="filter-input" required />
+                        </div>
+                        {sifelyError && <p className="text-sm text-rust">{sifelyError}</p>}
+                        <button type="submit" className="btn-primary self-start" disabled={sifelyConnecting}>
+                            {sifelyConnecting ? 'Connecting...' : 'Connect Sifely Account'}
+                        </button>
+                    </form>
                 )}
             </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import { getRooms } from '../api/roomApi'
+import { getRoomTypes } from '../api/roomTypeApi'
 import { getReservations, checkIn, checkOut } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
 import { getFolioByReservationId } from '../api/folioApi'
@@ -23,6 +24,7 @@ const STATUS_COLORS = {
 
 function DashboardPage() {
     const [rooms, setRooms] = useState([])
+    const [roomTypes, setRoomTypes] = useState([])
     const [reservations, setReservations] = useState([])
     const [guests, setGuests] = useState([])
     const [calDate, setCalDate] = useState(new Date())
@@ -34,9 +36,10 @@ function DashboardPage() {
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
 
     function fetchData() {
-        Promise.all([getRooms(), getReservations(), getGuests()])
-            .then(([r, res, g]) => {
+        Promise.all([getRooms(), getRoomTypes(), getReservations(), getGuests()])
+            .then(([r, rt, res, g]) => {
                 setRooms(r.data)
+                setRoomTypes(rt.data)
                 setReservations(res.data)
                 setGuests(g.data)
             })
@@ -44,8 +47,8 @@ function DashboardPage() {
 
     useEffect(() => { fetchData() }, [])
 
-    async function handleCheckInConfirmed(incidentalsPaymentMethodId) {
-        const res = await checkIn(checkInTarget, incidentalsPaymentMethodId)
+    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
+        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
         setSelectedEvent(null)
         fetchData()
         return res.data.doorAccessStatus
@@ -84,6 +87,10 @@ function DashboardPage() {
     const today = new Date().toISOString().split('T')[0]
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
     const roomsMap = Object.fromEntries(rooms.map(r => [r.id, r]))
+    const roomTypesMap = Object.fromEntries(roomTypes.map(rt => [rt.id, rt]))
+    const roomLabel = r => roomsMap[r.roomId]
+        ? `Rm ${roomsMap[r.roomId].roomNumber}`
+        : `${roomTypesMap[r.roomTypeId]?.name.replace('_', ' ') ?? 'Room'} (unassigned)`
 
     const occupiedCount = rooms.filter(r => r.status === 'OCCUPIED').length
     const availableCount = rooms.filter(r => r.status === 'AVAILABLE').length
@@ -92,7 +99,7 @@ function DashboardPage() {
     const events = reservations
         .filter(r => r.status !== 'CANCELLED' && visibleStatuses.has(r.status))
         .map(r => ({
-            title: `${guestsMap[r.guestId]?.firstName ?? 'Guest'} — Rm ${roomsMap[r.roomId]?.roomNumber}`,
+            title: `${guestsMap[r.guestId]?.firstName ?? 'Guest'} — ${roomLabel(r)}`,
             start: new Date(r.checkInDate + 'T12:00:00'),
             end: new Date(r.checkOutDate + 'T12:00:00'),
             allDay: true,
@@ -102,6 +109,7 @@ function DashboardPage() {
                 status: r.status,
                 guestId: r.guestId,
                 roomId: r.roomId,
+                roomTypeId: r.roomTypeId,
                 checkInDate: r.checkInDate,
                 checkOutDate: r.checkOutDate
             }
@@ -126,7 +134,7 @@ function DashboardPage() {
                         <ul className="stat-list">
                             {todayCheckIns.slice(0, 5).map(r => (
                                 <li key={r.id}>
-                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — Room {roomsMap[r.roomId]?.roomNumber}
+                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — {roomLabel(r)}
                                 </li>
                             ))}
                         </ul>
@@ -139,7 +147,7 @@ function DashboardPage() {
                         <ul className="stat-list">
                             {todayCheckOuts.slice(0, 5).map(r => (
                                 <li key={r.id}>
-                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — Rm {roomsMap[r.roomId]?.roomNumber}
+                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — {roomLabel(r)}
                                 </li>
                             ))}
                         </ul>
@@ -189,7 +197,7 @@ function DashboardPage() {
                 <ReservationSummaryModal
                     reservation={selectedEvent}
                     guest={guestsMap[selectedEvent.guestId]}
-                    room={roomsMap[selectedEvent.roomId]}
+                    roomLabel={roomLabel(selectedEvent)}
                     onClose={() => setSelectedEvent(null)}
                     onCheckIn={() => setCheckInTarget(selectedEvent.reservationId)}
                     onCheckOut={handleCheckOut}
@@ -199,6 +207,7 @@ function DashboardPage() {
 
             {checkInTarget && (
                 <CheckInPaymentModal
+                    reservationId={checkInTarget}
                     onConfirm={handleCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
                 />

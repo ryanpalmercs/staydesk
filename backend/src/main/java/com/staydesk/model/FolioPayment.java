@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
 
 @Table("folio_payments")
 public record FolioPayment(@Id int id, int folioId, PaymentKind kind, String stripePaymentIntentId,
-                           PaymentStatus status, BigDecimal authorizedAmount, BigDecimal capturedAmount,
-                           LocalDateTime createdAt, LocalDateTime updatedAt) {
+                           String cardLast4, PaymentStatus status, BigDecimal authorizedAmount,
+                           BigDecimal capturedAmount, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum PaymentKind {
         ROOM, INCIDENTALS

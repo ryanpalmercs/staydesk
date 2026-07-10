@@ -17,8 +17,8 @@ jobs:
 
           echo "PR: $SOURCE → $TARGET"
 
-          if [[ "$TARGET" == "develop" && ! "$SOURCE" =~ ^feature/ ]]; then
-            echo "Error: PRs targeting 'develop' must come from a 'feature/*' branch (got '$SOURCE')"
+          if [[ "$TARGET" == "develop" && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
+            echo "Error: PRs targeting 'develop' must come from a 'feature/*' or 'bugfix/*' branch (got '$SOURCE')"
             exit 1
           fi
 

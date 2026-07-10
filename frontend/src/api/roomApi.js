@@ -23,3 +23,7 @@ export function deleteRoom(id) {
 export function getRoomAccessLog(id, days) {
     return api.get(`/admin/rooms/${id}/access-log`, { params: days ? { days } : {} })
 }
+
+export function getOccupiedDates(roomId) {
+    return api.get(`/rooms/${roomId}/occupied-dates`)
+}

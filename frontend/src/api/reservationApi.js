@@ -20,8 +20,12 @@ export function deleteReservation(id) {
     return api.delete(`/reservations/${id}`)
 }
 
-export function checkIn(id, incidentalsPaymentMethodId) {
-    return api.post(`/reservations/${id}/check-in`, { incidentalsPaymentMethodId })
+export function getAvailableRoomsForCheckIn(id) {
+    return api.get(`/reservations/${id}/available-rooms`)
+}
+
+export function checkIn(id, roomId, incidentalsPaymentMethodId) {
+    return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId })
 }
 
 export function checkOut(id) {
@@ -38,4 +42,8 @@ export function setReservationLegalHold(id) {
 
 export function clearReservationLegalHold(id) {
     return api.delete(`/reservations/${id}/legal-hold`)
+}
+
+export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
+    return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
 }

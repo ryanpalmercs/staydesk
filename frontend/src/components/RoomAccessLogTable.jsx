@@ -3,7 +3,8 @@ import './RoomAccessLogTable.css'
 const ACTOR_STYLES = {
     GUEST: 'bg-green-100 text-green-800',
     STAFF: 'bg-tan text-brown',
-    UNKNOWN: 'bg-rust/10 text-rust',
+    UNKNOWN: 'bg-gray-100 text-gray-700',
+    UNAUTHORIZED: 'bg-rust/10 text-rust',
 }
 
 function formatEventTime(isoString) {

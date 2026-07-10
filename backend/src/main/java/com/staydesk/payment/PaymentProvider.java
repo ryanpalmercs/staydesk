@@ -9,7 +9,7 @@ public interface PaymentProvider {
 
     VoidResult void_(String authId);
 
-    RefundResult refund(String transactionId, BigDecimal amount);
+    RefundResult refund(String transactionId, BigDecimal amount, String cardLast4);
 
     TokenResult tokenize(String customerId);
 }
