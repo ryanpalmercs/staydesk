@@ -46,6 +46,8 @@ public class SecurityConfig {
                            .requestMatchers(HttpMethod.DELETE, "/reservations/*/legal-hold").hasAnyRole("ADMIN", "MANAGER")
                            .requestMatchers(HttpMethod.GET, "/lock-passcodes/reservation/**").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers("/lock-passcodes/**").hasAnyRole("ADMIN", "FRONT_DESK")
+                           .requestMatchers(HttpMethod.GET, "/pos-devices").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
+                           .requestMatchers("/pos-devices/**").hasRole("ADMIN")
                            .requestMatchers("/admin/**", "/reports/**")
                            .hasRole("ADMIN")
                            .anyRequest().authenticated())

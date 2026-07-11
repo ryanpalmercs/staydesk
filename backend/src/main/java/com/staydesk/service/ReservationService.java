@@ -7,19 +7,23 @@ import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.NoRoomAvailableException;
+import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Folio;
+import com.staydesk.model.PosDevice;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
+import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.repository.GuestRepository;
+import com.staydesk.repository.PosDeviceRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
@@ -47,12 +51,15 @@ public class ReservationService {
     private final GuestRepository guestRepository;
     private final SmsService smsService;
     private final LockPasscodeService lockPasscodeService;
+    private final ProviderFactory providerFactory;
+    private final PosDeviceRepository posDeviceRepository;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
                               RateRepository rateRepository, PaymentService paymentService, FolioService folioService,
                               GuestRepository guestRepository, SmsService smsService,
-                              LockPasscodeService lockPasscodeService) {
+                              LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
+                              PosDeviceRepository posDeviceRepository) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -63,6 +70,8 @@ public class ReservationService {
         this.guestRepository = guestRepository;
         this.smsService = smsService;
         this.lockPasscodeService = lockPasscodeService;
+        this.providerFactory = providerFactory;
+        this.posDeviceRepository = posDeviceRepository;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -129,7 +138,7 @@ public class ReservationService {
         BigDecimal estimatedStayAmount = folioService.estimateWithTax(
                 rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
-        paymentService.createRoomHold(folio, estimatedStayAmount, roomPaymentMethodId);
+        paymentService.createRoomHold(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
 
         if (savedReservation.guestId() != null) {
             guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
@@ -225,7 +234,45 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
-        paymentService.createIncidentalHold(folio, incidentalsPaymentMethodId);
+        paymentService.createIncidentalHold(folio, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId);
+
+        Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
+
+        if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
+            guestRepository.findById(checkedIn.guestId())
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
+        }
+
+        return new CheckInResult(checkedIn, passcodeResult.outcome());
+    }
+
+    @Transactional
+    public CheckInResult checkInTerminal(int id, int roomId, int posDeviceId) {
+        PosDevice device = posDeviceRepository.findById(posDeviceId).orElseThrow(PosDeviceNotFoundException::new);
+
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new AlreadyCheckedInException();
+        } else if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
+            throw new InvalidReservationException();
+        }
+
+        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
+                                  .stream()
+                                  .filter(r -> r.id() == roomId)
+                                  .findFirst()
+                                  .orElseThrow(NoRoomAvailableException::new);
+
+        reservationRepository.assignRoom(id, room.id());
+        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
+        reservationRepository.updateReservationStatusToCheckedIn(id);
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+        paymentService.createIncidentalHold(folio, "elavon_cpi", device.deviceId());
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 

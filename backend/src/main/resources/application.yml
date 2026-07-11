@@ -71,3 +71,9 @@ authorizenet:
   transaction-key: ${AUTHORIZE_NET_TRANSACTION_KEY}
   client-key: ${AUTHORIZE_NET_CLIENT_KEY}
   environment: ${AUTHORIZE_NET_ENVIRONMENT:SANDBOX}
+
+elavon:
+  cpi:
+    base-url: ${ELAVON_CPI_BASE_URL:https://uat.pos.hpi.elavonaws.com}
+    client-id: ${ELAVON_CPI_CLIENT_ID:}
+    client-secret: ${ELAVON_CPI_CLIENT_SECRET:}

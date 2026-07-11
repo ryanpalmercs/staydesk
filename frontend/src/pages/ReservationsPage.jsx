@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation } from "../api/reservationApi"
+import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation, checkInTerminal } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import ReservationModal from "../components/ReservationModal"
@@ -98,6 +98,12 @@ function ReservationsPage() {
 
     async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
         const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
+        await fetchReservations()
+        return res.data.doorAccessStatus
+    }
+
+    async function handleTerminalCheckInConfirmed(roomId, posDeviceId) {
+        const res = await checkInTerminal(checkInTarget, roomId, posDeviceId)
         await fetchReservations()
         return res.data.doorAccessStatus
     }
@@ -258,10 +264,6 @@ function ReservationsPage() {
                 <ReservationModal reservation={selectedReservation} onSaved={handleSaved} onClose={() => setModalOpen(false)} />
             )}
 
-            {checkInTarget != null && (
-                <CheckInPaymentModal reservationId={checkInTarget} onConfirm={handleCheckInConfirmed} onClose={() => setCheckInTarget(null)} />
-            )}
-
             {reviewFolioId != null && (
                 <FolioModal folioId={reviewFolioId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
             )}
@@ -271,6 +273,15 @@ function ReservationsPage() {
                     reservationId={doorCodeTarget.id}
                     roomNumber={roomMap[doorCodeTarget.roomId]?.roomNumber ?? '—'}
                     onClose={() => setDoorCodeTarget(null)}
+                />
+            )}
+
+            {checkInTarget != null && (
+                <CheckInPaymentModal
+                    reservationId={checkInTarget}
+                    onConfirm={handleCheckInConfirmed}
+                    onConfirmTerminal={handleTerminalCheckInConfirmed}
+                    onClose={() => setCheckInTarget(null)}
                 />
             )}
 
