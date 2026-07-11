@@ -7,6 +7,7 @@ import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.NoRoomAvailableException;
+import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
@@ -19,6 +20,7 @@ import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
+import com.staydesk.model.request.TerminalCheckInRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
 import org.slf4j.Logger;
@@ -139,6 +141,25 @@ public class ReservationController {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation in with id {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @PostMapping("{id}/check-in/terminal")
+    public ResponseEntity<CheckInResult> checkInTerminal(@PathVariable int id,
+                                                         @RequestBody TerminalCheckInRequest request) {
+        LOGGER.info("Checking reservation in via terminal with id {}", id);
+
+        try {
+            return ResponseEntity.ok(reservationService.checkInTerminal(id, request.roomId(), request.posDeviceId()));
+        } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AlreadyCheckedInException | NoRoomAvailableException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            LOGGER.error("An error occurred while checking reservation in via terminal with id {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
     }
