@@ -7,7 +7,8 @@ function GuestEditModal({ guest, onSaved, onClose }) {
         firstName: guest.firstName,
         lastName: guest.lastName,
         email: guest.email,
-        phoneNumber: guest.phoneNumber
+        phoneNumber: guest.phoneNumber,
+        smsConsent: guest.smsConsent
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -70,6 +71,19 @@ function GuestEditModal({ guest, onSaved, onClose }) {
                             required
                         />
                     </div>
+
+                    <label className="flex items-start gap-2 text-sm text-muted">
+                        <input
+                            type="checkbox"
+                            checked={form.smsConsent}
+                            onChange={e => setForm({ ...form, smsConsent: e.target.checked })}
+                            className="mt-1"
+                        />
+                        <span>
+                            Guest consents to receive SMS text messages (door codes, check-in/checkout confirmations). Message and
+                            data rates may apply. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-rust underline">SMS Terms</a>.
+                        </span>
+                    </label>
 
                     {error && <p className="text-sm text-rust">{error}</p>}
 

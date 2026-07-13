@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Table("guests")
 public record Guest(@Id int id, EncryptedString firstName, EncryptedString lastName, EncryptedString email,
-                    @JsonIgnore String emailHash, EncryptedString phoneNumber,
+                    @JsonIgnore String emailHash, EncryptedString phoneNumber, boolean smsConsent,
                     boolean flagged, @Nullable String flagReason, @Nullable LocalDateTime flaggedDate,
                     @Nullable UUID flaggedBy, boolean legalHold, LocalDateTime createdAt, LocalDateTime updatedAt) {
 

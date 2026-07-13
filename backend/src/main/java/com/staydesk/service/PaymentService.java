@@ -35,7 +35,7 @@ public class PaymentService {
         this.propertySettingsService = propertySettingsService;
     }
 
-    public void createIncidentalHold(Folio folio, String incidentalsPaymentMethodId) {
+    public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
 
         String holdAmountString = propertySettingsService.getProperty("incidentals_hold_amount").value();
@@ -47,11 +47,11 @@ public class PaymentService {
             LOGGER.error("Could not parse hold amount", e);
         }
 
-        createHold(folio.id(), PaymentKind.INCIDENTALS, holdAmount, incidentalsPaymentMethodId, now);
+        createHold(folio.id(), PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
     }
 
-    public void createRoomHold(Folio folio, BigDecimal estimatedStayAmount, String roomPaymentMethodId) {
-        createHold(folio.id(), PaymentKind.ROOM, estimatedStayAmount, roomPaymentMethodId, LocalDateTime.now());
+    public void createRoomHold(Folio folio, BigDecimal estimatedStayAmount, String providerName, String roomPaymentMethodId) {
+        createHold(folio.id(), PaymentKind.ROOM, providerName, estimatedStayAmount, roomPaymentMethodId, LocalDateTime.now());
     }
 
     public void cancelOpenHolds(Folio folio) {
@@ -60,16 +60,16 @@ public class PaymentService {
                               .forEach(this::cancelHold);
     }
 
-    private void createHold(int folioId, PaymentKind kind, BigDecimal amount, String paymentMethodId,
+    private void createHold(int folioId, PaymentKind kind, String providerName, BigDecimal amount, String paymentMethodId,
                             LocalDateTime now) {
-        AuthResult result = providerFactory.getPaymentProvider()
+        AuthResult result = providerFactory.getProvider(providerName)
                                            .authorize(amount, paymentMethodId, kind + " hold for folio " + folioId);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folioId + ": " + result.message());
         }
 
-        folioPaymentRepository.save(new FolioPayment(0, folioId, kind, result.transactionId(), result.cardLast4(),
+        folioPaymentRepository.save(new FolioPayment(0, folioId, kind, providerName, result.transactionId(), result.cardLast4(),
                 PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
     }
 
@@ -106,7 +106,7 @@ public class PaymentService {
     }
 
     private FolioPayment captureHold(FolioPayment hold, BigDecimal amount) {
-        CaptureResult result = providerFactory.getPaymentProvider().capture(hold.stripePaymentIntentId(), amount);
+        CaptureResult result = providerFactory.getProvider(hold.provider()).capture(hold.stripePaymentIntentId(), amount);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to capture " + hold.kind() + " hold " + hold.stripePaymentIntentId()
@@ -114,12 +114,12 @@ public class PaymentService {
         }
 
         return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
-                hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CAPTURED, hold.authorizedAmount(), amount,
+                hold.provider(), hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CAPTURED, hold.authorizedAmount(), amount,
                 hold.createdAt(), LocalDateTime.now()));
     }
 
     private FolioPayment cancelHold(FolioPayment hold) {
-        VoidResult result = providerFactory.getPaymentProvider().void_(hold.stripePaymentIntentId());
+        VoidResult result = providerFactory.getProvider(hold.provider()).void_(hold.stripePaymentIntentId());
 
         if (!result.success()) {
             throw new RuntimeException("Failed to cancel " + hold.kind() + " hold " + hold.stripePaymentIntentId()
@@ -127,7 +127,7 @@ public class PaymentService {
         }
 
         return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
-                hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CANCELED, hold.authorizedAmount(),
+                hold.provider(), hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CANCELED, hold.authorizedAmount(),
                 BigDecimal.ZERO, hold.createdAt(), LocalDateTime.now()));
     }
 

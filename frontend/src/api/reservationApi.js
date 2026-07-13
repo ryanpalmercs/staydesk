@@ -28,6 +28,10 @@ export function checkIn(id, roomId, incidentalsPaymentMethodId) {
     return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId })
 }
 
+export function checkInTerminal(id, roomId, posDeviceId) {
+    return api.post(`/reservations/${id}/check-in/terminal`, { roomId, posDeviceId })
+}
+
 export function checkOut(id) {
     return api.post(`/reservations/${id}/check-out`)
 }

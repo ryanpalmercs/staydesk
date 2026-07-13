@@ -84,6 +84,7 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 new EncryptedString(email),
                 piiCipher.hash(email.strip().toLowerCase()),
                 new EncryptedString(rs.getString("phone_number")),
+                rs.getBoolean("sms_consent"),
                 rs.getBoolean("flagged"),
                 rs.getString("flag_reason"),
                 toLocalDateTime(rs.getTimestamp("flagged_date")),

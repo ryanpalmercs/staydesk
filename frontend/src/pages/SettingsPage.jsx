@@ -7,6 +7,7 @@ import { getRoomTypes, updateRoomType } from "../api/roomTypeApi"
 import { getRates, updateRate } from "../api/rateApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
+import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
 
 const STRIPE_SETTINGS_ENABLED = import.meta.env.VITE_ENABLE_STRIPE_SETTINGS === 'true'
 
@@ -75,6 +76,10 @@ function SettingsPage() {
     const originalSettings = useRef({})
     const originalRoomTypes = useRef([])
     const originalRates = useRef([])
+    const [posDevices, setPosDevices] = useState([])
+    const [pairForm, setPairForm] = useState({ pairingCode: '', friendlyName: '', location: '' })
+    const [pairing, setPairing] = useState(false)
+    const [pairError, setPairError] = useState(null)
 
     useEffect(() => {
         if (STRIPE_SETTINGS_ENABLED) {
@@ -92,6 +97,7 @@ function SettingsPage() {
             setRates(data)
             originalRates.current = data
         })
+        getPosDevices().then(res => setPosDevices(res.data ?? []))
     }, [])
 
     function handleRoomTypeChange(id, name) {
@@ -100,6 +106,10 @@ function SettingsPage() {
 
     function handleRateChange(id, amount) {
         setRates(prev => prev.map(r => r.id === id ? { ...r, amount } : r))
+    }
+
+    function handlePairFieldChange(e) {
+        setPairForm({ ...pairForm, [e.target.name]: e.target.value })
     }
 
     const roomTypesDirty = roomTypes.some(rt =>
@@ -139,6 +149,25 @@ function SettingsPage() {
         originalRates.current = originalRates.current.map(o => updated.find(u => u.id === o.id) ?? o)
 
         setRatesSaving(false)
+    }
+
+    async function handlePairDevice(e) {
+        e.preventDefault()
+        setPairError(null)
+        setPairing(true)
+        try {
+            const res = await pairPosDevice(pairForm)
+            setPosDevices(prev => [...prev, res.data])
+            setPairForm({ pairingCode: '', friendlyName: '', location: '' })
+        } catch (err) {
+            setPairError('Failed to pair device — check the pairing code shown on the terminal.')
+        }
+        setPairing(false)
+    }
+
+    async function handleUnpairDevice(id) {
+        await unpairPosDevice(id)
+        setPosDevices(prev => prev.filter(d => d.id !== id))
     }
 
     const sortedRates = [...rates].sort((a, b) => {
@@ -443,6 +472,30 @@ function SettingsPage() {
                 </div>
 
                 <div className="feat-card">
+                    <h3>Terminals</h3>
+                    <p>Pair a card-present terminal using the pairing code shown on its screen.</p>
+
+                    <form onSubmit={handlePairDevice} className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
+                        <input name="pairingCode" placeholder="Pairing code" value={pairForm.pairingCode} onChange={handlePairFieldChange} className="filter-input" required />
+                        <input name="friendlyName" placeholder="Name (max 12 chars)" maxLength={12} value={pairForm.friendlyName} onChange={handlePairFieldChange} className="filter-input" required />
+                        <input name="location" placeholder="Location (optional)" maxLength={16} value={pairForm.location} onChange={handlePairFieldChange} className="filter-input" />
+                    </form>
+                    {pairError && <p className="text-sm text-rust mt-2">{pairError}</p>}
+                    <button onClick={handlePairDevice} className="btn-primary mt-2" disabled={pairing}>
+                        {pairing ? 'Pairing...' : 'Pair Terminal'}
+                    </button>
+
+                    <div className="flex flex-col gap-2 mt-4">
+                        {posDevices.map(device => (
+                            <div key={device.id} className="flex items-center justify-between">
+                                <span className="text-sm text-charcoal">{device.friendlyName}{device.location ? ` — ${device.location}` : ''}</span>
+                                <button onClick={() => handleUnpairDevice(device.id)} className="text-sm font-medium text-muted hover:text-rust">Unpair</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="feat-card lg:col-span-2">
                     <h3>Rates</h3>
                     <div className="flex flex-col gap-3 mt-4">
                         {sortedRates.map(rate => (

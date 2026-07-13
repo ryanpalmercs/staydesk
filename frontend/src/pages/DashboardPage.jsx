@@ -3,7 +3,7 @@ import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import { getRooms } from '../api/roomApi'
 import { getRoomTypes } from '../api/roomTypeApi'
-import { getReservations, checkIn, checkOut } from '../api/reservationApi'
+import { getReservations, checkIn, checkInTerminal, checkOut } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
 import { getFolioByReservationId } from '../api/folioApi'
 import './DashboardPage.css'
@@ -49,6 +49,13 @@ function DashboardPage() {
 
     async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
         const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
+        setSelectedEvent(null)
+        fetchData()
+        return res.data.doorAccessStatus
+    }
+
+    async function handleTerminalCheckInConfirmed(roomId, posDeviceId) {
+        const res = await checkInTerminal(checkInTarget, roomId, posDeviceId)
         setSelectedEvent(null)
         fetchData()
         return res.data.doorAccessStatus
@@ -209,6 +216,7 @@ function DashboardPage() {
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
                     onConfirm={handleCheckInConfirmed}
+                    onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
                 />
             )}
