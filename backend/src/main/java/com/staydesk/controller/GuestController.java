@@ -71,7 +71,7 @@ public class GuestController {
         LocalDateTime now = LocalDateTime.now();
 
         Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
+                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()), request.smsConsent(),
                 false, null, null, null, false, now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
@@ -89,7 +89,7 @@ public class GuestController {
 
         String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
         Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
+                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()), request.smsConsent(),
                 existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
                 existing.legalHold(), existing.createdAt(), LocalDateTime.now());
 
