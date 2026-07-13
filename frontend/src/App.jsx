@@ -19,6 +19,7 @@ import RoomAccessLogPage from './pages/RoomAccessLogPage'
 import GuestProfilePage from './pages/GuestProfilePage'
 import GuestsPage from './pages/GuestsPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicy'
+import SmsTermsPage from './pages/SmsTermsPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -53,6 +54,7 @@ export default function App() {
                     <Routes>
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                        <Route path="/sms-terms" element={<SmsTermsPage />} />;
                         <Route element={<ProtectedRoute />}>
                             <Route element={<Layout />}>
                                 <Route path="/" element={<DashboardPage />} />
