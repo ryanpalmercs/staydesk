@@ -158,7 +158,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         firstName: '',
         lastName: '',
         email: '',
-        phoneNumber: ''
+        phoneNumber: '',
+        smsConsent: false
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -392,11 +393,26 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                         placeholder="Search guests..."
                                     />
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                        <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                        <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
-                                        <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
+                                    <div className="flex flex-col gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                            <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
+                                            <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
+                                            <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
+                                        </div>
+                                        <label className="flex items-start gap-2 text-sm text-muted">
+                                            <input
+                                                type="checkbox"
+                                                checked={guestForm.smsConsent}
+                                                onChange={e => setGuestForm({ ...guestForm, smsConsent: e.target.checked })}
+                                                className="mt-1"
+                                            />
+                                            <span>
+                                                I agree to receive SMS text messages from Martin House Motel about this reservation (door codes,
+                                                check-in/checkout confirmations). Message and data rates may apply. Reply STOP to opt out, HELP for
+                                                help. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-rust underline">SMS Terms</a>.
+                                            </span>
+                                        </label>
                                     </div>
                                 )}
                             </div>

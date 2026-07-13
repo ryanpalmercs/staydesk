@@ -54,23 +54,13 @@ const sections = [
         id: 'sms-notifications-and-consent',
         title: '4. SMS Notifications and Consent',
         body: (
-            <>
-                <p className="mb-3">
-                    By providing your phone number at the time of reservation or check-in, you consent to
-                    receive SMS text messages from Martin House Motel. These messages may include:
-                </p>
-                <ul className="list-disc pl-6 space-y-1 mb-3">
-                    <li>Door access codes for your room</li>
-                    <li>Check-in confirmation and instructions</li>
-                    <li>Checkout confirmation and access code expiration notice</li>
-                    <li>Reservation reminders</li>
-                </ul>
-                <p>
-                    Message frequency varies by stay. Message and data rates may apply. To opt out of SMS
-                    notifications, reply STOP to any message or contact us directly. For help, reply HELP or
-                    contact us at the information below.
-                </p>
-            </>
+            <p>
+                If you provide a phone number and separately opt in, we may send SMS text messages related to your
+                stay (door access codes, check-in/checkout confirmations, reservation reminders). SMS consent is
+                never required to book or complete a reservation. Full terms, message frequency, and opt-out
+                instructions are in our{' '}
+                <a href="/sms-terms" className="text-rust underline">SMS Terms &amp; Conditions</a>.
+            </p>
         ),
     },
     {
@@ -254,7 +244,7 @@ export default function PrivacyPolicyPage() {
                         <p className="text-charcoal/80 leading-relaxed">
                             Martin House Motel<br />
                             731 South Main Street, Brookfield, Missouri 64628<br />
-                            <a href="mailto:martinhousemotel@gmail.com" className="text-rust hover:underline">martinhousemotel@gmail.com</a>
+                            <a href="tel:+16602587257" className="text-rust hover:underline">660-258-7257</a> | <a href="mailto:martinhousemotel@gmail.com" className="text-rust hover:underline">martinhousemotel@gmail.com</a>
                         </p>
                     </section>
                 </div>

@@ -13,6 +13,7 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Folio;
+import com.staydesk.model.Guest;
 import com.staydesk.model.PosDevice;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
@@ -141,13 +142,16 @@ public class ReservationService {
         paymentService.createRoomHold(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
 
         if (savedReservation.guestId() != null) {
-            guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
+            guestRepository.findById(savedReservation.guestId())
+                           .filter(Guest::smsConsent)
+                           .ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
         }
 
         return savedReservation;
     }
 
-    public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate, LocalDate checkOutDate) {
+    public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate,
+                                                     LocalDate checkOutDate) {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(rateType, guestCount)
                                   .orElseThrow(RateNotFoundException::new);
 
@@ -242,6 +246,7 @@ public class ReservationService {
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
             guestRepository.findById(checkedIn.guestId())
+                           .filter(Guest::smsConsent)
                            .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
         }
 
@@ -280,6 +285,7 @@ public class ReservationService {
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
             guestRepository.findById(checkedIn.guestId())
+                           .filter(Guest::smsConsent)
                            .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
         }
 

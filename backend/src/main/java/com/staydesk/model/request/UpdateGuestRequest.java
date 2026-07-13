@@ -6,5 +6,6 @@ import jakarta.validation.constraints.Pattern;
 
 public record UpdateGuestRequest(@NotBlank String firstName, @NotBlank String lastName,
                                  @NotBlank @Email String email,
-                                 @NotBlank @Pattern(regexp = "^[0-9]{10}$", message = "phoneNumber must be exactly 10 digits") String phoneNumber) {
+                                 @NotBlank @Pattern(regexp = "^[0-9]{10}$", message = "phoneNumber must be exactly 10 digits") String phoneNumber,
+                                 boolean smsConsent) {
 }
