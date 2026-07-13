@@ -285,6 +285,7 @@ public class ReservationService {
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
             guestRepository.findById(checkedIn.guestId())
+                           .filter(Guest::smsConsent)
                            .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
         }
 

@@ -54,7 +54,7 @@ export default function App() {
                     <Routes>
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                        <Route path="/sms-terms" element={<SmsTermsPage />} />;
+                        <Route path="/sms-terms" element={<SmsTermsPage />} />
                         <Route element={<ProtectedRoute />}>
                             <Route element={<Layout />}>
                                 <Route path="/" element={<DashboardPage />} />

@@ -158,7 +158,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         firstName: '',
         lastName: '',
         email: '',
-        phoneNumber: ''
+        phoneNumber: '',
+        smsConsent: false
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
