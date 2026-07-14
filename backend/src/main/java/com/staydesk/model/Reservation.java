@@ -12,9 +12,13 @@ public record Reservation(@Id int id, @Nullable Integer guestId, @Nullable Integ
                           LocalDate checkInDate, LocalDate checkOutDate,
                           ReservationStatus status, @Nullable LocalDateTime checkedInAt,
                           @Nullable LocalDateTime checkedOutAt, Rate.RateType rateType, int guestCount,
-                          boolean legalHold, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                          Channel channel, boolean legalHold, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum ReservationStatus {
         CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED
+    }
+
+    public enum Channel {
+        WALK_IN, PHONE
     }
 }
