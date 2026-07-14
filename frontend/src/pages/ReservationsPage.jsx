@@ -250,7 +250,7 @@ function ReservationsPage() {
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
                                     )}
-                                    {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
+                                    {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT' || res.status === 'NO_SHOW') && (
                                         <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
                                     )}
                                 </div>

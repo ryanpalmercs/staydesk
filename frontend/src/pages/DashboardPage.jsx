@@ -20,6 +20,7 @@ const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
     CHECKED_IN: { backgroundColor: '#dcfce7', textColor: '#166534', borderColor: '#dcfce7' },
     CHECKED_OUT: { backgroundColor: '#f3f4f6', textColor: '#4b5563', borderColor: '#f3f4f6' },
+    NO_SHOW: { backgroundColor: '#fee2e2', textColor: '#991b1b', borderColor: '#fee2e2' },
 }
 
 function DashboardPage() {
@@ -168,6 +169,7 @@ function DashboardPage() {
                         { status: 'CONFIRMED', label: 'Confirmed', color: '#F0E0C8' },
                         { status: 'CHECKED_IN', label: 'Checked In', color: '#dcfce7' },
                         { status: 'CHECKED_OUT', label: 'Checked Out', color: '#f3f4f6' },
+                        { status: 'NO_SHOW', label: 'No Show', color: '#fee2e2' },
                     ].map(({ status, label, color }) => (
                         <button
                             key={status}

@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -100,6 +101,20 @@ public class ReservationService {
         }
         return totalPeriods;
     }
+
+    private BigDecimal computeFirstNightAmount(Reservation reservation) {
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        BigDecimal baseAmount = switch (reservation.rateType()) {
+            case NIGHTLY -> rate.amount();
+            case WEEKLY_5 -> rate.amount().divide(BigDecimal.valueOf(5), 2, RoundingMode.HALF_UP);
+            case WEEKLY_7 -> rate.amount().divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
+        };
+
+        return folioService.estimateWithTax(baseAmount);
+    }
+
 
     @Transactional
     public Reservation createReservation(Reservation reservation, String roomPaymentMethodId) {
@@ -359,6 +374,29 @@ public class ReservationService {
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(),
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
+                reservation.createdAt(), LocalDateTime.now()));
+    }
+
+    @Transactional
+    public Reservation markNoShow(int id) {
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)
+            || !reservation.channel().equals(Reservation.Channel.PHONE)) {
+            throw new InvalidReservationException();
+        }
+
+        BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
+
+        folioRepository.getFolioByReservationId(reservation.id())
+                       .ifPresent(f -> {
+                           paymentService.refundAllButFirstNight(f, firstNightAmount);
+                           folioRepository.closeFolio(f.id());
+                       });
+
+        return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.NO_SHOW, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
                 reservation.createdAt(), LocalDateTime.now()));
     }

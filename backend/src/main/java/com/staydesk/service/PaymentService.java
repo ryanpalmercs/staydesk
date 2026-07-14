@@ -184,6 +184,35 @@ public class PaymentService {
                 result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, now, now));
     }
 
+    public void refundAllButFirstNight(Folio folio, BigDecimal firstNightAmount) {
+        FolioPayment roomPayment = folioPaymentRepository.findByFolioId(folio.id()).stream()
+                                                         .filter(p -> p.kind() == PaymentKind.ROOM)
+                                                         .filter(p -> p.status() == PaymentStatus.CAPTURED)
+                                                         .findFirst()
+                                                         .orElseThrow(FolioPaymentNotFoundException::new);
+
+        BigDecimal refundAmount = roomPayment.capturedAmount().subtract(firstNightAmount).max(BigDecimal.ZERO);
+
+        if (refundAmount.compareTo(BigDecimal.ZERO) == 0) {
+            LOGGER.info("No refund due for no-show on folio {}: captured {} <= first-night amount {}",
+                    folio.id(), roomPayment.capturedAmount(), firstNightAmount);
+            return;
+        }
+
+        RefundResult result = providerFactory.getProvider(roomPayment.provider())
+                                             .refund(roomPayment.stripePaymentIntentId(), refundAmount, roomPayment.cardLast4());
+
+        if (!result.success()) {
+            throw new RuntimeException("Failed to refund no-show for folio " + folio.id() + ": " + result.message());
+        }
+
+        BigDecimal retainedAmount = roomPayment.capturedAmount().subtract(refundAmount);
+
+        folioPaymentRepository.save(new FolioPayment(roomPayment.id(), roomPayment.folioId(), roomPayment.kind(),
+                roomPayment.provider(), roomPayment.stripePaymentIntentId(), roomPayment.cardLast4(), PaymentStatus.PARTIALLY_REFUNDED,
+                roomPayment.authorizedAmount(), retainedAmount, roomPayment.createdAt(), LocalDateTime.now()));
+    }
+
     public record PaymentCaptureResult(FolioPayment room, FolioPayment incidentals, BigDecimal outstandingBalance) {
     }
 }

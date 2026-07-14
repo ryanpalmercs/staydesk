@@ -11,18 +11,25 @@ import java.util.List;
 
 public interface ReservationRepository extends ListCrudRepository<Reservation, Integer> {
 
-    @Query("SELECT * FROM reservations WHERE room_id = :roomId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT')")
-    List<Reservation> findOverlapping(@Param("roomId") int roomId, @Param("checkOut") LocalDate checkOut, @Param("checkIn") LocalDate checkIn);
+    @Query("SELECT * FROM reservations WHERE room_id = :roomId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')")
+    List<Reservation> findOverlapping(@Param("roomId") int roomId, @Param("checkOut") LocalDate checkOut,
+                                      @Param("checkIn") LocalDate checkIn);
 
-    @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT') ORDER BY check_in_date")
+    @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW') ORDER BY check_in_date")
     List<Reservation> findActiveByRoomId(@Param("roomId") int roomId);
 
-    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT')")
-    int countOverlappingByRoomType(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut, @Param("checkIn") LocalDate checkIn);
+    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')")
+    int countOverlappingByRoomType(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut,
+                                   @Param("checkIn") LocalDate checkIn);
 
-    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND id != :excludingReservationId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT')")
-    int countOverlappingByRoomTypeExcludingReservation(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut,
-                                                       @Param("checkIn") LocalDate checkIn, @Param("excludingReservationId") int excludingReservationId);
+    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND id != :excludingReservationId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')")
+    int countOverlappingByRoomTypeExcludingReservation(@Param("roomTypeId") int roomTypeId,
+                                                       @Param("checkOut") LocalDate checkOut,
+                                                       @Param("checkIn") LocalDate checkIn,
+                                                       @Param("excludingReservationId") int excludingReservationId);
+
+    @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND channel = 'PHONE' AND check_in_date < :date")
+    List<Reservation> findNoShowCandidates(@Param("date") LocalDate date);
 
     @Modifying
     @Query("UPDATE reservations SET room_id = :roomId WHERE id = :id")
