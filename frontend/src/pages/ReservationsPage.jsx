@@ -27,7 +27,7 @@ function ReservationsPage() {
     const [reviewFolioId, setReviewFolioId] = useState(null)
     const [doorCodeTarget, setDoorCodeTarget] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
-    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
+    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '' })
     const [error, setError] = useState(null)
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('asc')
@@ -153,6 +153,9 @@ function ReservationsPage() {
                 return false
             }
         }
+        if (filters.confirmationCode && !res.confirmationCode?.includes(filters.confirmationCode.trim())) {
+            return false
+        }
         return true
     })
 
@@ -200,6 +203,10 @@ function ReservationsPage() {
                     <label className="text-muted block text-xs mb-1">Guest</label>
                     <input name="guestName" value={filters.guestName} onChange={handleFilterChange} className="filter-input" />
                 </div>
+                <div>
+                    <label className="text-muted block text-xs mb-1">Confirmation #</label>
+                    <input name="confirmationCode" value={filters.confirmationCode} onChange={handleFilterChange} className="filter-input" />
+                </div>
             </div>
 
             <div className="flex gap-2 mb-6 flex-wrap">
@@ -238,6 +245,7 @@ function ReservationsPage() {
                                 <div className="flex gap-4 text-sm text-muted mb-3">
                                     <span>{room ? `Room ${room.roomNumber}` : `${roomType?.name.replace('_', ' ') ?? 'Room'} (unassigned)`}</span>
                                     <span>{res.checkInDate} → {res.checkOutDate}</span>
+                                    {res.confirmationCode && <span>Conf# {res.confirmationCode}</span>}
                                 </div>
                                 <div className="flex gap-4 justify-end">
                                     {res.status === 'CONFIRMED' && (

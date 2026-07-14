@@ -18,7 +18,7 @@ class NoShowDetectionServiceSpec extends Specification {
     private static Reservation candidate(int id) {
         new Reservation(id, 1, null, 1, LocalDate.now().minusDays(1), LocalDate.now().plusDays(2),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY,
-                1, Reservation.Channel.PHONE, false, LocalDateTime.now(), LocalDateTime.now())
+                1, Reservation.Channel.PHONE, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
     }
 
     def "marks every candidate reservation as a no-show"() {
