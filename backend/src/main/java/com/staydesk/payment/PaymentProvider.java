@@ -5,6 +5,8 @@ import java.math.BigDecimal;
 public interface PaymentProvider {
     AuthResult authorize(BigDecimal amount, String token, String description);
 
+    AuthResult sale(BigDecimal amount, String token, String description);
+
     CaptureResult capture(String authId, BigDecimal amount);
 
     VoidResult void_(String authId);

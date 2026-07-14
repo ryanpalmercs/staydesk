@@ -48,6 +48,22 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
+    public AuthResult sale(BigDecimal amount, String token, String description) {
+        String deviceId = token;
+
+        CpiTransaction request = new CpiTransaction(referenceNumber(), "SALE", amount.toPlainString(),
+                null, null, null, null, null);
+
+        CpiTransaction response = client.sendDeviceMessage(deviceId, request);
+
+        if (!isApproved(response)) {
+            return new AuthResult(false, null, responseMessage(response), null);
+        }
+
+        return new AuthResult(true, authIdFrom(response), null, last4From(response.card()));
+    }
+
+    @Override
     public CaptureResult capture(String authId, BigDecimal amount) {
         CpiTransaction request = new CpiTransaction(referenceNumber(), "PRIORAUTHCOMPLETION", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(authId)), null, null);

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+@Deprecated
 @Service("stripe")
 public class StripePaymentProvider implements PaymentProvider {
 
@@ -61,6 +62,11 @@ public class StripePaymentProvider implements PaymentProvider {
         } catch (StripeException e) {
             return new AuthResult(false, null, e.getMessage(), null);
         }
+    }
+
+    @Override
+    public AuthResult sale(BigDecimal amount, String token, String description) {
+        throw new UnsupportedOperationException("Stripe provider is unused; Authroize.net is the live payment processor");
     }
 
     @Override
