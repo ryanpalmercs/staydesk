@@ -83,7 +83,7 @@ public class RetentionService {
     private LocalDate relevantDate(Reservation reservation) {
         return switch (reservation.status()) {
             case CHECKED_OUT -> reservation.checkOutDate();
-            case CANCELLED -> reservation.updatedAt().toLocalDate();
+            case CANCELLED, NO_SHOW -> reservation.updatedAt().toLocalDate();
             default -> throw new IllegalStateException("Unexpected status: " + reservation.status());
         };
     }

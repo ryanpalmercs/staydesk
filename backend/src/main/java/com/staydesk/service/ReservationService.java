@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -101,6 +102,20 @@ public class ReservationService {
         return totalPeriods;
     }
 
+    private BigDecimal computeFirstNightAmount(Reservation reservation) {
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        BigDecimal baseAmount = switch (reservation.rateType()) {
+            case NIGHTLY -> rate.amount();
+            case WEEKLY_5 -> rate.amount().divide(BigDecimal.valueOf(5), 2, RoundingMode.HALF_UP);
+            case WEEKLY_7 -> rate.amount().divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
+        };
+
+        return folioService.estimateWithTax(baseAmount);
+    }
+
+
     @Transactional
     public Reservation createReservation(Reservation reservation, String roomPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
@@ -130,7 +145,7 @@ public class ReservationService {
 
         Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), null, roomType.id(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.legalHold(), now, now));
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(), now, now));
 
         Folio savedFolio = folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
 
@@ -139,7 +154,9 @@ public class ReservationService {
         BigDecimal estimatedStayAmount = folioService.estimateWithTax(
                 rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
-        paymentService.createRoomHold(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+        if (savedReservation.channel().equals(Reservation.Channel.PHONE)) {
+            paymentService.chargeFullStay(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+        }
 
         if (savedReservation.guestId() != null) {
             guestRepository.findById(savedReservation.guestId())
@@ -193,7 +210,7 @@ public class ReservationService {
 
         Reservation updated = new Reservation(id, reservation.guestId(), existing.roomId(), reservation.roomTypeId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now());
+                reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now());
 
         return reservationRepository.save(updated);
     }
@@ -277,6 +294,18 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        if (reservation.channel().equals(Reservation.Channel.WALK_IN)) {
+            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                      .orElseThrow(RateNotFoundException::new);
+
+            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
+                    BigDecimal.valueOf(
+                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+
+            paymentService.chargeFullStay(folio, stayAmount, "elavon_cpi", device.deviceId());
+        }
+
         paymentService.createIncidentalHold(folio, "elavon_cpi", device.deviceId());
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
@@ -345,7 +374,30 @@ public class ReservationService {
 
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.legalHold(),
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
+                reservation.createdAt(), LocalDateTime.now()));
+    }
+
+    @Transactional
+    public Reservation markNoShow(int id) {
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)
+            || !reservation.channel().equals(Reservation.Channel.PHONE)) {
+            throw new InvalidReservationException();
+        }
+
+        BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
+
+        folioRepository.getFolioByReservationId(reservation.id())
+                       .ifPresent(f -> {
+                           paymentService.refundAllButFirstNight(f, firstNightAmount);
+                           folioRepository.closeFolio(f.id());
+                       });
+
+        return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.NO_SHOW, reservation.checkedInAt(),
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
                 reservation.createdAt(), LocalDateTime.now()));
     }
 

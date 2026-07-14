@@ -5,7 +5,10 @@
       "Bash(curl *)",
       "Bash(stripe events *)",
       "Bash(PLAYWRIGHT_BROWSERS_PATH=/Users/ryan/Library/Caches/ms-playwright node verify_checkin_full.js)",
-      "Read(//Users/ryan/Downloads/**)"
+      "Read(//Users/ryan/Downloads/**)",
+      "Bash(git ls-tree *)",
+      "Bash(git log *)",
+      "Bash(grep -i \"\\\\.java$\")"
     ]
   }
 }

@@ -10,10 +10,12 @@ import CheckInPaymentModal from "../components/CheckInPaymentModal"
 import FolioModal from "../components/FolioModal"
 import DoorCodeModal from "../components/DoorCodeModal"
 import { useAuth } from "../contexts/AuthContext"
+import DeleteReservationModal from "../components/DeleteReservationModal"
 
 function ReservationsPage() {
     const { role } = useAuth()
     const canViewDoorCode = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
+    const canDeleteReservation = role === 'ADMIN'
     const [reservations, setReservations] = useState([])
     const [rooms, setRooms] = useState([])
     const [roomTypes, setRoomTypes] = useState([])
@@ -24,6 +26,7 @@ function ReservationsPage() {
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [reviewFolioId, setReviewFolioId] = useState(null)
     const [doorCodeTarget, setDoorCodeTarget] = useState(null)
+    const [deleteTarget, setDeleteTarget] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '' })
     const [error, setError] = useState(null)
     const [sortKey, setSortKey] = useState('checkInDate')
@@ -250,8 +253,8 @@ function ReservationsPage() {
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
                                     )}
-                                    {(res.status === 'CANCELLED' || res.status === 'CHECKED_OUT') && (
-                                        <button onClick={() => handleDelete(res.id)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
+                                    {canDeleteReservation && (res.status === 'CANCELLED' || res.status === 'CHECKED_OUT' || res.status === 'NO_SHOW') && (
+                                        <button onClick={() => setDeleteTarget(res)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
                                     )}
                                 </div>
                             </div>
@@ -276,9 +279,18 @@ function ReservationsPage() {
                 />
             )}
 
+            {deleteTarget != null && (
+                <DeleteReservationModal
+                    guest={guestMap[deleteTarget.guestId]}
+                    onConfirm={() => handleDelete(deleteTarget.id)}
+                    onClose={() => setDeleteTarget(null)}
+                />
+            )}
+
             {checkInTarget != null && (
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
+                    reservationChannel={reservations.find(r => r.id === checkInTarget)?.channel}
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}

@@ -1,0 +1,91 @@
+package com.staydesk.service
+
+import com.staydesk.exception.FolioPaymentNotFoundException
+import com.staydesk.model.Folio
+import com.staydesk.model.FolioPayment
+import com.staydesk.model.FolioPayment.PaymentKind
+import com.staydesk.model.FolioPayment.PaymentStatus
+import com.staydesk.payment.PaymentProvider
+import com.staydesk.payment.RefundResult
+import com.staydesk.provider.ProviderFactory
+import com.staydesk.repository.FolioPaymentRepository
+import spock.lang.Specification
+
+import java.time.LocalDateTime
+
+class PaymentServiceSpec extends Specification {
+
+    ProviderFactory providerFactory = Mock()
+    FolioPaymentRepository folioPaymentRepository = Mock()
+    PropertySettingsService propertySettingsService = Mock()
+
+    PaymentService paymentService = new PaymentService(providerFactory, folioPaymentRepository, propertySettingsService)
+
+    private static FolioPayment capturedRoomPayment(BigDecimal amount) {
+        new FolioPayment(5, 1, PaymentKind.ROOM, "authorizenet", "txn-1", "4242",
+                PaymentStatus.CAPTURED, amount, amount, LocalDateTime.now(), LocalDateTime.now())
+    }
+
+    def "refunds captured amount minus first night and marks PARTIALLY_REFUNDED"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(300), null, LocalDateTime.now(), LocalDateTime.now())
+        def roomPayment = capturedRoomPayment(BigDecimal.valueOf(300))
+        def provider = Mock(PaymentProvider)
+
+        folioPaymentRepository.findByFolioId(1) >> [roomPayment]
+        providerFactory.getProvider("authorizenet") >> provider
+
+        when:
+        paymentService.refundAllButFirstNight(folio, BigDecimal.valueOf(100))
+
+        then:
+        1 * provider.refund("txn-1", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(200)) == 0 }, "4242") >>
+                new RefundResult(true, "txn-1", "ok")
+        1 * folioPaymentRepository.save({ FolioPayment saved ->
+            saved.status() == PaymentStatus.PARTIALLY_REFUNDED && saved.capturedAmount().compareTo(BigDecimal.valueOf(100)) == 0
+        })
+    }
+
+    def "does not call refund when first-night amount consumes the full captured amount"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+        folioPaymentRepository.findByFolioId(1) >> [capturedRoomPayment(BigDecimal.valueOf(80))]
+
+        when:
+        paymentService.refundAllButFirstNight(folio, BigDecimal.valueOf(100))
+
+        then:
+        0 * providerFactory.getProvider(_)
+        0 * folioPaymentRepository.save(_)
+        0 * folioPaymentRepository.save(_)
+    }
+
+    def "throws when the provider declines the refund"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(300), null, LocalDateTime.now(), LocalDateTime.now())
+        def provider = Mock(PaymentProvider)
+
+        folioPaymentRepository.findByFolioId(1) >> [capturedRoomPayment(BigDecimal.valueOf(300))]
+        providerFactory.getProvider("authorizenet") >> provider
+        provider.refund(*_) >> new RefundResult(false, null, "declined")
+
+        when:
+        paymentService.refundAllButFirstNight(folio, BigDecimal.valueOf(100))
+
+        then:
+        thrown(RuntimeException)
+        0 * folioPaymentRepository.save(_)
+    }
+
+    def "throws FolioPaymentNotFoundException when there's no captured ROOM payment"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(300), null, LocalDateTime.now(), LocalDateTime.now())
+        folioPaymentRepository.findByFolioId(1) >> []
+
+        when:
+        paymentService.refundAllButFirstNight(folio, BigDecimal.valueOf(100))
+
+        then:
+        thrown(FolioPaymentNotFoundException)
+    }
+}

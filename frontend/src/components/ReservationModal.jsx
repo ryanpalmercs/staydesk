@@ -151,7 +151,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         children: 0,
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
-        status: reservation?.status ?? 'CONFIRMED'
+        status: reservation?.status ?? 'CONFIRMED',
+        channel: null
     })
 
     const [guestForm, setGuestForm] = useState({
@@ -298,6 +299,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
+        if (!form.channel) {
+            setError('Please select how this reservation is being booked.')
+            return
+        }
+
         const { adults, children, ...rest } = form
         let submittedForm = { ...rest, rateType, guestCount }
 
@@ -330,6 +336,17 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             if (isEditing) {
                 await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
+                if (form.channel === 'WALK_IN') {
+                    try {
+                        await createReservation({ ...submittedForm, roomPaymentMethodId: null })
+                        onSaved()
+                    } catch (err) {
+                        setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+                    }
+
+                    return
+                }
+
                 if (!paymentReady) {
                     setError('Payment provider is not connected. Check Settings.')
                     return
@@ -415,6 +432,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                         </label>
                                     </div>
                                 )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">How is this being booked?</label>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => setForm({ ...form, channel: 'PHONE' })} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
+                                    <button type="button" onClick={() => setForm({ ...form, channel: 'WALK_IN' })} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

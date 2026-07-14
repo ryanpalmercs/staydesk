@@ -1,5 +1,6 @@
 plugins {
     java
+    groovy
     id("org.springframework.boot") version "3.5.0"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -45,6 +46,7 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.spockframework:spock-core:2.3-groovy-4.0")
 }
 
 tasks.withType<Test> {
