@@ -16,6 +16,6 @@ public record FolioPayment(@Id int id, int folioId, PaymentKind kind, String pro
     }
 
     public enum PaymentStatus {
-        REQUIRES_CAPTURE, CAPTURED, CANCELED, FAILED
+        REQUIRES_CAPTURE, CAPTURED, CANCELED, FAILED, PARTIALLY_REFUNDED
     }
 }

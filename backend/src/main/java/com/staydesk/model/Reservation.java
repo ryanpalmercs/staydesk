@@ -15,7 +15,7 @@ public record Reservation(@Id int id, @Nullable Integer guestId, @Nullable Integ
                           Channel channel, boolean legalHold, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum ReservationStatus {
-        CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED
+        CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, NO_SHOW
     }
 
     public enum Channel {
