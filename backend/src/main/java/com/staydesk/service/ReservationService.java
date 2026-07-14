@@ -139,7 +139,9 @@ public class ReservationService {
         BigDecimal estimatedStayAmount = folioService.estimateWithTax(
                 rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
-        paymentService.createRoomHold(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+        if (savedReservation.channel().equals(Reservation.Channel.PHONE)) {
+            paymentService.chargeFullStay(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+        }
 
         if (savedReservation.guestId() != null) {
             guestRepository.findById(savedReservation.guestId())
@@ -277,6 +279,18 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        if (reservation.channel().equals(Reservation.Channel.WALK_IN)) {
+            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                      .orElseThrow(RateNotFoundException::new);
+
+            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
+                    BigDecimal.valueOf(
+                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+
+            paymentService.chargeFullStay(folio, stayAmount, "elavon_cpi", device.deviceId());
+        }
+
         paymentService.createIncidentalHold(folio, "elavon_cpi", device.deviceId());
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
