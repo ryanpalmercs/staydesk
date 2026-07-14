@@ -20,13 +20,16 @@ import GuestProfilePage from './pages/GuestProfilePage'
 import GuestsPage from './pages/GuestsPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicy'
 import SmsTermsPage from './pages/SmsTermsPage'
+import WelcomePage from './pages/WelcomePage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
+const MARKETING_HOSTNAMES = ['www.martinhousemotel.com', 'martinhousemotel.com']
 
 
 export default function App() {
     const [wakingUp, setWakingUp] = useState(false)
+    const isMarketingHost = MARKETING_HOSTNAMES.includes(window.location.hostname)
 
     useEffect(() => {
         if (HOTJAR_ID) {
@@ -55,30 +58,37 @@ export default function App() {
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                         <Route path="/sms-terms" element={<SmsTermsPage />} />
-                        <Route element={<ProtectedRoute />}>
-                            <Route element={<Layout />}>
-                                <Route path="/" element={<DashboardPage />} />
-                                <Route path="/rooms" element={<RoomsPage />} />
-                                <Route path="/reservations" element={<ReservationsPage />} />
-                                <Route path="/timesheet/:id" element={<TimesheetPage />} />
-                                <Route path="/guest/:id" element={<GuestProfilePage />} />
-                                <Route path="/guests" element={<GuestsPage />} />
-                            </Route>
-                        </Route>
-                        <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
-                            <Route element={<Layout />}>
-                                <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
-                            </Route>
-                        </Route>
-                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                            <Route element={<Layout />}>
-                                <Route path="/employees" element={<EmployeesPage />} />
-                                <Route path="/payroll" element={<PayrollPage />} />
-                                <Route path="/settings" element={<SettingsPage />} />
-                                <Route path="/reports" element={<ReportsPage />} />
-                                <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
-                            </Route>
-                        </Route>
+                        <Route path="/welcome" element={<WelcomePage />} />
+                        {isMarketingHost ? (
+                            <Route path="/" element={<WelcomePage />} />
+                        ) : (
+                            <>
+                                <Route element={<ProtectedRoute />}>
+                                    <Route element={<Layout />}>
+                                        <Route path="/" element={<DashboardPage />} />
+                                        <Route path="/rooms" element={<RoomsPage />} />
+                                        <Route path="/reservations" element={<ReservationsPage />} />
+                                        <Route path="/timesheet/:id" element={<TimesheetPage />} />
+                                        <Route path="/guest/:id" element={<GuestProfilePage />} />
+                                        <Route path="/guests" element={<GuestsPage />} />
+                                    </Route>
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
+                                    <Route element={<Layout />}>
+                                        <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                                    </Route>
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                                    <Route element={<Layout />}>
+                                        <Route path="/employees" element={<EmployeesPage />} />
+                                        <Route path="/payroll" element={<PayrollPage />} />
+                                        <Route path="/settings" element={<SettingsPage />} />
+                                        <Route path="/reports" element={<ReportsPage />} />
+                                        <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
+                                    </Route>
+                                </Route>
+                            </>
+                        )}
                     </Routes>
                 </AuthProvider>
             </BrowserRouter>
