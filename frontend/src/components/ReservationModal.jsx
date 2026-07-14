@@ -429,10 +429,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
 
                             <div>
-                                <Label className="block text-sm text-muted mb-1">How is sthis being booked?</Label>
+                                <label className="block text-sm text-muted mb-1">How is this being booked?</label>
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setForm({ ...form, channel: 'PHONE' })} className={`filter-btn${form.channel === 'PHONE' ? 'active': ''}`}>Phone</button>
-                                    <button type="button" onClick={() => setForm({ ...form, channel: 'WALK_IN' })} className={`filter-btn${form.channel === 'WALK_IN' ? 'active': ''}`}>Walk-In</button>
+                                    <button type="button" onClick={() => setForm({ ...form, channel: 'PHONE' })} className={`filter-btn${form.channel === 'PHONE' ? ' active': ''}`}>Phone</button>
+                                    <button type="button" onClick={() => setForm({ ...form, channel: 'WALK_IN' })} className={`filter-btn${form.channel === 'WALK_IN' ? ' active': ''}`}>Walk-In</button>
                                 </div>
                             </div>
 

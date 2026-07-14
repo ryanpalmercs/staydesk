@@ -66,7 +66,7 @@ public class StripePaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult sale(BigDecimal amount, String token, String description) {
-        throw new UnsupportedOperationException("Stripe provider is unused; Authroize.net is the live payment processor");
+        throw new UnsupportedOperationException("Stripe provider is unused; Authorize.net is the live payment processor");
     }
 
     @Override
