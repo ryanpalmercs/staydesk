@@ -53,6 +53,8 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
 
     List<Reservation> findByGuestId(Integer guestId);
 
+    boolean existsByConfirmationCode(String confirmationCode);
+
     @Modifying
     @Query("UPDATE reservations SET guest_id = NULL WHERE guest_id = :guestId")
     void anonymizeByGuestId(@Param("guestId") Integer guestId);

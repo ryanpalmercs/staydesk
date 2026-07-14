@@ -177,6 +177,7 @@ function GuestProfilePage() {
                                     </div>
                                     <div className="text-sm text-muted">
                                         {res.checkInDate} → {res.checkOutDate}
+                                        {res.confirmationCode && ` · Conf# ${res.confirmationCode}`}
                                     </div>
                                 </div>
                             )
