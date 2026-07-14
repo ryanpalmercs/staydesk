@@ -58,6 +58,31 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
+    public AuthResult sale(BigDecimal amount, String token, String description) {
+        PaymentType paymentType = new PaymentType();
+        paymentType.setOpaqueData(decodeOpaqueData(token));
+
+        TransactionRequestType transactionRequest = new TransactionRequestType();
+        transactionRequest.setTransactionType(TransactionTypeEnum.AUTH_CAPTURE_TRANSACTION.value());
+        transactionRequest.setAmount(amount);
+        transactionRequest.setPayment(paymentType);
+
+        OrderType order = new OrderType();
+        order.setDescription(description);
+        transactionRequest.setOrder(order);
+
+        CreateTransactionResponse response = execute(transactionRequest);
+
+        if (!isSuccessful(response)) {
+            return new AuthResult(false, null, errorMessage(response), null);
+        }
+
+        TransactionResponse transactionResponse = response.getTransactionResponse();
+
+        return new AuthResult(true, transactionResponse.getTransId(), null, last4From(transactionResponse.getAccountNumber()));
+    }
+
+    @Override
     public CaptureResult capture(String authId, BigDecimal amount) {
         TransactionRequestType transactionRequest = new TransactionRequestType();
         transactionRequest.setTransactionType(TransactionTypeEnum.PRIOR_AUTH_CAPTURE_TRANSACTION.value());
@@ -105,7 +130,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
         CreateTransactionResponse response = execute(transactionRequest);
 
         if (!isSuccessful(response)) {
-            return new RefundResult(false, transactionId, null);
+            return new RefundResult(false, transactionId, errorMessage(response));
         }
 
         return new RefundResult(true, response.getTransactionResponse().getTransId(), null);

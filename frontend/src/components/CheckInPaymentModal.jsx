@@ -230,7 +230,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
     )
 }
 
-function CheckInPaymentModal({ reservationId, onConfirm, onConfirmTerminal, onClose }) {
+function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onConfirmTerminal, onClose }) {
     const [step, setStep] = useState('room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
     const [stripePromise, setStripePromise] = useState(null)
@@ -290,7 +290,9 @@ function CheckInPaymentModal({ reservationId, onConfirm, onConfirmTerminal, onCl
                 {step === 'payment' && (
                     <>
                         <p className="text-sm text-muted mb-4">
-                            We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout.
+                            {reservationChannel === 'WALK_IN'
+                                ? "We'll charge the full stay now, then place a small hold for incidentals."
+                                : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
                         </p>
                         {error && <p className="text-sm text-rust mb-4">{error}</p>}
                         {useTerminal && posDevices.length > 0 && (

@@ -212,9 +212,10 @@ function DashboardPage() {
                 />
             )}
 
-            {checkInTarget && (
+            {checkInTarget != null && (
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
+                    reservationChannel={reservations.find(r => r.id === checkInTarget)?.channel}
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
