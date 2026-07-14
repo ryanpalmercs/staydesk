@@ -334,6 +334,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 if (form.channel === 'WALK_IN') {
                     try {
                         await createReservation({ ...submittedForm, roomPaymentMethodId: null })
+                        onSaved()
                     } catch (err) {
                         setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
                     }

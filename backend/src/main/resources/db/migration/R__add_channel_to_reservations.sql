@@ -1,2 +1,0 @@
-ALTER TABLE reservations
-    ADD COLUMN channel VARCHAR NOT NULL DEFAULT 'PHONE';

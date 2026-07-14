@@ -130,7 +130,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
         CreateTransactionResponse response = execute(transactionRequest);
 
         if (!isSuccessful(response)) {
-            return new RefundResult(false, transactionId, null);
+            return new RefundResult(false, transactionId, errorMessage(response));
         }
 
         return new RefundResult(true, response.getTransactionResponse().getTransId(), null);

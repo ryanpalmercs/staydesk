@@ -7,6 +7,7 @@ import com.staydesk.model.FolioPayment.PaymentKind;
 import com.staydesk.model.FolioPayment.PaymentStatus;
 import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
+import com.staydesk.payment.PaymentProvider;
 import com.staydesk.payment.RefundResult;
 import com.staydesk.payment.VoidResult;
 import com.staydesk.provider.ProviderFactory;
@@ -62,12 +63,17 @@ public class PaymentService {
     }
 
     private FolioPayment refundPayment(FolioPayment payment) {
-        RefundResult result = providerFactory.getProvider(payment.provider())
-                                             .refund(payment.stripePaymentIntentId(), payment.capturedAmount(), payment.cardLast4());
+        PaymentProvider provider = providerFactory.getProvider(payment.provider());
 
-        if (!result.success()) {
-            throw new RuntimeException("Failed to refund " + payment.kind() + " payment " + payment.stripePaymentIntentId()
-                                       + ": " + result.message());
+        VoidResult voidResult = provider.void_(payment.stripePaymentIntentId());
+
+        if (!voidResult.success()) {
+            RefundResult refundResult = provider.refund(payment.stripePaymentIntentId(), payment.capturedAmount(), payment.cardLast4());
+
+            if (!refundResult.success()) {
+                throw new RuntimeException("Failed to void or refund " + payment.kind() + " payment " + payment.stripePaymentIntentId()
+                                           + ": " + refundResult.message());
+            }
         }
 
         return folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.kind(),
