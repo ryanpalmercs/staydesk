@@ -7,6 +7,7 @@ import com.staydesk.model.FolioPayment.PaymentKind;
 import com.staydesk.model.FolioPayment.PaymentStatus;
 import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
+import com.staydesk.payment.RefundResult;
 import com.staydesk.payment.VoidResult;
 import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.FolioPaymentRepository;
@@ -50,15 +51,28 @@ public class PaymentService {
         createHold(folio.id(), PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
     }
 
-    public void createRoomHold(Folio folio, BigDecimal estimatedStayAmount, String providerName,
-                               String roomPaymentMethodId) {
-        createHold(folio.id(), PaymentKind.ROOM, providerName, estimatedStayAmount, roomPaymentMethodId, LocalDateTime.now());
+    public void cancelOpenHolds(Folio folio) {
+        folioPaymentRepository.findByFolioId(folio.id()).forEach(payment -> {
+            if (payment.status() == PaymentStatus.REQUIRES_CAPTURE) {
+                cancelHold(payment);
+            } else if (payment.status() == PaymentStatus.CAPTURED) {
+                refundPayment(payment);
+            }
+        });
     }
 
-    public void cancelOpenHolds(Folio folio) {
-        folioPaymentRepository.findByFolioId(folio.id()).stream()
-                              .filter(p -> p.status() == PaymentStatus.REQUIRES_CAPTURE)
-                              .forEach(this::cancelHold);
+    private FolioPayment refundPayment(FolioPayment payment) {
+        RefundResult result = providerFactory.getProvider(payment.provider())
+                                             .refund(payment.stripePaymentIntentId(), payment.capturedAmount(), payment.cardLast4());
+
+        if (!result.success()) {
+            throw new RuntimeException("Failed to refund " + payment.kind() + " payment " + payment.stripePaymentIntentId()
+                                       + ": " + result.message());
+        }
+
+        return folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.kind(),
+                payment.provider(), payment.stripePaymentIntentId(), payment.cardLast4(), PaymentStatus.CANCELED,
+                payment.authorizedAmount(), payment.capturedAmount(), payment.createdAt(), LocalDateTime.now()));
     }
 
     private void createHold(int folioId, PaymentKind kind, String providerName, BigDecimal amount,
