@@ -206,18 +206,6 @@ button:disabled {
     margin-bottom: 0;
 }
 
-.nav-logo {
-    font-family: 'DM Serif Display', serif;
-    font-size: 1.85rem;
-    color: var(--color-cream);
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-}
-
-.nav-logo span {
-    color: var(--color-gold);
-}
-
 @media (min-width: 640px) {
     .filter-bar {
         display: flex;
