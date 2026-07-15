@@ -33,7 +33,7 @@ function RoomPicker({ reservationId, onRoomChosen, onClose }) {
     if (rooms.length === 0) {
         return (
             <div className="flex flex-col gap-4">
-                <p className="text-sm text-rust">No rooms of this type are currently available.</p>
+                <p className="text-sm text-error">No rooms of this type are currently available.</p>
                 <div className="flex justify-end">
                     <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>
                 </div>
@@ -68,7 +68,7 @@ function RoomPicker({ reservationId, onRoomChosen, onClose }) {
 function DoorAccessFailedNotice({ onClose }) {
     return (
         <div className="flex flex-col gap-4">
-            <p className="text-sm text-rust font-medium">Door lock code couldn't be issued</p>
+            <p className="text-sm text-error font-medium">Door lock code couldn't be issued</p>
             <p className="text-sm text-muted">
                 Guest has been checked in, but the smart lock didn't respond. Please give the guest a
                 physical key at the front desk. We'll keep retrying in the background and notify front
@@ -138,7 +138,7 @@ function CheckInPaymentForm({ roomId, onConfirm, onClose, onCheckedIn }) {
                 <CardElement options={stripeCardElementOptions} />
             </div>
 
-            {error && <p className="text-sm text-rust">{error}</p>}
+            {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
                 <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
@@ -216,7 +216,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
                 </p>
             )}
 
-            {error && <p className="text-sm text-rust">{error}</p>}
+            {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
                 <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
@@ -279,7 +279,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">
+                <h2 className="text-lg text-black font-semibold mb-4">
                     {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
                 </h2>
 
@@ -294,7 +294,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                                 ? "We'll charge the full stay now, then place a small hold for incidentals."
                                 : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
                         </p>
-                        {error && <p className="text-sm text-rust mb-4">{error}</p>}
+                        {error && <p className="text-sm text-error mb-4">{error}</p>}
                         {useTerminal && posDevices.length > 0 && (
                             <TerminalCheckInForm
                                 roomId={selectedRoomId}

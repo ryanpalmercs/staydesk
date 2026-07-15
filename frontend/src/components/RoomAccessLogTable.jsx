@@ -2,9 +2,9 @@ import './RoomAccessLogTable.css'
 
 const ACTOR_STYLES = {
     GUEST: 'bg-green-100 text-green-800',
-    STAFF: 'bg-tan text-brown',
+    STAFF: 'bg-tan text-muted',
     UNKNOWN: 'bg-gray-100 text-gray-700',
-    UNAUTHORIZED: 'bg-rust/10 text-rust',
+    UNAUTHORIZED: 'bg-error/10 text-error',
 }
 
 function formatEventTime(isoString) {

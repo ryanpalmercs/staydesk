@@ -35,7 +35,7 @@ function ChangeRoleModal({ employee, onSaved, onClose }) {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">
+                <h2 className="text-lg text-black font-semibold mb-4">
                     Change Role
                 </h2>
 
@@ -50,9 +50,9 @@ function ChangeRoleModal({ employee, onSaved, onClose }) {
                         </select>
                     </div>
 
-                    <p className="text-sm text-charcoal/60">Role changes take effect on the employee's next login.</p>
+                    <p className="text-sm text-black/60">Role changes take effect on the employee's next login.</p>
 
-                    {error && <p className="text-sm text-rust">{error}</p>}
+                    {error && <p className="text-sm text-error">{error}</p>}
 
                     <div className="flex justify-end gap-3 mt-2">
                         <button type="button" onClick={onClose} className="btn btn-secondary">

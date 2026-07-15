@@ -29,12 +29,12 @@ function DoorCode({ reservationId }) {
     }
 
     if (error) {
-        return <p className="text-sm text-rust">Failed to load the door code.</p>
+        return <p className="text-sm text-error">Failed to load the door code.</p>
     }
 
     return (
         <div className="text-center py-2">
-            <p className="text-4xl font-semibold tracking-widest text-charcoal">{passcode.passcode}</p>
+            <p className="text-4xl font-semibold tracking-widest text-black">{passcode.passcode}</p>
             <p className="text-xs text-muted mt-2">
                 Valid until {new Date(passcode.endDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
             </p>

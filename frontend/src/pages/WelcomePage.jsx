@@ -45,8 +45,8 @@ export default function WelcomePage() {
 
                 <div className="bg-warm-white rounded-lg shadow-md p-8 md:p-10 space-y-6">
                     <section>
-                        <h2 className="text-xl font-semibold text-charcoal mb-3">About Us</h2>
-                        <p className="text-charcoal/80 leading-relaxed">
+                        <h2 className="text-xl font-semibold text-black mb-3">About Us</h2>
+                        <p className="text-black/80 leading-relaxed">
                             Martin House Motel is a 27-room motel located in Brookfield, Missouri. We've been
                             serving travelers along Highway 36 with clean, comfortable rooms and friendly
                             service. Whether you're passing through or staying a while, we're happy to have you.
@@ -54,7 +54,7 @@ export default function WelcomePage() {
                     </section>
 
                     <section>
-                        <h2 className="text-xl font-semibold text-charcoal mb-3">Our Rooms</h2>
+                        <h2 className="text-xl font-semibold text-black mb-3">Our Rooms</h2>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             {ROOM_PHOTOS.map(([file, alt], idx) => (
                                 <button
@@ -74,36 +74,36 @@ export default function WelcomePage() {
                     </section>
 
                     <section>
-                        <h2 className="text-xl font-semibold text-charcoal mb-3">Book a Room</h2>
-                        <p className="text-charcoal/80 leading-relaxed mb-3">
+                        <h2 className="text-xl font-semibold text-black mb-3">Book a Room</h2>
+                        <p className="text-black/80 leading-relaxed mb-3">
                             We currently take reservations by phone or in person at the front desk. Give us a
                             call and we'll be glad to help you find a room for your stay.
                         </p>
-                        <p className="text-charcoal/80 leading-relaxed">
-                            <a href="tel:+16602587257" className="text-rust hover:underline font-medium">
+                        <p className="text-black/80 leading-relaxed">
+                            <a href="tel:+16602587257" className="text-green hover:underline font-medium">
                                 (660) 258-7257
                             </a>
                         </p>
                     </section>
 
                     <section>
-                        <h2 className="text-xl font-semibold text-charcoal mb-3">Contact</h2>
-                        <p className="text-charcoal/80 leading-relaxed">
+                        <h2 className="text-xl font-semibold text-black mb-3">Contact</h2>
+                        <p className="text-black/80 leading-relaxed">
                             Martin House Motel<br />
                             731 South Main Street, Brookfield, Missouri 64628<br />
-                            <a href="tel:+16602587257" className="text-rust hover:underline">(660) 258-7257</a><br />
-                            <a href="mailto:martinhousemotel@gmail.com" className="text-rust hover:underline">martinhousemotel@gmail.com</a><br />
-                            <a href="https://www.facebook.com/profile.php?id=61590948650618" target="_blank" rel="noopener noreferrer" className="text-rust hover:underline">
+                            <a href="tel:+16602587257" className="text-green hover:underline">(660) 258-7257</a><br />
+                            <a href="mailto:martinhousemotel@gmail.com" className="text-green hover:underline">martinhousemotel@gmail.com</a><br />
+                            <a href="https://www.facebook.com/profile.php?id=61590948650618" target="_blank" rel="noopener noreferrer" className="text-green hover:underline">
                                 Find us on Facebook
                             </a>
                         </p>
                     </section>
 
                     <section className="pt-2 border-t border-tan">
-                        <p className="text-sm text-charcoal/60">
-                            <a href="/privacy-policy" className="text-rust underline">Privacy Policy</a>
+                        <p className="text-sm text-black/60">
+                            <a href="/privacy-policy" className="text-green underline">Privacy Policy</a>
                             {' '}&middot;{' '}
-                            <a href="/sms-terms" className="text-rust underline">SMS Terms &amp; Conditions</a>
+                            <a href="/sms-terms" className="text-green underline">SMS Terms &amp; Conditions</a>
                         </p>
                     </section>
                 </div>

@@ -9,7 +9,7 @@ export default function SmsTermsPage() {
                     <p className="text-cream/60 mt-1">Effective Date: July 1, 2026</p>
                 </div>
 
-                <div className="bg-warm-white rounded-lg shadow-md p-8 md:p-10 space-y-4 text-charcoal/80 leading-relaxed">
+                <div className="bg-warm-white rounded-lg shadow-md p-8 md:p-10 space-y-4 text-black/80 leading-relaxed">
                     <p>
                         By checking the SMS consent box when making a reservation, you agree to receive SMS text
                         messages from Martin House Motel related to your stay, including:
@@ -30,10 +30,10 @@ export default function SmsTermsPage() {
                     <p>
                         Martin House Motel<br />
                         731 South Main Street, Brookfield, Missouri 64628<br />
-                        <a href="tel:+16602587257" className="text-rust hover:underline">660-258-7257</a> | <a href="mailto:martinhousemotel@gmail.com" className="text-rust hover:underline">martinhousemotel@gmail.com</a>
+                        <a href="tel:+16602587257" className="text-green hover:underline">660-258-7257</a> | <a href="mailto:martinhousemotel@gmail.com" className="text-green hover:underline">martinhousemotel@gmail.com</a>
                     </p>
                     <p>
-                        See our <a href="/privacy-policy" className="text-rust underline">Privacy Policy</a> for how
+                        See our <a href="/privacy-policy" className="text-green underline">Privacy Policy</a> for how
                         we handle your personal information more broadly.
                     </p>
                 </div>
