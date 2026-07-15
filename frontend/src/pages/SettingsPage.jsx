@@ -29,7 +29,7 @@ function RateRow({ rate, onChange }) {
 
     return (
         <div className="flex items-center gap-3">
-            <span className="text-sm text-charcoal flex-1">
+            <span className="text-sm text-black flex-1">
                 {RATE_TYPE_LABELS[rate.rateType] ?? rate.rateType} — {rate.guestCount} guest{rate.guestCount === 1 ? '' : 's'}
             </span>
             <input
@@ -329,7 +329,7 @@ function SettingsPage() {
             <h1 className="section-title">Settings</h1>
 
             {STRIPE_SETTINGS_ENABLED && error === 'stripe_connect_failed' && (
-                <p className="text-rust text-sm mb-6">Failed to connect Stripe account. Please try again.</p>
+                <p className="text-error text-sm mb-6">Failed to connect Stripe account. Please try again.</p>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -401,7 +401,7 @@ function SettingsPage() {
                         ) : connected ? (
                             <div className="mt-4">
                                 <p className="text-sm text-muted mb-3">
-                                    Connected account: <span className="font-medium text-charcoal">{accountId}</span>
+                                    Connected account: <span className="font-medium text-black">{accountId}</span>
                                 </p>
                                 <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
                             </div>
@@ -425,10 +425,10 @@ function SettingsPage() {
                     ) : sifelyConnected ? (
                         <div className="mt-4">
                             <p className="text-sm text-muted mb-3">
-                                Client ID: <span className="font-medium text-charcoal">{sifelyClientId}</span>
+                                Client ID: <span className="font-medium text-black">{sifelyClientId}</span>
                             </p>
                             <p className="text-sm text-muted mb-3">
-                                Connected: <span className="font-medium text-charcoal">{new Date(sifelyConnectedAt).toLocaleString()}</span>
+                                Connected: <span className="font-medium text-black">{new Date(sifelyConnectedAt).toLocaleString()}</span>
                             </p>
                             <button onClick={handleSifelyDisconnect} className="btn-secondary">Disconnect</button>
                         </div>
@@ -450,7 +450,7 @@ function SettingsPage() {
                                 <label className="block text-sm text-muted mb-1">Client Secret</label>
                                 <input type="password" name="clientSecret" value={sifelyForm.clientSecret} onChange={handleSifelyFieldChange} className="filter-input" required />
                             </div>
-                            {sifelyError && <p className="text-sm text-rust">{sifelyError}</p>}
+                            {sifelyError && <p className="text-sm text-error">{sifelyError}</p>}
                             <button type="submit" className="btn-primary self-start" disabled={sifelyConnecting}>
                                 {sifelyConnecting ? 'Connecting...' : 'Connect Sifely Account'}
                             </button>
@@ -465,7 +465,7 @@ function SettingsPage() {
                             <RoomTypeRow key={roomType.id} roomType={roomType} onChange={handleRoomTypeChange} />
                         ))}
                     </div>
-                    {roomTypesError && <p className="text-sm text-rust mt-2">{roomTypesError}</p>}
+                    {roomTypesError && <p className="text-sm text-error mt-2">{roomTypesError}</p>}
                     <button className="btn-primary mt-4" onClick={handleSaveRoomTypes} disabled={!roomTypesDirty || roomTypesSaving}>
                         {roomTypesSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -480,7 +480,7 @@ function SettingsPage() {
                         <input name="friendlyName" placeholder="Name (max 12 chars)" maxLength={12} value={pairForm.friendlyName} onChange={handlePairFieldChange} className="filter-input" required />
                         <input name="location" placeholder="Location (optional)" maxLength={16} value={pairForm.location} onChange={handlePairFieldChange} className="filter-input" />
                     </form>
-                    {pairError && <p className="text-sm text-rust mt-2">{pairError}</p>}
+                    {pairError && <p className="text-sm text-error mt-2">{pairError}</p>}
                     <button onClick={handlePairDevice} className="btn-primary mt-2" disabled={pairing}>
                         {pairing ? 'Pairing...' : 'Pair Terminal'}
                     </button>
@@ -488,8 +488,8 @@ function SettingsPage() {
                     <div className="flex flex-col gap-2 mt-4">
                         {posDevices.map(device => (
                             <div key={device.id} className="flex items-center justify-between">
-                                <span className="text-sm text-charcoal">{device.friendlyName}{device.location ? ` — ${device.location}` : ''}</span>
-                                <button onClick={() => handleUnpairDevice(device.id)} className="text-sm font-medium text-muted hover:text-rust">Unpair</button>
+                                <span className="text-sm text-black">{device.friendlyName}{device.location ? ` — ${device.location}` : ''}</span>
+                                <button onClick={() => handleUnpairDevice(device.id)} className="text-sm font-medium text-muted hover:text-green">Unpair</button>
                             </div>
                         ))}
                     </div>

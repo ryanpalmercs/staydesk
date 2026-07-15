@@ -104,11 +104,11 @@ export default function PayrollPage() {
             </div>
 
             <div className="flex items-center justify-between mb-6">
-                <button onClick={() => setWeekStart(d => { const p = new Date(d); p.setDate(d.getDate() - 7); return p })} className="text-brown hover:text-rust">
+                <button onClick={() => setWeekStart(d => { const p = new Date(d); p.setDate(d.getDate() - 7); return p })} className="text-muted hover:text-green">
                     <ChevronLeft size={20} />
                 </button>
-                <span className="font-medium text-charcoal">{formatWeekRange(weekStart)}</span>
-                <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })} className="text-brown hover:text-rust">
+                <span className="font-medium text-black">{formatWeekRange(weekStart)}</span>
+                <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })} className="text-muted hover:text-green">
                     <ChevronRight size={20} />
                 </button>
             </div>
@@ -136,7 +136,7 @@ export default function PayrollPage() {
                                     onClick={() => navigate(`/timesheet/${emp.id}`)}
                                     className="border-b last:border-0 cursor-pointer hover:bg-gray-50"
                                 >
-                                    <td className="py-3 font-medium text-charcoal">{emp.name}</td>
+                                    <td className="py-3 font-medium text-black">{emp.name}</td>
                                     <td className="py-3">{daysWorked}</td>
                                     <td className="py-3">{totalHours.toFixed(2)} hrs</td>
                                     <td className="py-3">{displayPrice(emp.payRate)}/{emp.payRateTypeDisplayName}</td>
@@ -145,7 +145,7 @@ export default function PayrollPage() {
                             ))}
                         </tbody>
                         <tfoot>
-                            <tr className="font-semibold text-charcoal">
+                            <tr className="font-semibold text-black">
                                 <td colSpan={4} className="pt-3">Total Est. Payroll</td>
                                 <td className="pt-3">{displayPrice(grandTotal)}</td>
                             </tr>
@@ -154,7 +154,7 @@ export default function PayrollPage() {
                 </div>
             )}
 
-            {error && <p className="text-rust text-sm mt-2">{error}</p>}
+            {error && <p className="text-error text-sm mt-2">{error}</p>}
         </div>
     )
 }

@@ -31,15 +31,15 @@ export default function DoorAccessToast() {
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
             {notifications.map(n => (
                 <div key={n.lockPasscodeId} className="bg-warm-white border-l-4 border-green-600 rounded-lg shadow-lg p-4">
-                    <p className="text-sm font-medium text-charcoal">Door code issued — Room {n.roomNumber}</p>
-                    <p className="text-2xl font-semibold tracking-widest text-charcoal mt-2">{n.passcode}</p>
+                    <p className="text-sm font-medium text-black">Door code issued — Room {n.roomNumber}</p>
+                    <p className="text-2xl font-semibold tracking-widest text-black mt-2">{n.passcode}</p>
                     <p className="text-xs text-muted mt-1">
                         Resolved {new Date(n.resolvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <div className="flex justify-end mt-2">
                         <button
                             onClick={() => handleDismiss(n.lockPasscodeId)}
-                            className="text-sm font-medium text-rust hover:text-rust-light"
+                            className="text-sm font-medium text-green hover:text-black"
                         >
                             Dismiss
                         </button>

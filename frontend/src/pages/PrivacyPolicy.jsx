@@ -59,7 +59,7 @@ const sections = [
                 stay (door access codes, check-in/checkout confirmations, reservation reminders). SMS consent is
                 never required to book or complete a reservation. Full terms, message frequency, and opt-out
                 instructions are in our{' '}
-                <a href="/sms-terms" className="text-rust underline">SMS Terms &amp; Conditions</a>.
+                <a href="/sms-terms" className="text-green underline">SMS Terms &amp; Conditions</a>.
             </p>
         ),
     },
@@ -82,7 +82,7 @@ const sections = [
                 <p className="mb-3">
                     We retain guest registration records for a minimum of three (3) years from the date of
                     checkout as required by Missouri law (Section{' '}
-                    <a href={MO_315_015_URL} className="text-rust underline" target="_blank" rel="noopener noreferrer">
+                    <a href={MO_315_015_URL} className="text-green underline" target="_blank" rel="noopener noreferrer">
                         315.015, RSMo
                     </a>
                     ). Financial transaction records are retained for a minimum of three (3) years for tax
@@ -118,7 +118,7 @@ const sections = [
                     While we take reasonable precautions, no method of data transmission or storage is 100%
                     secure. In the event of a data breach affecting your personal information, we will notify
                     you as required by Missouri Revised Statutes Section{' '}
-                    <a href={MO_407_1500_URL} className="text-rust underline" target="_blank" rel="noopener noreferrer">
+                    <a href={MO_407_1500_URL} className="text-green underline" target="_blank" rel="noopener noreferrer">
                         407.1500
                     </a>
                     .
@@ -165,7 +165,7 @@ const sections = [
         body: (
             <p>
                 As required by Missouri law (Section{' '}
-                <a href={MO_315_015_URL} className="text-rust underline" target="_blank" rel="noopener noreferrer">
+                <a href={MO_315_015_URL} className="text-green underline" target="_blank" rel="noopener noreferrer">
                     315.015, RSMo
                 </a>
                 ), we are required to collect and retain certain guest registration information including
@@ -201,26 +201,23 @@ const CONTACT_SECTION = { id: 'contact-us', title: '13. Contact Us' };
 
 export default function PrivacyPolicyPage() {
     return (
-        <div className="min-h-screen bg-cream">
+        <div className="min-h-screen bg-black">
             <div className="max-w-3xl mx-auto px-6 py-16">
                 <div className="mb-10 text-center">
-                    <div className="nav-logo inline-block mb-6" style={{ color: 'var(--color-brown)' }}>
-                        Stay<span>Desk</span>
-                    </div>
                     <p className="section-eyebrow">Privacy Policy</p>
-                    <h1 className="section-title text-3xl md:text-4xl mb-2 mx-auto">Martin House Motel</h1>
-                    <p className="text-charcoal/60">
+                    <h1 className="welcome-title text-3xl md:text-4xl mb-2 mx-auto">Martin House Motel</h1>
+                    <p className="text-cream/60">
                         731 South Main Street, Brookfield, Missouri 64628
                     </p>
-                    <p className="text-charcoal/60 mt-1">Effective Date: July 1, 2026</p>
+                    <p className="text-cream/60 mt-1">Effective Date: July 1, 2026</p>
                 </div>
 
                 <nav className="bg-warm-white rounded-lg shadow-md p-6 mb-6">
-                    <p className="text-sm font-semibold text-charcoal mb-3">Contents</p>
+                    <p className="text-sm font-semibold text-black mb-3">Contents</p>
                     <ol className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
                         {[...sections, CONTACT_SECTION].map((section) => (
                             <li key={section.id}>
-                                <a href={`#${section.id}`} className="text-rust hover:underline">
+                                <a href={`#${section.id}`} className="text-green hover:underline">
                                     {section.title}
                                 </a>
                             </li>
@@ -231,25 +228,25 @@ export default function PrivacyPolicyPage() {
                 <div className="bg-warm-white rounded-lg shadow-md p-8 md:p-10 space-y-8">
                     {sections.map((section) => (
                         <section key={section.id} id={section.id}>
-                            <h2 className="text-xl font-semibold text-charcoal mb-3">{section.title}</h2>
-                            <div className="text-charcoal/80 leading-relaxed">{section.body}</div>
+                            <h2 className="text-xl font-semibold text-black mb-3">{section.title}</h2>
+                            <div className="text-black/80 leading-relaxed">{section.body}</div>
                         </section>
                     ))}
 
                     <section id={CONTACT_SECTION.id}>
-                        <h2 className="text-xl font-semibold text-charcoal mb-3">{CONTACT_SECTION.title}</h2>
-                        <p className="text-charcoal/80 leading-relaxed mb-1">
+                        <h2 className="text-xl font-semibold text-black mb-3">{CONTACT_SECTION.title}</h2>
+                        <p className="text-black/80 leading-relaxed mb-1">
                             If you have questions about this Privacy Policy or how we handle your information:
                         </p>
-                        <p className="text-charcoal/80 leading-relaxed">
+                        <p className="text-black/80 leading-relaxed">
                             Martin House Motel<br />
                             731 South Main Street, Brookfield, Missouri 64628<br />
-                            <a href="tel:+16602587257" className="text-rust hover:underline">660-258-7257</a> | <a href="mailto:martinhousemotel@gmail.com" className="text-rust hover:underline">martinhousemotel@gmail.com</a>
+                            <a href="tel:+16602587257" className="text-green hover:underline">660-258-7257</a> | <a href="mailto:martinhousemotel@gmail.com" className="text-green hover:underline">martinhousemotel@gmail.com</a>
                         </p>
                     </section>
                 </div>
 
-                <p className="text-center text-charcoal/50 text-sm mt-8">
+                <p className="text-center text-cream/50 text-sm mt-8">
                     Powered by StayDesk | StayDesk is licensed under the Business Source License 1.1
                 </p>
             </div>

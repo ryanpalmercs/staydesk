@@ -237,7 +237,7 @@ function ReservationsPage() {
                         return (
                             <div key={res.id} className="feat-card">
                                 <div className="flex items-start justify-between gap-4 mb-2">
-                                    <span className="font-semibold text-charcoal">
+                                    <span className="font-semibold text-black">
                                         {guest ? `${guest.firstName} ${guest.lastName}` : res.guestId}
                                     </span>
                                     <StatusBadge status={res.status} />
@@ -249,20 +249,20 @@ function ReservationsPage() {
                                 </div>
                                 <div className="flex gap-4 justify-end">
                                     {res.status === 'CONFIRMED' && (
-                                        <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check In</button>
+                                        <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-green hover:text-black">Check In</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && (
-                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check Out</button>
+                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-green hover:text-black">Check Out</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && canViewDoorCode && (
-                                        <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-brown hover:text-rust">Door Code</button>
+                                        <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-muted hover:text-green">Door Code</button>
                                     )}
-                                    <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust">Edit</button>
+                                    <button onClick={() => openEdit(res)} className="text-sm font-medium text-muted hover:text-green">Edit</button>
                                     {res.status === 'CONFIRMED' && (
-                                        <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
+                                        <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-green">Cancel</button>
                                     )}
                                     {canDeleteReservation && (res.status === 'CANCELLED' || res.status === 'CHECKED_OUT' || res.status === 'NO_SHOW') && (
-                                        <button onClick={() => setDeleteTarget(res)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
+                                        <button onClick={() => setDeleteTarget(res)} className="text-sm font-medium text-muted hover:text-green">Delete</button>
                                     )}
                                 </div>
                             </div>

@@ -80,7 +80,7 @@ function RoomsPage() {
                         {displayed.map(room => (
                             <div key={room.id} className="feat-card flex flex-col gap-3">
                                 <div className="flex items-center justify-between">
-                                    <span className="font-semibold text-charcoal">Room {room.roomNumber}</span>
+                                    <span className="font-semibold text-black">Room {room.roomNumber}</span>
                                     <div className="flex items-center gap-2">
                                         {room.status === 'MAINTENANCE' && room.maintenanceNote && (
                                             <button
@@ -101,10 +101,10 @@ function RoomsPage() {
                                 )}
                                 <div className="flex gap-3 justify-end">
                                     {role === 'ADMIN' && room.sifelyLockId != null && (
-                                        <button onClick={() => setAccessLogRoom(room)} className="text-brown hover:text-rust text-sm font-medium">Access Log</button>
+                                        <button onClick={() => setAccessLogRoom(room)} className="text-muted hover:text-green text-sm font-medium">Access Log</button>
                                     )}
-                                    <button onClick={() => openEdit(room)} className="text-brown hover:text-rust text-sm font-medium">Edit</button>
-                                    <button onClick={() => handleDelete(room.id)} className="text-muted hover:text-rust text-sm font-medium">Delete</button>
+                                    <button onClick={() => openEdit(room)} className="text-muted hover:text-green text-sm font-medium">Edit</button>
+                                    <button onClick={() => handleDelete(room.id)} className="text-muted hover:text-green text-sm font-medium">Delete</button>
                                 </div>
                             </div>
                         ))}

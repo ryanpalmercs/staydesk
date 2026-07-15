@@ -21,11 +21,11 @@ function DeleteReservationModal({ guest, onClose, onConfirm }) {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-sm shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">Delete Reservation</h2>
+                <h2 className="text-lg text-black font-semibold mb-4">Delete Reservation</h2>
 
                 <p className="text-sm text-muted mb-3">
                     This permanently deletes the reservation and its folio/payment history. Type{' '}
-                    <span className="font-semibold text-charcoal">{requiredText}</span> to confirm.
+                    <span className="font-semibold text-black">{requiredText}</span> to confirm.
                 </p>
 
                 <input
@@ -35,7 +35,7 @@ function DeleteReservationModal({ guest, onClose, onConfirm }) {
                     className="filter-input w-full mb-3"
                 />
 
-                {error && <p className="text-sm text-rust mb-3">{error}</p>}
+                {error && <p className="text-sm text-error mb-3">{error}</p>}
 
                 <div className="flex justify-end gap-2">
                     <button onClick={onClose} className="btn btn-secondary">Cancel</button>

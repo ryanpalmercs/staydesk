@@ -43,7 +43,7 @@ export default function HousekeepingDashboardPage() {
             <div style={{ marginTop: '2rem' }}>
                 <h2 className="section-title" style={{ fontSize: '1.1rem' }}>Checkouts Today</h2>
                 {todayCheckOuts.length === 0 ? (
-                    <p className="text-sm text-charcoal/60">No checkouts today.</p>
+                    <p className="text-sm text-black/60">No checkouts today.</p>
                 ) : (
                     <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {todayCheckOuts.map(r => (

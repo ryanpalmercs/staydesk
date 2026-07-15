@@ -154,11 +154,11 @@ function CardBrandIcon({ brand }) {
 function CardInvalidIcon() {
     return (
         <svg viewBox="0 0 32 20" className="w-8 h-5 flex-shrink-0" aria-label="Invalid card">
-            <rect x="0.5" y="0.5" width="31" height="19" rx="2.5" fill="none" stroke="var(--color-rust)" />
-            <rect x="4" y="6" width="7" height="5" rx="1" fill="var(--color-rust)" opacity="0.4" />
-            <rect x="14" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-rust)" opacity="0.4" />
-            <rect x="19" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-rust)" opacity="0.4" />
-            <rect x="24" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-rust)" opacity="0.4" />
+            <rect x="0.5" y="0.5" width="31" height="19" rx="2.5" fill="none" stroke="var(--color-black)" />
+            <rect x="4" y="6" width="7" height="5" rx="1" fill="var(--color-black)" opacity="0.4" />
+            <rect x="14" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-black)" opacity="0.4" />
+            <rect x="19" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-black)" opacity="0.4" />
+            <rect x="24" y="14" width="4" height="1.5" rx="0.75" fill="var(--color-black)" opacity="0.4" />
         </svg>
     )
 }
@@ -166,7 +166,7 @@ function CardInvalidIcon() {
 function CardErrorBadge() {
     return (
         <svg viewBox="0 0 20 20" className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5" aria-label="Invalid card number">
-            <circle cx="10" cy="10" r="9" fill="var(--color-rust)" />
+            <circle cx="10" cy="10" r="9" fill="var(--color-black)" />
             <rect x="9" y="4.5" width="2" height="7" rx="1" fill="#fff" />
             <circle cx="10" cy="14.5" r="1.2" fill="#fff" />
         </svg>
@@ -286,7 +286,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                     }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className={`flex-1 min-w-0 outline-none bg-transparent text-base ${cardNumberInvalid ? 'text-rust' : ''}`}
+                    className={`flex-1 min-w-0 outline-none bg-transparent text-base ${cardNumberInvalid ? 'text-error' : ''}`}
                     required
                 />
                 <input
@@ -307,7 +307,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                     }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className={`w-14 outline-none bg-transparent text-base ${expiryInvalid ? 'text-rust' : ''}`}
+                    className={`w-14 outline-none bg-transparent text-base ${expiryInvalid ? 'text-error' : ''}`}
                     required
                 />
                 <input
@@ -340,7 +340,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                 )}
             </div>
 
-            {error && <p className="text-sm text-rust">{error}</p>}
+            {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
                 {onCancel && (

@@ -194,7 +194,7 @@ export default function TimesheetPage() {
         <div>
             <div className="page-header mb-6">
                 <div>
-                    <button onClick={() => navigate(-1)} className="text-muted hover:text-rust text-sm mb-1 flex items-center gap-1">
+                    <button onClick={() => navigate(-1)} className="text-muted hover:text-green text-sm mb-1 flex items-center gap-1">
                         <ChevronLeft size={14} /> Back
                     </button>
                     <h1 className="section-title">
@@ -217,7 +217,7 @@ export default function TimesheetPage() {
                             : <span>Currently clocked out</span>
                         }
                     </div>
-                    {clockError && <p className="text-rust text-sm">{clockError}</p>}
+                    {clockError && <p className="text-error text-sm">{clockError}</p>}
                     {isClockedIn
                         ? <button onClick={handleClockOut} disabled={submitting} className="btn btn-primary px-8 py-3 text-lg">Clock Out</button>
                         : <button onClick={handleClockIn} disabled={submitting} className="btn btn-primary px-8 py-3 text-lg">Clock In</button>
@@ -226,11 +226,11 @@ export default function TimesheetPage() {
             )}
 
             <div className="flex items-center justify-between mb-4">
-                <button onClick={() => setWeekStart(d => { const p = new Date(d); p.setDate(d.getDate() - 7); return p })} className="text-brown hover:text-rust">
+                <button onClick={() => setWeekStart(d => { const p = new Date(d); p.setDate(d.getDate() - 7); return p })} className="text-muted hover:text-green">
                     <ChevronLeft size={20} />
                 </button>
-                <span className="font-medium text-charcoal">{formatWeekRange(weekStart)}</span>
-                <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })} className="text-brown hover:text-rust">
+                <span className="font-medium text-black">{formatWeekRange(weekStart)}</span>
+                <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })} className="text-muted hover:text-green">
                     <ChevronRight size={20} />
                 </button>
             </div>
@@ -263,8 +263,8 @@ export default function TimesheetPage() {
                                     {isAdmin && (
                                         <td className="py-2">
                                             <div className="flex gap-3 justify-end">
-                                                <button onClick={() => openEdit(entry)} className="text-brown hover:text-rust"><Pencil size={14} /></button>
-                                                <button onClick={() => handleDelete(entry.id)} className="text-muted hover:text-rust"><Trash2 size={14} /></button>
+                                                <button onClick={() => openEdit(entry)} className="text-muted hover:text-green"><Pencil size={14} /></button>
+                                                <button onClick={() => handleDelete(entry.id)} className="text-muted hover:text-green"><Trash2 size={14} /></button>
                                             </div>
                                         </td>
                                     )}
@@ -272,7 +272,7 @@ export default function TimesheetPage() {
                             ))}
                         </tbody>
                         <tfoot>
-                            <tr className="font-semibold text-charcoal">
+                            <tr className="font-semibold text-black">
                                 <td colSpan={3} className="pt-3">Total</td>
                                 <td className="pt-3">{totalHours.toFixed(2)} hrs</td>
                                 <td colSpan={isAdmin ? 2 : 1} />
@@ -285,7 +285,7 @@ export default function TimesheetPage() {
             {modal === 'entry' && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setModal(null)}>
                     <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-lg text-charcoal font-semibold mb-4">{selectedEntry ? 'Edit Time Entry' : 'Add Time Entry'}</h2>
+                        <h2 className="text-lg text-black font-semibold mb-4">{selectedEntry ? 'Edit Time Entry' : 'Add Time Entry'}</h2>
                         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                             <div>
                                 <label className="block text-sm text-muted mb-1">Date</label>
