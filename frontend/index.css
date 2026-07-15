@@ -113,6 +113,15 @@ body {
     margin-bottom: 2.5rem;
 }
 
+.welcome-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(4.5rem, 3.5vw, 2.25rem);
+    color: var(--color-cream);
+    line-height: 1.25;
+    max-width: 700px;
+    margin-bottom: 2.5rem;
+}
+
 input,
 select,
 textarea,
@@ -195,6 +204,18 @@ button:disabled {
 
 .page-header .section-title {
     margin-bottom: 0;
+}
+
+.nav-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.85rem;
+    color: var(--color-cream);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.nav-logo span {
+    color: var(--color-gold);
 }
 
 @media (min-width: 640px) {
