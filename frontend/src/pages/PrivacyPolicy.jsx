@@ -201,18 +201,15 @@ const CONTACT_SECTION = { id: 'contact-us', title: '13. Contact Us' };
 
 export default function PrivacyPolicyPage() {
     return (
-        <div className="min-h-screen bg-cream">
+        <div className="min-h-screen bg-black">
             <div className="max-w-3xl mx-auto px-6 py-16">
                 <div className="mb-10 text-center">
-                    <div className="nav-logo inline-block mb-6" style={{ color: 'var(--color-black)' }}>
-                        Stay<span>Desk</span>
-                    </div>
                     <p className="section-eyebrow">Privacy Policy</p>
-                    <h1 className="section-title text-3xl md:text-4xl mb-2 mx-auto">Martin House Motel</h1>
-                    <p className="text-charcoal/60">
+                    <h1 className="welcome-title text-3xl md:text-4xl mb-2 mx-auto">Martin House Motel</h1>
+                    <p className="text-cream/60">
                         731 South Main Street, Brookfield, Missouri 64628
                     </p>
-                    <p className="text-charcoal/60 mt-1">Effective Date: July 1, 2026</p>
+                    <p className="text-cream/60 mt-1">Effective Date: July 1, 2026</p>
                 </div>
 
                 <nav className="bg-warm-white rounded-lg shadow-md p-6 mb-6">
@@ -249,7 +246,7 @@ export default function PrivacyPolicyPage() {
                     </section>
                 </div>
 
-                <p className="text-center text-charcoal/50 text-sm mt-8">
+                <p className="text-center text-cream/50 text-sm mt-8">
                     Powered by StayDesk | StayDesk is licensed under the Business Source License 1.1
                 </p>
             </div>

@@ -1,15 +1,12 @@
 export default function SmsTermsPage() {
     return (
-        <div className="min-h-screen bg-cream">
+        <div className="min-h-screen bg-black">
             <div className="max-w-2xl mx-auto px-6 py-16">
                 <div className="mb-10 text-center">
-                    <div className="nav-logo inline-block mb-6" style={{ color: 'var(--color-black)' }}>
-                        Stay<span>Desk</span>
-                    </div>
                     <p className="section-eyebrow">SMS Terms &amp; Conditions</p>
-                    <h1 className="section-title text-3xl md:text-4xl mb-2 mx-auto">Martin House Motel</h1>
-                    <p className="text-charcoal/60">731 South Main Street, Brookfield, Missouri 64628</p>
-                    <p className="text-charcoal/60 mt-1">Effective Date: July 1, 2026</p>
+                    <h1 className="welcome-title text-3xl md:text-4xl mb-2 mx-auto">Martin House Motel</h1>
+                    <p className="text-cream/60">731 South Main Street, Brookfield, Missouri 64628</p>
+                    <p className="text-cream/60 mt-1">Effective Date: July 1, 2026</p>
                 </div>
 
                 <div className="bg-warm-white rounded-lg shadow-md p-8 md:p-10 space-y-4 text-charcoal/80 leading-relaxed">
@@ -41,7 +38,7 @@ export default function SmsTermsPage() {
                     </p>
                 </div>
 
-                <p className="text-center text-charcoal/50 text-sm mt-8">
+                <p className="text-center text-cream/50 text-sm mt-8">
                     Powered by StayDesk | StayDesk is licensed under the Business Source License 1.1
                 </p>
             </div>

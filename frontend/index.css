@@ -113,6 +113,15 @@ body {
     margin-bottom: 2.5rem;
 }
 
+.welcome-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(4.5rem, 3.5vw, 2.25rem);
+    color: var(--color-cream);
+    line-height: 1.25;
+    max-width: 700px;
+    margin-bottom: 2.5rem;
+}
+
 input,
 select,
 textarea,
