@@ -286,7 +286,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                     }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className={`flex-1 min-w-0 outline-none bg-transparent text-base ${cardNumberInvalid ? 'text-rust' : ''}`}
+                    className={`flex-1 min-w-0 outline-none bg-transparent text-base ${cardNumberInvalid ? 'text-error' : ''}`}
                     required
                 />
                 <input
@@ -307,7 +307,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                     }}
                     inputMode="numeric"
                     autoComplete="off"
-                    className={`w-14 outline-none bg-transparent text-base ${expiryInvalid ? 'text-rust' : ''}`}
+                    className={`w-14 outline-none bg-transparent text-base ${expiryInvalid ? 'text-error' : ''}`}
                     required
                 />
                 <input
@@ -340,7 +340,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
                 )}
             </div>
 
-            {error && <p className="text-sm text-rust">{error}</p>}
+            {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
                 {onCancel && (

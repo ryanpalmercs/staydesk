@@ -49,7 +49,7 @@ function CardCaptureForm({ onCapture, onCancel }) {
             <div className="filter-input">
                 <CardElement options={stripeCardElementOptions} />
             </div>
-            {error && <p className="text-sm text-rust">{error}</p>}
+            {error && <p className="text-sm text-error">{error}</p>}
             <div className="flex justify-end gap-3 mt-2">
                 <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>Back</button>
                 <button type="submit" className="btn btn-primary" disabled={!stripe || submitting}>
@@ -386,7 +386,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg shadow-lg border-t-4 border-rust w-full max-w-md sm:max-w-3xl max-h-[90vh] flex flex-col">
-                <h2 className="text-lg text-charcoal font-semibold px-6 pt-6 pb-4">
+                <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
                     {step === 'payment' ? 'Card Details' : isEditing ? 'Edit Reservation' : 'New Reservation'}
                 </h2>
 
@@ -396,7 +396,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <div>
                                 <div className="flex items-baseline gap-2">
                                     <label className="text-sm text-muted">Guest</label>
-                                    <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-rust hover:text-rust-light">
+                                    <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-green hover:text-black">
                                         {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
                                     </button>
                                 </div>
@@ -405,7 +405,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                         items={guests}
                                         selectedId={form.guestId}
                                         itemLabel={g => `${g.firstName} ${g.lastName}`}
-                                        renderBadge={g => g.flagged && <span className="text-xs text-rust font-medium">Flagged</span>}
+                                        renderBadge={g => g.flagged && <span className="text-xs text-error font-medium">Flagged</span>}
                                         onSelect={guestId => setForm({ ...form, guestId })}
                                         placeholder="Search guests..."
                                     />
@@ -427,7 +427,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                             <span>
                                                 I agree to receive SMS text messages from Martin House Motel about this reservation (door codes,
                                                 check-in/checkout confirmations). Message and data rates may apply. Reply STOP to opt out, HELP for
-                                                help. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-rust underline">SMS Terms</a>.
+                                                help. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-green underline">SMS Terms</a>.
                                             </span>
                                         </label>
                                     </div>
@@ -491,7 +491,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
                             {canAddExtras && (
                                 <div>
-                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-rust hover:text-rust-light">
+                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-green hover:text-black">
                                         {showExtras ? 'Hide Extras' : 'Add Extras'}
                                     </button>
 
@@ -520,9 +520,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </div>
 
                         <div className="flex flex-col gap-3 px-6 py-4 border-t border-tan flex-shrink-0">
-                            {estimate && <p className="text-sm text-charcoal font-medium">Grand Total: ${estimate.total.toFixed(2)}</p>}
+                            {estimate && <p className="text-sm text-black font-medium">Grand Total: ${estimate.total.toFixed(2)}</p>}
 
-                            {error && <p className="text-sm text-rust">{error}</p>}
+                            {error && <p className="text-sm text-error">{error}</p>}
 
                             <div className="flex justify-end gap-3">
                                 <button type="button" onClick={onClose} className="btn btn-secondary">

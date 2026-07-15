@@ -110,18 +110,18 @@ function GuestProfilePage() {
             <div className="flex gap-2 mb-6 flex-wrap">
                 <div>
                     <span className="block text-sm text-muted mb-1">Email</span>
-                    <p className="text-sm text-charcoal">{guest.email}</p>
+                    <p className="text-sm text-black">{guest.email}</p>
                 </div>
                 <div>
                     <span className="block text-sm text-muted mb-1">Phone Number</span>
-                    <p className="text-sm text-charcoal">{formatPhone(guest.phoneNumber)}</p>
+                    <p className="text-sm text-black">{formatPhone(guest.phoneNumber)}</p>
                 </div>
             </div>
 
             {guest.flagged && (
                 <div className="mt-4">
                     <span className="block text-sm text-muted mb-1">Flag Reason</span>
-                    <p className="text-sm text-rust">{guest.flagReason}</p>
+                    <p className="text-sm text-error">{guest.flagReason}</p>
                     <p className="text-xs text-muted mt-1">Flagged {new Date(guest.flaggedDate).toLocaleDateString()}</p>
                 </div>
             )}
@@ -129,13 +129,13 @@ function GuestProfilePage() {
             {canManage && (
                 <div className="mt-4 flex gap-4">
                     {guest.flagged ? (
-                        <button onClick={handleUnflag} className="text-sm font-medium text-brown hover:text-rust">
+                        <button onClick={handleUnflag} className="text-sm font-medium text-muted hover:text-green">
                             Unflag Guest
                         </button>
                     ) : (
-                        <button onClick={() => setShowFlagForm(!showFlagForm)} className="text-sm font-medium text-rust hover:text-rust-light">Flag Guest</button>
+                        <button onClick={() => setShowFlagForm(!showFlagForm)} className="text-sm font-medium text-green hover:text-black">Flag Guest</button>
                     )}
-                    <button onClick={handleLegalHoldToggle} className="text-sm font-medium text-brown hover:text-rust">
+                    <button onClick={handleLegalHoldToggle} className="text-sm font-medium text-muted hover:text-green">
                         {guest.legalHold ? 'Clear Legal Hold' : 'Place Legal Hold'}
                     </button>
                 </div>
@@ -153,7 +153,7 @@ function GuestProfilePage() {
                 </form>
             )}
 
-            {error && <p className="text-sm text-rust mt-2">{error}</p>}
+            {error && <p className="text-sm text-error mt-2">{error}</p>}
 
             <div className="mt-8">
                 <h3 className="section-title mb-4">Reservation History</h3>
@@ -167,7 +167,7 @@ function GuestProfilePage() {
                             return (
                                 <div key={res.id} className="feat-card">
                                     <div className="flex items-start justify-between gap-4 mb-2">
-                                        <span className="font-semibold text-charcoal">
+                                        <span className="font-semibold text-black">
                                             {room ? `Room ${room.roomNumber}` : `${roomType?.name.replace('_', ' ') ?? 'Room'} (unassigned)`}
                                         </span>
                                         <div className="flex gap-2">

@@ -10,7 +10,7 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust" onClick={e => e.stopPropagation()}>
                 <div className="flex items-start justify-between mb-4">
                     <div>
-                        <h2 className="text-lg font-semibold text-charcoal">
+                        <h2 className="text-lg font-semibold text-black">
                             {guest?.firstName} {guest?.lastName}
                         </h2>
                         <p className="text-sm text-muted">{roomLabel}</p>
@@ -18,7 +18,7 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
                     <StatusBadge status={reservation.status} />
                 </div>
 
-                <p className="text-sm text-charcoal mb-1">
+                <p className="text-sm text-black mb-1">
                     {formatDate(reservation.checkInDate)} → {formatDate(reservation.checkOutDate)}
                 </p>
 

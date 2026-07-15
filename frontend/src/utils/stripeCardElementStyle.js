@@ -3,15 +3,15 @@ export const stripeCardElementOptions = {
         base: {
             fontSize: '16px',
             fontFamily: '"Inter", sans-serif',
-            color: '#2C1F14',
+            color: '#1A1A1A',
             iconColor: '#8C6B50',
             '::placeholder': {
                 color: '#8C6B50'
             }
         },
         invalid: {
-            color: '#C04A1E',
-            iconColor: '#C04A1E'
+            color: '#DC2626',
+            iconColor: '#DC2626'
         }
     }
 }

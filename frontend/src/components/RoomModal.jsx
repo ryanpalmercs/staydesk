@@ -47,7 +47,7 @@ function RoomModal({ room, onSaved, onClose }) {
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
-                <h2 className="text-lg text-charcoal font-semibold mb-4">
+                <h2 className="text-lg text-black font-semibold mb-4">
                     {isEditing ? 'Edit Room' : 'Add Room'}
                 </h2>
 

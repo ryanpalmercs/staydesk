@@ -1,6 +1,7 @@
 package com.staydesk.service;
 
 import com.staydesk.exception.EmployeeAlreadyExistsException;
+import com.staydesk.model.Account;
 import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Employee;
 import com.staydesk.model.EmployeeType;
@@ -79,6 +80,8 @@ public class EmployeeService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+
+        jdbcAggregateTemplate.insert(new Account(supabaseId, Account.AccountKind.EMPLOYEE, null, true, now, now));
 
         Employee saved = jdbcAggregateTemplate.insert(new Employee(supabaseId, new EncryptedString(createEmployeeRequest.firstName()),
                 new EncryptedString(createEmployeeRequest.lastName()), new EncryptedString(createEmployeeRequest.email()), emailHash,

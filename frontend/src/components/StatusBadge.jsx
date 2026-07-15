@@ -1,9 +1,9 @@
 function StatusBadge({ status }) {
     const map = {
         AVAILABLE: ['bg-green-200 text-green-800', 'Available'],
-        OCCUPIED: ['bg-rust/10 text-rust', 'Occupied'],
+        OCCUPIED: ['bg-error/10 text-error', 'Occupied'],
         MAINTENANCE: ['bg-amber-100 text-amber-800', 'Maintenance'],
-        CONFIRMED: ['bg-tan text-brown', 'Confirmed'],
+        CONFIRMED: ['bg-tan text-muted', 'Confirmed'],
         CHECKED_IN: ['bg-green-100 text-green-800', 'Checked In'],
         CHECKED_OUT: ['bg-gray-100 text-gray-600', 'Checked Out'],
         CANCELLED: ['bg-gray-100 text-gray-500', 'Cancelled'],
