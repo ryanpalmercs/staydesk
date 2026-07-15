@@ -3,7 +3,7 @@ export default function SmsTermsPage() {
         <div className="min-h-screen bg-cream">
             <div className="max-w-2xl mx-auto px-6 py-16">
                 <div className="mb-10 text-center">
-                    <div className="nav-logo inline-block mb-6" style={{ color: 'var(--color-brown)' }}>
+                    <div className="nav-logo inline-block mb-6" style={{ color: 'var(--color-black)' }}>
                         Stay<span>Desk</span>
                     </div>
                     <p className="section-eyebrow">SMS Terms &amp; Conditions</p>

@@ -10,14 +10,14 @@
     border: 1px solid var(--color-tan);
     border-radius: 4px;
     background: white;
-    color: var(--color-charcoal);
+    color: var(--color-black);
     font-size: 0.875rem;
     cursor: pointer;
 }
 
 .preset-btn.active {
-    background: var(--color-rust);
-    border-color: var(--color-rust);
+    background: var(--color-black);
+    border-color: var(--color-black);
     color: white;
 }
 
@@ -37,7 +37,7 @@
 
 .report-custom-range button {
     padding: 0.375rem 0.875rem;
-    background: var(--color-rust);
+    background: var(--color-black);
     color: white;
     border: none;
     border-radius: 4px;
@@ -55,7 +55,7 @@
 .report-card {
     background: white;
     border: 1px solid var(--color-tan);
-    border-top: 3px solid var(--color-rust);
+    border-top: 3px solid var(--color-green);
     border-radius: 6px;
     padding: 1.25rem 1.5rem;
     display: flex;
@@ -75,7 +75,7 @@
 .report-card-value {
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--color-charcoal);
+    color: var(--color-black);
     line-height: 1;
 }
 
@@ -102,7 +102,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.875rem;
-    color: var(--color-charcoal);
+    color: var(--color-black);
 }
 
 .delta-pct {
@@ -161,7 +161,7 @@
 .report-table td {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--color-warm-white);
-    color: var(--color-charcoal);
+    color: var(--color-black);
 }
 
 .report-table tbody tr:last-child td {
