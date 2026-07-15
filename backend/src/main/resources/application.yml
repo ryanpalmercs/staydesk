@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: staydesk
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWK_SET_URI:https://dmishzzcabozbbbjzlsb.supabase.co/auth/v1/.well-known/jwks.json}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Stripe
+stripe:
+  api-key: ${STRIPE_API_KEY}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+# Gusto
+gusto:
+  api-base-url: https://api.gusto.com
+  client-id: ${GUSTO_CLIENT_ID}
+  client-secret: ${GUSTO_CLIENT_SECRET}
+
+supabase:
+  url: https://dmishzzcabozbbbjzlsb.supabase.co
+  service:
+    role:
+      key: ${SUPABASE_SERVICE_ROLE_KEY}
+
+server:
+  port: ${PORT:8080}
+
+app:
+  base-url: ${APP_BASE_URL}
+  frontend-url: ${APP_FRONTEND_URL}
+  allowed-origins: ${ALLOWED_ORIGINS:https://localhost:5174}
+
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID}
+  auth-token: ${TWILIO_AUTH_TOKEN}
+  from-number: ${TWILIO_FROM_NUMBER}
+  incidentals-hold-amount: ${INCIDENTALS_HOLD_AMOUNT:75.00}
+  lodging-tax-rate: ${LODGING_TAX_RATE:0.0873}
+
+sifely:
+  base-url: https://cus-openapi.sifely.com
+  token-encryption-key: ${SIFELY_TOKEN_ENCRYPTION_KEY}
+  webhook-secret: ${SIFELY_WEBHOOK_SECRET}
+
+guest:
+  pii-encryption-key: ${GUEST_PII_ENCRYPTION_KEY}
+  pii-hash-key: ${GUEST_PII_HASH_KEY}
+
+# Authorize.net
+authorizenet:
+  api-login-id: ${AUTHORIZE_NET_API_LOGIN_ID}
+  transaction-key: ${AUTHORIZE_NET_TRANSACTION_KEY}
+  client-key: ${AUTHORIZE_NET_CLIENT_KEY}
+  environment: ${AUTHORIZE_NET_ENVIRONMENT:SANDBOX}
+
+elavon:
+  cpi:
+    base-url: ${ELAVON_CPI_BASE_URL:https://uat.pos.hpi.elavonaws.com}
+    client-id: ${ELAVON_CPI_CLIENT_ID:}
+    client-secret: ${ELAVON_CPI_CLIENT_SECRET:}

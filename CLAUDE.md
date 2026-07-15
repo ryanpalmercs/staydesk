@@ -66,11 +66,12 @@ GUSTO_CLIENT_SECRET=...
 
 ## Branching Strategy
 
-master ← beta ← develop ← feature/issue-number-description
+master ← beta ← develop ← feature/issue-number-description (or bugfix/issue-number-description)
 
 - `master` — production
 - `beta` — pre-production staging
 - `develop` — integration branch, all feature work merges here first
 - `feature/*` — named `feature/14-short-description` (issue number + description)
+- `bugfix/*` — named `bugfix/124-short-description` (issue number + description), for bug fixes
 
-All three persistent branches are protected — no direct pushes, PRs required to merge. Source branch enforcement is handled via GitHub Actions (only `feature/*` → `develop`, only `develop` → `beta`, only `beta` → `master`).
+All three persistent branches are protected — no direct pushes, PRs required to merge. Source branch enforcement is handled via GitHub Actions (only `feature/*` or `bugfix/*` → `develop`, only `develop` → `beta`, only `beta` → `master`).

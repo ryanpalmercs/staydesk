@@ -3,13 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@fullcalendar/core": "^6.1.20",
+    "@fullcalendar/daygrid": "^6.1.20",
+    "@fullcalendar/interaction": "^6.1.21",
+    "@fullcalendar/react": "^6.1.20",
+    "@fullcalendar/timegrid": "^6.1.20",
+    "@hotjar/browser": "^1.0.9",
+    "@stripe/react-stripe-js": "^6.6.0",
+    "@stripe/stripe-js": "^9.8.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "axios": "^1.7.0",
+    "date-fns": "^4.4.0",
+    "dayjs": "^1.11.21",
+    "downshift": "^9.4.0",
+    "lucide-react": "^1.20.0",
+    "md-to-pdf": "^5.2.5",
     "react": "^19.0.0",
+    "react-date-range": "^2.0.1",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0",
-    "axios": "^1.7.0"
+    "react-number-format": "^5.4.5",
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "playwright": "^1.61.1",
+    "tailwindcss": "^4.3.1",
     "vite": "^6.0.0"
   },
   "scripts": {
