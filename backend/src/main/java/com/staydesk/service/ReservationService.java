@@ -102,6 +102,16 @@ public class ReservationService {
         return totalPeriods;
     }
 
+    private String generateUniqueConfirmationCode() {
+        String code;
+
+        do {
+            code = ConfirmationCodeGenerator.generate();
+        } while (reservationRepository.existsByConfirmationCode(code));
+
+        return code;
+    }
+
     private BigDecimal computeFirstNightAmount(Reservation reservation) {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
@@ -143,9 +153,12 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
+        String confirmationCode = generateUniqueConfirmationCode();
+
         Reservation savedReservation = reservationRepository.save(new Reservation(0, reservation.guestId(), null, roomType.id(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
-                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(), now, now));
+                reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(), now, now,
+                confirmationCode));
 
         Folio savedFolio = folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
 
@@ -210,7 +223,8 @@ public class ReservationService {
 
         Reservation updated = new Reservation(id, reservation.guestId(), existing.roomId(), reservation.roomTypeId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now());
+                reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now(),
+                existing.confirmationCode());
 
         return reservationRepository.save(updated);
     }
@@ -264,7 +278,7 @@ public class ReservationService {
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
             guestRepository.findById(checkedIn.guestId())
                            .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode()));
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
@@ -315,7 +329,7 @@ public class ReservationService {
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
             guestRepository.findById(checkedIn.guestId())
                            .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, checkedIn, room.roomNumber(), passcodeResult.passcode()));
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode()));
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
@@ -375,7 +389,7 @@ public class ReservationService {
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), LocalDateTime.now()));
+                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode()));
     }
 
     @Transactional
@@ -398,7 +412,7 @@ public class ReservationService {
         return reservationRepository.save(new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.NO_SHOW, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), LocalDateTime.now()));
+                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode()));
     }
 
     @Transactional

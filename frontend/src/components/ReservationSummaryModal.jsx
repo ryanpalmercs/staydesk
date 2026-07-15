@@ -18,9 +18,13 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
                     <StatusBadge status={reservation.status} />
                 </div>
 
-                <p className="text-sm text-charcoal mb-6">
+                <p className="text-sm text-charcoal mb-1">
                     {formatDate(reservation.checkInDate)} → {formatDate(reservation.checkOutDate)}
                 </p>
+
+                {reservation.confirmationCode && (
+                    <p className="text-sm text-muted mb-6">Confirmation #{reservation.confirmationCode}</p>
+                )}
 
                 <div className="flex justify-end gap-3">
                     <button onClick={onClose} className="btn btn-secondary">Close</button>

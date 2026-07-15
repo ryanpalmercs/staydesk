@@ -64,7 +64,7 @@ public class SmsService {
                 "guestLastName", guest.lastName().value(),
                 "checkInDate", reservation.checkInDate().toString(),
                 "checkOutDate", reservation.checkOutDate().toString(),
-                "confirmationNumber", String.valueOf(reservation.id())
+                "confirmationNumber", reservation.confirmationCode() != null ? reservation.confirmationCode() : "NO CONFIRMATION NUMBER"
         );
 
         sendSms(guest.phoneNumber().value(), interpolate(template, variables));
@@ -73,9 +73,10 @@ public class SmsService {
     public void sendCheckInLink(Guest guest, Reservation reservation, String link) {
         // NO OP
         LOGGER.info("Check-in link SMS stub - reservation {}, link {}", reservation.id(), link);
+        throw new UnsupportedOperationException("Check-in link SMS stub -- not fully implemented");
     }
 
-    public void sendCheckInComplete(Guest guest, Reservation reservation, int roomNumber, String doorCode) {
+    public void sendCheckInComplete(Guest guest, int roomNumber, String doorCode) {
         String template = propertySettingsService.getProperty("sms_checkin_complete_template").value();
 
         Map<String, String> variables = Map.of(
