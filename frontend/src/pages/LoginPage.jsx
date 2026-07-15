@@ -90,7 +90,7 @@ export default function LoginPage() {
     return (
         <div className="min-h-screen bg-cream flex items-center justify-center">
             <div className="bg-white rounded-lg shadow-md w-full max-w-sm p-8">
-                <div className="nav-logo text-center mb-8" style={{ color: 'var(--color-brown)' }}>Stay<span>Desk</span></div>
+                <div className="nav-logo text-center mb-8" style={{ color: 'var(--color-black)' }}>Stay<span>Desk</span></div>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     {sessionExpired && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">Your session expired. Please sign in again.</p>}
 
