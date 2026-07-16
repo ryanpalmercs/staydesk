@@ -8,7 +8,8 @@
       "Read(//Users/ryan/Downloads/**)",
       "Bash(git ls-tree *)",
       "Bash(git log *)",
-      "Bash(grep -i \"\\\\.java$\")"
+      "Bash(grep -i \"\\\\.java$\")",
+      "Bash(python3 *)"
     ]
   }
 }

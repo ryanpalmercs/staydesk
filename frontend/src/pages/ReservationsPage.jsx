@@ -85,10 +85,13 @@ function ReservationsPage() {
         }
     }
 
-    async function handleSaved() {
+    async function handleSaved(newWalkInId) {
         setModalOpen(false)
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
+        if (newWalkInId != null) {
+            openCheckIn(newWalkInId)
+        }
     }
 
     function handleFilterChange(e) {
