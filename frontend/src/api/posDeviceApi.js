@@ -11,3 +11,7 @@ export function pairPosDevice(device) {
 export function unpairPosDevice(id) {
     return api.delete(`/pos-devices/${id}`)
 }
+
+export function checkPosDeviceHealth(id) {
+    return api.post(`/pos-devices/${id}/health-check`)
+}

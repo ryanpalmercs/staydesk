@@ -186,6 +186,11 @@ button:disabled {
     color: var(--color-cream);
 }
 
+.filter-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .filter-bar {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
