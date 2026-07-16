@@ -94,7 +94,7 @@ public class ElavonCpiClient {
         }
     }
 
-    private String referenceNumber() {
+    String referenceNumber() {
         return String.valueOf(System.currentTimeMillis() % 100_000_000L);
     }
 }
