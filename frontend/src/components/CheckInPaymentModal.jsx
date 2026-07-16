@@ -4,7 +4,7 @@ import { loadStripe } from "@stripe/stripe-js"
 import { getConnectStatus } from "../api/stripeApi"
 import { getPropertySetting } from "../api/settingsApi"
 import { getAvailableRoomsForCheckIn } from "../api/reservationApi"
-import { getPosDevices } from "../api/posDeviceApi"
+import { getPosDevices, checkPosDeviceHealth } from "../api/posDeviceApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
@@ -171,11 +171,30 @@ function AcceptJsCheckInForm({ roomId, onConfirm, onClose, onCheckedIn }) {
     return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" />
 }
 
-function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices }) {
+function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck }) {
     const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+    const [deviceOnline, setDeviceOnline] = useState(null)
+
+    useEffect(() => {
+        if (!selectedDeviceId) return
+        setDeviceOnline(null)
+        let cancelled = false
+        checkPosDeviceHealth(selectedDeviceId)
+            .then(res => {
+                if (cancelled) return
+                setDeviceOnline(res.data.online)
+                onHealthCheck(res.data.online)
+            })
+            .catch(() => {
+                if (cancelled) return
+                setDeviceOnline(false)
+                onHealthCheck(false)
+            })
+        return () => { cancelled = true }
+    }, [selectedDeviceId])
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -210,6 +229,10 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
                 </select>
             )}
 
+            {deviceOnline === false && (
+                <p className="text-sm text-error">Terminal isn't responding. Try another device or enter the card manually.</p>
+            )}
+
             {submitting && (
                 <p className="text-sm text-muted text-center py-4">
                     Waiting for guest to tap, dip, or swipe on {devices.find(d => d.id === Number(selectedDeviceId))?.friendlyName}...
@@ -222,7 +245,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
                 <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
                     Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId}>
+                <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId || deviceOnline === false}>
                     {submitting ? 'Waiting on terminal...' : 'Charge on Terminal'}
                 </button>
             </div>
@@ -238,6 +261,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
     const [error, setError] = useState(null)
     const [posDevices, setPosDevices] = useState([])
     const [useTerminal, setUseTerminal] = useState(false)
+    const [manualEntryUnlocked, setManualEntryUnlocked] = useState(false)
 
     useEffect(() => {
         getPropertySetting('payment_provider').then(res => {
@@ -263,6 +287,17 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
         })
     }, [])
 
+    useEffect(() => {
+        if (!useTerminal) return
+        setManualEntryUnlocked(false)
+        const timer = setTimeout(() => setManualEntryUnlocked(true), 4000)
+        return () => clearTimeout(timer)
+    }, [useTerminal])
+
+    function handleHealthCheck(online) {
+        if (!online) setManualEntryUnlocked(true)
+    }
+
     function handleRoomChosen(roomId) {
         setSelectedRoomId(roomId)
         setStep('payment')
@@ -275,6 +310,8 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
             onClose()
         }
     }
+
+    const hasManualProvider = provider === 'authorizenet' || (provider === 'stripe' && stripePromise)
 
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -295,6 +332,23 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                                 : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
                         </p>
                         {error && <p className="text-sm text-error mb-4">{error}</p>}
+
+                        {posDevices.length > 0 && hasManualProvider && (
+                            <div className="flex gap-2 justify-center mb-4">
+                                <button type="button" onClick={() => setUseTerminal(true)} className={`filter-btn${useTerminal ? ' active' : ''}`}>
+                                    Charge on Terminal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setUseTerminal(false)}
+                                    disabled={!manualEntryUnlocked}
+                                    className={`filter-btn${!useTerminal ? ' active' : ''}`}
+                                >
+                                    Enter Card Manually
+                                </button>
+                            </div>
+                        )}
+
                         {useTerminal && posDevices.length > 0 && (
                             <TerminalCheckInForm
                                 roomId={selectedRoomId}
@@ -302,6 +356,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                                 onClose={onClose}
                                 onCheckedIn={handleCheckedIn}
                                 devices={posDevices}
+                                onHealthCheck={handleHealthCheck}
                             />
                         )}
                         {!useTerminal && provider === 'authorizenet' && (
@@ -311,6 +366,9 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                             <Elements stripe={stripePromise}>
                                 <CheckInPaymentForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
                             </Elements>
+                        )}
+                        {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
+                            <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
                         )}
                     </>
                 )}

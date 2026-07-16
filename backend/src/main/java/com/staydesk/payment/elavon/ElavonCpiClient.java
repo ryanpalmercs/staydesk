@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.UUID;
 
@@ -79,5 +80,21 @@ public class ElavonCpiClient {
         }
 
         return response.message();
+    }
+
+    public boolean healthCheck(String deviceId) {
+        CpiTransaction request = new CpiTransaction(referenceNumber(), "HEALTHCHECK", null,
+                null, null, null, null, null);
+
+        try {
+            CpiTransaction response = sendDeviceMessage(deviceId, request);
+            return response.response() != null && "0000".equals(response.response().responseCode());
+        } catch (RestClientException e) {
+            return false;
+        }
+    }
+
+    String referenceNumber() {
+        return String.valueOf(System.currentTimeMillis() % 100_000_000L);
     }
 }

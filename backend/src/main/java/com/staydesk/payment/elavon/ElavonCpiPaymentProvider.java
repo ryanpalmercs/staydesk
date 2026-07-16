@@ -18,9 +18,7 @@ import java.math.BigDecimal;
 @Service("elavon_cpi")
 public class ElavonCpiPaymentProvider implements PaymentProvider {
 
-    // TODO: verify against a real UAT response — assuming "000" is CPI's approved
-    // responseCode per common processor convention, not confirmed in the spec text itself.
-    private static final String APPROVED_RESPONSE_CODE = "000";
+    private static final String APPROVED_RESPONSE_CODE = "0000";
 
     private final ElavonCpiClient client;
 
@@ -30,15 +28,10 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult authorize(BigDecimal amount, String token, String description) {
-        // `token` here is the paired device's CPI deviceId — see PaymentProvider's
-        // Javadoc note once added; this provider has no client-side card token,
-        // the physical terminal captures the card.
-        String deviceId = token;
-
-        CpiTransaction request = new CpiTransaction(referenceNumber(), "AUTH", amount.toPlainString(),
+        CpiTransaction request = new CpiTransaction(client.referenceNumber(), "AUTH", amount.toPlainString(),
                 null, null, null, null, null);
 
-        CpiTransaction response = client.sendDeviceMessage(deviceId, request);
+        CpiTransaction response = client.sendDeviceMessage(token, request);
 
         if (!isApproved(response)) {
             return new AuthResult(false, null, responseMessage(response), null);
@@ -49,12 +42,10 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult sale(BigDecimal amount, String token, String description) {
-        String deviceId = token;
-
-        CpiTransaction request = new CpiTransaction(referenceNumber(), "SALE", amount.toPlainString(),
+        CpiTransaction request = new CpiTransaction(client.referenceNumber(), "SALE", amount.toPlainString(),
                 null, null, null, null, null);
 
-        CpiTransaction response = client.sendDeviceMessage(deviceId, request);
+        CpiTransaction response = client.sendDeviceMessage(token, request);
 
         if (!isApproved(response)) {
             return new AuthResult(false, null, responseMessage(response), null);
@@ -65,7 +56,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public CaptureResult capture(String authId, BigDecimal amount) {
-        CpiTransaction request = new CpiTransaction(referenceNumber(), "PRIORAUTHCOMPLETION", amount.toPlainString(),
+        CpiTransaction request = new CpiTransaction(client.referenceNumber(), "PRIORAUTHCOMPLETION", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(authId)), null, null);
 
         CpiTransaction response = client.sendGatewayMessage(request);
@@ -79,7 +70,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public VoidResult void_(String authId) {
-        CpiTransaction request = new CpiTransaction(referenceNumber(), "VOIDSALE", null,
+        CpiTransaction request = new CpiTransaction(client.referenceNumber(), "VOIDSALE", null,
                 null, null, new CpiSafetyFields(new CpiToken(authId)), null, null);
 
         CpiTransaction response = client.sendGatewayMessage(request);
@@ -93,7 +84,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4) {
-        CpiTransaction request = new CpiTransaction(referenceNumber(), "REFUND", amount.toPlainString(),
+        CpiTransaction request = new CpiTransaction(client.referenceNumber(), "REFUND", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(transactionId)), null, null);
 
         CpiTransaction response = client.sendGatewayMessage(request);
@@ -130,12 +121,5 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
             return null;
         }
         return card.maskedPAN().substring(card.maskedPAN().length() - 4);
-    }
-
-    private String referenceNumber() {
-        // Spec warning: referenceNumber must be unique per open batch — reusing one
-        // risks losing transaction data. Using a timestamp here as a placeholder;
-        // worth revisiting once we know CPI's actual batch semantics from real testing.
-        return String.valueOf(System.currentTimeMillis());
     }
 }

@@ -27,7 +27,7 @@ function ReservationsPage() {
     const [reviewFolioId, setReviewFolioId] = useState(null)
     const [doorCodeTarget, setDoorCodeTarget] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
-    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '' })
+    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '', status: '' })
     const [error, setError] = useState(null)
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('asc')
@@ -85,10 +85,13 @@ function ReservationsPage() {
         }
     }
 
-    async function handleSaved() {
+    async function handleSaved(newWalkInId) {
         setModalOpen(false)
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
+        if (newWalkInId != null) {
+            openCheckIn(newWalkInId)
+        }
     }
 
     function handleFilterChange(e) {
@@ -132,6 +135,9 @@ function ReservationsPage() {
     const guestMap = Object.fromEntries(guests.map(g => [g.id, g]))
 
     const filtered = reservations.filter(res => {
+        if (filters.status && res.status !== filters.status) {
+            return false
+        }
         if (filters.roomId === 'unassigned') {
             if (res.roomId != null) {
                 return false
@@ -197,6 +203,17 @@ function ReservationsPage() {
                         {rooms.map(room => (
                             <option key={room.id} value={room.id}>Room {room.roomNumber}</option>
                         ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="text-muted block text-xs mb-1">Status</label>
+                    <select name="status" value={filters.status} onChange={handleFilterChange} className="filter-input">
+                        <option value="">All statuses</option>
+                        <option value="CONFIRMED">Confirmed</option>
+                        <option value="CHECKED_IN">Checked In</option>
+                        <option value="CHECKED_OUT">Checked Out</option>
+                        <option value="CANCELLED">Cancelled</option>
+                        <option value="NO_SHOW">No Show</option>
                     </select>
                 </div>
                 <div>
