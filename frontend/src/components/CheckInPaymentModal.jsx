@@ -8,6 +8,7 @@ import { getPosDevices, checkPosDeviceHealth } from "../api/posDeviceApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
+import Modal from "./Modal"
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
     const [rooms, setRooms] = useState([])
@@ -314,8 +315,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
     const hasManualProvider = provider === 'authorizenet' || (provider === 'stripe' && stripePromise)
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
+        <Modal onClose={onClose} size="md">
                 <h2 className="text-lg text-black font-semibold mb-4">
                     {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
                 </h2>
@@ -382,8 +382,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                         </div>
                     </div>
                 )}
-            </div>
-        </div>
+        </Modal>
     )
 }
 
