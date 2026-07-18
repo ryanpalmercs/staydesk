@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useCombobox } from "downshift"
+import { useEffect, useRef, useState } from "react"
 import { createReservation, getReservationEstimate, updateReservation } from "../api/reservationApi"
 import { getRoomTypes } from "../api/roomTypeApi"
-import { createGuest, getGuests } from "../api/guestApi"
+import { createGuest, getGuests, updateGuest } from "../api/guestApi"
+import { formatPhone } from "../utils/phone"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import { getConnectStatus } from "../api/stripeApi"
@@ -14,6 +14,7 @@ import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus } from "lucide-react"
+import Modal from "./Modal"
 
 
 function CardCaptureForm({ onCapture, onCancel }) {
@@ -72,57 +73,11 @@ function CardCaptureStep({ provider, stripePromise, onCapture, onCancel }) {
     )
 }
 
-function SearchableSelect({ items, selectedId, itemKey = 'id', itemLabel, renderBadge, onSelect, placeholder }) {
-    const sortedItems = useMemo(
-        () => [...items].sort((a, b) => itemLabel(a).localeCompare(itemLabel(b))),
-        [items]
-    )
-    const [inputItems, setInputItems] = useState(sortedItems)
-    const selectedItem = items.find(i => i[itemKey] === selectedId) ?? null
-
-    useEffect(() => {
-        setInputItems(sortedItems)
-    }, [sortedItems])
-
-    const { isOpen, getMenuProps, getInputProps, getItemProps, highlightedIndex } = useCombobox({
-        items: inputItems,
-        itemToString: item => (item ? itemLabel(item) : ''),
-        selectedItem,
-        onInputValueChange: ({ inputValue }) => {
-            setInputItems(
-                sortedItems.filter(i => itemLabel(i).toLowerCase().includes((inputValue ?? '').toLowerCase()))
-            )
-        },
-        onSelectedItemChange: ({ selectedItem }) => {
-            onSelect(selectedItem ? selectedItem[itemKey] : '')
-        },
-    })
-
-    return (
-        <div className="relative">
-            <input {...getInputProps({ placeholder })} className="filter-input w-full" />
-            <ul {...getMenuProps()} className={`absolute z-10 w-full bg-warm-white border border-tan rounded-md mt-1 max-h-48 overflow-auto shadow-lg ${isOpen ? '' : 'hidden'}`}>
-                {isOpen &&
-                    inputItems.map((item, index) => (
-                        <li
-                            key={item[itemKey]}
-                            {...getItemProps({ item, index })}
-                            className={`px-3 py-2 text-sm cursor-pointer flex justify-between ${highlightedIndex === index ? 'bg-tan' : ''}`}
-                        >
-                            <span>{itemLabel(item)}</span>
-                            {renderBadge?.(item)}
-                        </li>
-                    ))}
-            </ul>
-        </div>
-    )
-}
-
 function Stepper({ label, value, min, max, onChange }) {
     return (
-        <div>
+        <div flex items-center justify-center>
             <label className="block text-sm text-muted mb-1">{label}</label>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center gap-3">
                 <button type="button stepper" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Decrease ${label}`}>
                     <CircleMinus size={18} />
@@ -143,7 +98,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [roomTypes, setRoomTypes] = useState([])
     const [guests, setGuests] = useState([])
-    const [guestMode, setGuestMode] = useState('search')
+    const [guestFormError, setGuestFormError] = useState(null)
+    const [creatingGuest, setCreatingGuest] = useState(false)
     let [form, setForm] = useState({
         guestId: reservation?.guestId ?? '',
         roomTypeId: reservation?.roomTypeId ?? '',
@@ -174,19 +130,26 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [extraQuantity, setExtraQuantity] = useState(1)
     const [extraMessage, setExtraMessage] = useState(null)
 
-    const [step, setStep] = useState('form')
+    const [step, setStep] = useState(isEditing ? 'form' : 'choice')
+    const [guestStepOrigin, setGuestStepOrigin] = useState('choice')
+    const [guestSearchQuery, setGuestSearchQuery] = useState('')
+    const [editingGuestInfo, setEditingGuestInfo] = useState(false)
     const [pendingForm, setPendingForm] = useState(null)
     const [stripePromise, setStripePromise] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet' || (provider === 'stripe' && stripePromise != null)
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
-    const flaggedMatch = guestMode === 'search'
-        ? (selectedGuest?.flagged ? selectedGuest : null)
-        : guests.find(g => g.flagged && (
-            (guestForm.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
-            (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
-        ))
+    const flaggedMatch = selectedGuest?.flagged ? selectedGuest : null
+
+    const newGuestFlaggedMatch = guests.find(g => g.flagged && (
+        (guestForm.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
+        (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
+    ))
+
+    const visibleGuests = [...guests]
+        .filter(g => `${g.firstName} ${g.lastName}`.toLowerCase().includes(guestSearchQuery.toLowerCase()))
+        .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
 
     const totalNights = form.checkInDate && form.checkOutDate
         ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
@@ -274,17 +237,70 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         setGuestForm({ ...guestForm, [e.target.name]: e.target.value })
     }
 
-    function onGuestModeChange() {
-        setGuestMode(guestMode === 'search' ? 'create' : 'search')
+    async function handleCreateGuest(e) {
+        e.preventDefault()
+        setGuestFormError(null)
+        setCreatingGuest(true)
+
+        try {
+            const res = await createGuest(guestForm)
+            const guestsRes = await getGuests()
+            setGuests(guestsRes.data)
+            setForm({ ...form, guestId: res.data.id })
+            setGuestForm({ firstName: '', lastName: '', email: '', phoneNumber: '', smsConsent: false })
+            setStep('form')
+        } catch (err) {
+            if (err.response?.status === 400) {
+                setGuestFormError('Phone number must be 10 digits.')
+            } else if (err.response?.status === 409) {
+                setGuestFormError('A guest with that email already exists.')
+            } else {
+                setGuestFormError('Failed to create guest.')
+            }
+        }
+
+        setCreatingGuest(false)
+    }
+
+    function startEditingGuestInfo() {
+        setGuestForm({
+            firstName: selectedGuest.firstName,
+            lastName: selectedGuest.lastName,
+            email: selectedGuest.email,
+            phoneNumber: selectedGuest.phoneNumber,
+            smsConsent: selectedGuest.smsConsent
+        })
+        setGuestFormError(null)
+        setEditingGuestInfo(true)
+    }
+
+    async function handleUpdateGuestInfo(e) {
+        e.preventDefault()
+        setGuestFormError(null)
+        setCreatingGuest(true)
+
+        try {
+            await updateGuest(selectedGuest.id, guestForm)
+            const guestsRes = await getGuests()
+            setGuests(guestsRes.data)
+            setEditingGuestInfo(false)
+        } catch (err) {
+            if (err.response?.status === 400) {
+                setGuestFormError('Please check the fields — phone must be 10 digits and email must be valid.')
+            } else {
+                setGuestFormError('Failed to update guest.')
+            }
+        }
+
+        setCreatingGuest(false)
     }
 
     async function handleSubmit(e) {
-        console.log(guestMode)
         e.preventDefault()
 
         setError(null)
 
-        if (guestMode === 'search' && !form.guestId) {
+        if (!form.guestId) {
             setError('Please select a guest.')
             return
         }
@@ -305,32 +321,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
 
         const { adults, children, ...rest } = form
-        let submittedForm = { ...rest, rateType, guestCount }
-
-        if (guestMode === 'create') {
-            try {
-                const res = await createGuest(guestForm)
-                submittedForm = { ...submittedForm, guestId: res.data.id }
-                console.debug(submittedForm)
-                setGuestMode('search')
-                const guestsRes = await getGuests()
-                setGuests(guestsRes.data)
-                setForm({ ...form, guestId: res.data.id })
-            } catch (err) {
-                if (err.response?.status === 400) {
-                    setError('Phone number must be 10 digits.')
-                } else if (err.response?.status === 409) {
-                    setError('A guest with that email already exists.')
-                } else {
-                    console.log(err)
-                    setError('Failed to create guest.')
-                }
-
-                return
-            }
-        }
-
-        console.log(submittedForm)
+        const submittedForm = { ...rest, rateType, guestCount }
 
         try {
             if (isEditing) {
@@ -384,64 +375,194 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     }
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-warm-white rounded-lg shadow-lg border-t-4 border-rust w-full max-w-md sm:max-w-3xl max-h-[90vh] flex flex-col">
-                <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
-                    {step === 'payment' ? 'Card Details' : isEditing ? 'Edit Reservation' : 'New Reservation'}
-                </h2>
+        <Modal onClose={onClose} size="reservation" scrollable padded={false} isDirty={isDirty}>
+            <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
+                {step === 'payment' ? 'Card Details'
+                    : step === 'choice' ? 'New or Returning Guest?'
+                        : step === 'guestList' ? 'Select Guest'
+                            : step === 'newGuest' ? 'New Guest'
+                                : step === 'confirmGuest' ? 'Confirm Guest Information'
+                                    : isEditing ? `Edit Reservation for ${selectedGuest ? `${selectedGuest.firstName} ${selectedGuest.lastName}` : ''}` : `New Reservation for ${selectedGuest ? `${selectedGuest.firstName} ${selectedGuest.lastName}` : ''}`}
+            </h2>
 
-                {step === 'form' && (
-                    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-                        <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
+            {step === 'choice' && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button type="button" onClick={() => { setGuestStepOrigin('choice'); setStep('newGuest') }} className="btn btn-secondary flex-1 py-4">
+                            New Guest
+                        </button>
+                        <button type="button" onClick={() => { setGuestStepOrigin('choice'); setStep('guestList') }} className="btn btn-secondary flex-1 py-4">
+                            Returning Guest
+                        </button>
+                    </div>
+
+                    <div className="flex justify-end mt-auto pt-4 border-t border-tan">
+                        <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            )}
+
+            {step === 'guestList' && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <input
+                            type="text"
+                            value={guestSearchQuery}
+                            onChange={e => setGuestSearchQuery(e.target.value)}
+                            placeholder="Search guests..."
+                            className="filter-input flex-1"
+                            autoFocus
+                        />
+                        <button type="button" onClick={() => setStep('newGuest')} className="btn btn-secondary">New Guest</button>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1">
+                        {visibleGuests.map(g => (
+                            <button
+                                key={g.id}
+                                type="button"
+                                onClick={() => { setForm({ ...form, guestId: g.id }); setStep('confirmGuest') }}
+                                className="filter-input flex justify-between items-center text-left hover:border-green"
+                            >
+                                <span>{g.firstName} {g.lastName}</span>
+                                {g.flagged && <span className="text-xs text-error font-medium">Flagged</span>}
+                            </button>
+                        ))}
+                        {guests.length > 0 && visibleGuests.length === 0 && (
+                            <p className="text-sm text-muted text-center py-4">No guests found.</p>
+                        )}
+                    </div>
+
+                    <div className="flex justify-between mt-4 pt-4 border-t border-tan">
+                        <button type="button" onClick={() => setStep(guestStepOrigin)} className="btn btn-secondary">Back</button>
+                        <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            )}
+
+            {step === 'newGuest' && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">
+                    <form onSubmit={handleCreateGuest} className="flex flex-col gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
+                            <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                            <input name="email" placeholder="Email" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" required />
+                            <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
+                        </div>
+
+                        <label className="flex items-start gap-2 text-sm text-muted">
+                            <input
+                                type="checkbox"
+                                checked={guestForm.smsConsent}
+                                onChange={e => setGuestForm({ ...guestForm, smsConsent: e.target.checked })}
+                                className="mt-1"
+                            />
+                            <span>
+                                I agree to receive SMS text messages from Martin House Motel about this reservation (door codes,
+                                check-in/checkout confirmations). Message and data rates may apply. Reply STOP to opt out, HELP for
+                                help. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-green underline">SMS Terms</a>.
+                            </span>
+                        </label>
+
+                        {newGuestFlaggedMatch && (
+                            <div className="bg-red-100 text-red-700 text-sm rounded p-2">
+                                Warning: this guest is flagged — {newGuestFlaggedMatch.flagReason}
+                            </div>
+                        )}
+
+                        {guestFormError && <p className="text-sm text-error">{guestFormError}</p>}
+
+                        <div className="flex justify-between gap-3 mt-2">
+                            <button type="button" onClick={() => setStep(guestStepOrigin)} className="btn btn-secondary" disabled={creatingGuest}>
+                                Back
+                            </button>
+                            <button type="submit" className="btn btn-primary" disabled={creatingGuest}>
+                                {creatingGuest ? 'Adding...' : 'Add Guest'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {step === 'confirmGuest' && selectedGuest && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">
+                    {!editingGuestInfo ? (
+                        <div className="flex flex-col gap-4">
                             <div>
-                                <div className="flex items-baseline gap-2">
-                                    <label className="text-sm text-muted">Guest</label>
-                                    <button type="button" onClick={onGuestModeChange} className="text-sm font-medium text-green hover:text-black">
-                                        {guestMode === 'search' ? 'New Guest' : 'Select Existing'}
-                                    </button>
-                                </div>
-                                {guestMode === 'search' ? (
-                                    <SearchableSelect
-                                        items={guests}
-                                        selectedId={form.guestId}
-                                        itemLabel={g => `${g.firstName} ${g.lastName}`}
-                                        renderBadge={g => g.flagged && <span className="text-xs text-error font-medium">Flagged</span>}
-                                        onSelect={guestId => setForm({ ...form, guestId })}
-                                        placeholder="Search guests..."
-                                    />
-                                ) : (
-                                    <div className="flex flex-col gap-2">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <input name="firstName" placeholder="First name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                            <input name="lastName" placeholder="Last name" onChange={handleGuestFieldChange} className="filter-input" required />
-                                            <input name="email" placeholder="Email" onChange={handleGuestFieldChange} className="filter-input" required />
-                                            <input name="phoneNumber" placeholder="Phone (10 digits)" onChange={handleGuestFieldChange} className="filter-input" required />
-                                        </div>
-                                        <label className="flex items-start gap-2 text-sm text-muted">
-                                            <input
-                                                type="checkbox"
-                                                checked={guestForm.smsConsent}
-                                                onChange={e => setGuestForm({ ...guestForm, smsConsent: e.target.checked })}
-                                                className="mt-1"
-                                            />
-                                            <span>
-                                                I agree to receive SMS text messages from Martin House Motel about this reservation (door codes,
-                                                check-in/checkout confirmations). Message and data rates may apply. Reply STOP to opt out, HELP for
-                                                help. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-green underline">SMS Terms</a>.
-                                            </span>
-                                        </label>
-                                    </div>
-                                )}
+                                <label className="block text-sm text-muted mb-1">Name</label>
+                                <p className="text-sm text-black">{selectedGuest.firstName} {selectedGuest.lastName}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Email</label>
+                                <p className="text-sm text-black">{selectedGuest.email}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Phone</label>
+                                <p className="text-sm text-black">{formatPhone(selectedGuest.phoneNumber)}</p>
                             </div>
 
+                            {selectedGuest.flagged && (
+                                <div className="bg-red-100 text-red-700 text-sm rounded p-2">
+                                    Warning: this guest is flagged — {selectedGuest.flagReason}
+                                </div>
+                            )}
+
+                            <button type="button" onClick={startEditingGuestInfo} className="text-sm font-medium text-green hover:text-black self-start">
+                                Edit Information
+                            </button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleUpdateGuestInfo} className="flex flex-col gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="email" placeholder="Email" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
+                            </div>
+
+                            <label className="flex items-start gap-2 text-sm text-muted">
+                                <input
+                                    type="checkbox"
+                                    checked={guestForm.smsConsent}
+                                    onChange={e => setGuestForm({ ...guestForm, smsConsent: e.target.checked })}
+                                    className="mt-1"
+                                />
+                                <span>Guest consents to receive SMS text messages (door codes, check-in/checkout confirmations).</span>
+                            </label>
+
+                            {guestFormError && <p className="text-sm text-error">{guestFormError}</p>}
+
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={() => setEditingGuestInfo(false)} className="btn btn-secondary" disabled={creatingGuest}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-primary" disabled={creatingGuest}>
+                                    {creatingGuest ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    {!editingGuestInfo && (
+                        <div className="flex justify-between mt-4 pt-4 border-t border-tan">
+                            <button type="button" onClick={() => setStep('guestList')} className="btn btn-secondary">Back</button>
+                            <button type="button" onClick={() => setStep('form')} className="btn btn-primary">Continue</button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {step === 'form' && (
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                    <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
+                        <div className="flex flex-col sm:flex-row sm:justify-center gap-4 sm:gap-10">
                             <div>
                                 <label className="block text-sm text-muted mb-1">How is this being booked?</label>
-                                <div className="flex gap-2">
+                                <div className="flex justify-left gap-2">
                                     <button type="button" onClick={() => setForm({ ...form, channel: 'PHONE' })} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
                                     <button type="button" onClick={() => setForm({ ...form, channel: 'WALK_IN' })} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
                                 </div>
                             </div>
-
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Stepper
                                     label="Adults"
@@ -468,63 +589,69 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     ))}
                                 </select>
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                            <ReservationDatePicker
+                                roomTypeId={form.roomTypeId}
+                                checkInDate={form.checkInDate}
+                                checkOutDate={form.checkOutDate}
+                                onRangeSelected={({ checkInDate, checkOutDate }) => setForm({ ...form, checkInDate, checkOutDate })}
+                            />
+                        </div>
 
+                        {isEditing && (
                             <div>
-                                <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
-                                <ReservationDatePicker
-                                    roomTypeId={form.roomTypeId}
-                                    checkInDate={form.checkInDate}
-                                    checkOutDate={form.checkOutDate}
-                                    onRangeSelected={({ checkInDate, checkOutDate }) => setForm({ ...form, checkInDate, checkOutDate })}
-                                />
-                            </div>
-
-                            {isEditing && (
-                                <div>
-                                    <label className="block text-sm text-muted mb-1">Status</label>
+                                <label className="block text-sm text-muted mb-1">Status</label>
+                                <div className="flex justify-center">
                                     <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
                                         <option value="CONFIRMED">Confirmed</option>
                                         <option value="CANCELLED">Cancelled</option>
                                     </select>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {canAddExtras && (
-                                <div>
-                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-green hover:text-black">
-                                        {showExtras ? 'Hide Extras' : 'Add Extras'}
-                                    </button>
+                        {canAddExtras && (
+                            <div>
+                                <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-green hover:text-black">
+                                    {showExtras ? 'Hide Extras' : 'Add Extras'}
+                                </button>
 
-                                    {showExtras && (
-                                        <div className="flex gap-2 items-end mt-2">
-                                            <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
-                                                <option value="">Select an extra...</option>
-                                                {extras.map(extra => (
-                                                    <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
-                                                ))}
-                                            </select>
-                                            <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
-                                            <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
-                                        </div>
-                                    )}
+                                {showExtras && (
+                                    <div className="flex gap-2 items-end mt-2">
+                                        <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
+                                            <option value="">Select an extra...</option>
+                                            {extras.map(extra => (
+                                                <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
+                                            ))}
+                                        </select>
+                                        <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
+                                        <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                                    </div>
+                                )}
 
-                                    {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
-                                </div>
-                            )}
+                                {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                            </div>
+                        )}
 
-                            {flaggedMatch && (
-                                <div className="bg-red-100 text-red-700 text-sm rounded p-2">
-                                    Warning: this guest is flagged — {flaggedMatch.flagReason}
-                                </div>
-                            )}
-                        </div>
+                        {flaggedMatch && (
+                            <div className="bg-red-100 text-red-700 text-sm rounded p-2">
+                                Warning: this guest is flagged — {flaggedMatch.flagReason}
+                            </div>
+                        )}
+                    </div>
 
-                        <div className="flex flex-col gap-3 px-6 py-4 border-t border-tan flex-shrink-0">
-                            {estimate && <p className="text-sm text-black font-medium">Grand Total: ${estimate.total.toFixed(2)}</p>}
+                    <div className="flex flex-col gap-3 px-6 py-4 border-t border-tan flex-shrink-0">
+                        {estimate && <p className="text-sm text-black font-medium">Grand Total: ${estimate.total.toFixed(2)}</p>}
 
-                            {error && <p className="text-sm text-error">{error}</p>}
+                        {error && <p className="text-sm text-error">{error}</p>}
 
-                            <div className="flex justify-end gap-3">
+                        <div className="flex justify-between gap-3">
+                            <button type="button" onClick={() => { setGuestStepOrigin('form'); setStep('guestList') }} className="btn btn-secondary">
+                                Change Guest
+                            </button>
+                            <div className="flex gap-3">
                                 <button type="button" onClick={onClose} className="btn btn-secondary">
                                     Cancel
                                 </button>
@@ -533,21 +660,22 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 </button>
                             </div>
                         </div>
-                    </form>
-                )}
-
-                {step === 'payment' && (
-                    <div className="px-6 pb-6 overflow-y-auto">
-                        <CardCaptureStep
-                            stripePromise={stripePromise}
-                            onCapture={handleCapture}
-                            onCancel={() => setStep('form')}
-                            provider={provider}
-                        />
                     </div>
-                )}
-            </div>
-        </div>
+                </form>
+            )}
+
+            {step === 'payment' && (
+                <div className="px-6 pb-6 overflow-y-auto">
+                    <CardCaptureStep
+                        stripePromise={stripePromise}
+                        onCapture={handleCapture}
+                        onCancel={() => setStep('form')}
+                        provider={provider}
+                    />
+                </div>
+            )}
+
+        </Modal>
     )
 }
 
