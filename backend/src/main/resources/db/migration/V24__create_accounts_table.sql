@@ -1,5 +1,4 @@
-
-CREATE TABLE accounts
+CREATE TABLE IF NOT EXISTS accounts
 (
     id           UUID PRIMARY KEY,
     kind         VARCHAR     NOT NULL,
@@ -11,9 +10,11 @@ CREATE TABLE accounts
 
 INSERT INTO accounts (id, kind, display_name, active, created_at, updated_at)
 SELECT id, 'EMPLOYEE', NULL, active, created_at, updated_at
-FROM employees;
+FROM employees
+ON CONFLICT DO NOTHING;
 
 ALTER TABLE employees
+    DROP CONSTRAINT IF EXISTS fk_employees_account,
     ADD CONSTRAINT fk_employees_account FOREIGN KEY (id) REFERENCES accounts (id);
 
 ALTER TABLE guests
