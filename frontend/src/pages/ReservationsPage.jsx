@@ -114,6 +114,15 @@ function ReservationsPage() {
         return res.data.doorAccessStatus
     }
 
+    async function handleViewFolio(id) {
+        try {
+            const folioRes = await getFolioByReservationId(id)
+            setReviewFolioId(folioRes.data.id)
+        } catch (err) {
+            setError('Failed to load folio.')
+        }
+    }
+
     async function handleCheckOut(id) {
         try {
             await checkOut(id)
@@ -277,6 +286,9 @@ function ReservationsPage() {
                                     <button onClick={() => openEdit(res)} className="text-sm font-medium text-muted hover:text-green">Edit</button>
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-green">Cancel</button>
+                                    )}
+                                    {res.status === 'CHECKED_OUT' && (
+                                        <button onClick={() => handleViewFolio(res.id)} className="text-sm font-medium text-muted hover:text-green">View Folio</button>
                                     )}
                                     {canDeleteReservation && (res.status === 'CANCELLED' || res.status === 'CHECKED_OUT' || res.status === 'NO_SHOW') && (
                                         <button onClick={() => setDeleteTarget(res)} className="text-sm font-medium text-muted hover:text-green">Delete</button>
