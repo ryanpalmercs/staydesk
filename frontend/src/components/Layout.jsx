@@ -15,6 +15,7 @@ export default function Layout() {
     const showRooms = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
     const showDashboard = ['ADMIN', 'MANAGER', 'FRONT_DESK', 'HOUSEKEEPING'].includes(role)
     const showReservations = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
+    const showIncidentCharges = ['ADMIN', 'MANAGER'].includes(role)
     const showTimesheet = !adminOnly
 
     return (
@@ -70,6 +71,12 @@ export default function Layout() {
                         <NavLink to="/guests" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <UserSearch size={18} />
                             <span>Guests</span>
+                        </NavLink>
+                    )}
+                    {showIncidentCharges && (
+                        <NavLink to="/incident-charges" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                            <span className="text-base leading-none w-[18px] text-center">🔧</span>
+                            <span>Incident Charges</span>
                         </NavLink>
                     )}
                     {adminOnly && (
