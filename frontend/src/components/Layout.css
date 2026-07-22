@@ -16,7 +16,7 @@
 }
 
 .sidebar {
-    width: 175px;
+    width: 195px;
     flex-shrink: 0;
     background: var(--color-black);
     display: flex;
@@ -70,6 +70,14 @@
     text-decoration: none;
     white-space: nowrap;
     transition: color 0.15s;
+}
+
+.sidebar-nav a svg {
+    flex-shrink: 0;
+}
+
+.sidebar-bottom a svg {
+    flex-shrink: 0;
 }
 
 .sidebar-nav a:hover {
