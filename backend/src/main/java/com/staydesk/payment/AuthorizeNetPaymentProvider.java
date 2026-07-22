@@ -1,20 +1,27 @@
 package com.staydesk.payment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.authorize.api.contract.v1.CreateCustomerProfileFromTransactionRequest;
 import net.authorize.api.contract.v1.CreateCustomerProfileResponse;
 import net.authorize.api.contract.v1.CreateTransactionRequest;
 import net.authorize.api.contract.v1.CreateTransactionResponse;
 import net.authorize.api.contract.v1.CreditCardType;
+import net.authorize.api.contract.v1.CustomerProfileBaseType;
+import net.authorize.api.contract.v1.CustomerProfilePaymentType;
+import net.authorize.api.contract.v1.DeleteCustomerProfileRequest;
 import net.authorize.api.contract.v1.MerchantAuthenticationType;
 import net.authorize.api.contract.v1.MessageTypeEnum;
 import net.authorize.api.contract.v1.MessagesType;
 import net.authorize.api.contract.v1.OpaqueDataType;
 import net.authorize.api.contract.v1.OrderType;
+import net.authorize.api.contract.v1.PaymentProfile;
 import net.authorize.api.contract.v1.PaymentType;
 import net.authorize.api.contract.v1.TransactionRequestType;
 import net.authorize.api.contract.v1.TransactionResponse;
 import net.authorize.api.contract.v1.TransactionTypeEnum;
+import net.authorize.api.controller.CreateCustomerProfileFromTransactionController;
 import net.authorize.api.controller.CreateTransactionController;
+import net.authorize.api.controller.DeleteCustomerProfileController;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -136,18 +143,63 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     @Override
     public ReusableCredentialResult createReusableCredential(String authorizationTransactionId,
                                                              String customerReferenceId) {
-        throw new UnsupportedOperationException();
+        CustomerProfileBaseType customerProfile = new CustomerProfileBaseType();
+        customerProfile.setMerchantCustomerId(customerReferenceId);
+
+        CreateCustomerProfileFromTransactionRequest request = new CreateCustomerProfileFromTransactionRequest();
+        request.setMerchantAuthentication(merchantAuthenticationType);
+        request.setTransId(authorizationTransactionId);
+        request.setCustomer(customerProfile);
+
+        CreateCustomerProfileFromTransactionController controller = new CreateCustomerProfileFromTransactionController(request);
+        controller.execute();
+        CreateCustomerProfileResponse response = controller.getApiResponse();
+
+        if (response == null || response.getMessages().getResultCode() != MessageTypeEnum.OK) {
+            return new ReusableCredentialResult(false, null, null, null, errorMessage(response));
+        }
+
+        String paymentProfileId = response.getCustomerPaymentProfileIdList().getNumericString().getFirst();
+        return new ReusableCredentialResult(true, response.getCustomerProfileId(), paymentProfileId, null, null);
     }
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
                                              String description) {
-        throw new UnsupportedOperationException();
+        PaymentProfile paymentProfile = new PaymentProfile();
+        paymentProfile.setPaymentProfileId(providerToken);
+
+        CustomerProfilePaymentType customerProfilePayment = new CustomerProfilePaymentType();
+        customerProfilePayment.setCustomerProfileId(providerCustomerId);
+        customerProfilePayment.setPaymentProfile(paymentProfile);
+
+        TransactionRequestType transactionRequest = new TransactionRequestType();
+        transactionRequest.setTransactionType(TransactionTypeEnum.AUTH_CAPTURE_TRANSACTION.value());
+        transactionRequest.setAmount(amount);
+        transactionRequest.setProfile(customerProfilePayment);
+
+        OrderType order = new OrderType();
+        order.setDescription(description);
+        transactionRequest.setOrder(order);
+
+        CreateTransactionResponse response = execute(transactionRequest);
+
+        if (!isSuccessful(response)) {
+            return new AuthResult(false, null, errorMessage(response), null);
+        }
+
+        TransactionResponse transactionResponse = response.getTransactionResponse();
+        return new AuthResult(true, transactionResponse.getTransId(), null, last4From(transactionResponse.getAccountNumber()));
     }
 
     @Override
     public void revokeReusableCredential(String providerCustomerId, String providerToken) {
-        throw new UnsupportedOperationException();
+        DeleteCustomerProfileRequest request = new DeleteCustomerProfileRequest();
+        request.setMerchantAuthentication(merchantAuthenticationType);
+        request.setCustomerProfileId(providerCustomerId);
+
+        DeleteCustomerProfileController controller = new DeleteCustomerProfileController(request);
+        controller.execute();
     }
 
     private CreateTransactionResponse execute(TransactionRequestType transactionRequest) {
