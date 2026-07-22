@@ -5,12 +5,10 @@ import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.PaymentMethod;
 import com.stripe.model.Refund;
-import com.stripe.model.SetupIntent;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.RefundCreateParams;
-import com.stripe.param.SetupIntentCreateParams;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -115,18 +113,19 @@ public class StripePaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public TokenResult tokenize(String customerId) {
-        try {
-            SetupIntent setupIntent = SetupIntent.create(
-                    SetupIntentCreateParams.builder()
-                                           .setCustomer(customerId)
-                                           .addPaymentMethodType("card")
-                                           .build(),
-                    connectedAccountOptions()
-            );
-            return new TokenResult(true, setupIntent.getId(), null);
-        } catch (StripeException e) {
-            return new TokenResult(false, null, e.getMessage());
-        }
+    public ReusableCredentialResult createReusableCredential(String authorizationTransactionId,
+                                                             String customerReferenceId) {
+        throw new UnsupportedOperationException("Stripe is unused (see issue #168) — not implemented");
+    }
+
+    @Override
+    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
+                                             String description) {
+        throw new UnsupportedOperationException("Stripe is unused (see issue #168) — not implemented");
+    }
+
+    @Override
+    public void revokeReusableCredential(String providerCustomerId, String providerToken) {
+        throw new UnsupportedOperationException("Stripe is unused (see issue #168) — not implemented");
     }
 }

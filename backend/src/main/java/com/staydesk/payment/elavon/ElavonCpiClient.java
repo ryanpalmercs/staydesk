@@ -84,7 +84,7 @@ public class ElavonCpiClient {
 
     public boolean healthCheck(String deviceId) {
         CpiTransaction request = new CpiTransaction(referenceNumber(), "HEALTHCHECK", null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         try {
             CpiTransaction response = sendDeviceMessage(deviceId, request);

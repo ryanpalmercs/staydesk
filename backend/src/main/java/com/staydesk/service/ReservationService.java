@@ -55,13 +55,15 @@ public class ReservationService {
     private final LockPasscodeService lockPasscodeService;
     private final ProviderFactory providerFactory;
     private final PosDeviceRepository posDeviceRepository;
+    private final PaymentCredentialService paymentCredentialService;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
                               RateRepository rateRepository, PaymentService paymentService, FolioService folioService,
                               GuestRepository guestRepository, SmsService smsService,
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
-                              PosDeviceRepository posDeviceRepository) {
+                              PosDeviceRepository posDeviceRepository,
+                              PaymentCredentialService paymentCredentialService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -74,6 +76,7 @@ public class ReservationService {
         this.lockPasscodeService = lockPasscodeService;
         this.providerFactory = providerFactory;
         this.posDeviceRepository = posDeviceRepository;
+        this.paymentCredentialService = paymentCredentialService;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -367,6 +370,8 @@ public class ReservationService {
         }
 
         folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
+
+        paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }

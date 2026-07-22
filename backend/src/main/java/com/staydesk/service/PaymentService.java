@@ -5,6 +5,7 @@ import com.staydesk.model.Folio;
 import com.staydesk.model.FolioPayment;
 import com.staydesk.model.FolioPayment.PaymentKind;
 import com.staydesk.model.FolioPayment.PaymentStatus;
+import com.staydesk.model.ReusablePaymentCredential;
 import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
 import com.staydesk.payment.PaymentProvider;
@@ -28,13 +29,16 @@ public class PaymentService {
     private final ProviderFactory providerFactory;
     private final FolioPaymentRepository folioPaymentRepository;
     private final PropertySettingsService propertySettingsService;
+    private final PaymentCredentialService paymentCredentialService;
 
     public PaymentService(ProviderFactory providerFactory,
                           FolioPaymentRepository folioPaymentRepository,
-                          PropertySettingsService propertySettingsService) {
+                          PropertySettingsService propertySettingsService,
+                          PaymentCredentialService paymentCredentialService) {
         this.providerFactory = providerFactory;
         this.folioPaymentRepository = folioPaymentRepository;
         this.propertySettingsService = propertySettingsService;
+        this.paymentCredentialService = paymentCredentialService;
     }
 
     public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId) {
@@ -49,7 +53,7 @@ public class PaymentService {
             LOGGER.error("Could not parse hold amount", e);
         }
 
-        createHold(folio.id(), PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
+        createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
     }
 
     public void cancelOpenHolds(Folio folio) {
@@ -81,18 +85,21 @@ public class PaymentService {
                 payment.authorizedAmount(), payment.capturedAmount(), payment.createdAt(), LocalDateTime.now()));
     }
 
-    private void createHold(int folioId, PaymentKind kind, String providerName, BigDecimal amount,
-                            String paymentMethodId,
-                            LocalDateTime now) {
+    private void createHold(Folio folio, PaymentKind kind, String providerName, BigDecimal amount,
+                            String paymentMethodId, LocalDateTime now) {
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folioId);
+                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id());
 
         if (!result.success()) {
-            throw new RuntimeException("Failed to create " + kind + " hold for folio " + folioId + ": " + result.message());
+            throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
         }
 
-        folioPaymentRepository.save(new FolioPayment(0, folioId, kind, providerName, result.transactionId(), result.cardLast4(),
-                PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
+        FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), kind, providerName, result.transactionId(),
+                result.cardLast4(), PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
+
+        if (kind == PaymentKind.INCIDENTALS) {
+            paymentCredentialService.captureCheckInCredential(folio, providerName, saved);
+        }
     }
 
     public PaymentCaptureResult capture(Folio folio) {
@@ -211,6 +218,20 @@ public class PaymentService {
         folioPaymentRepository.save(new FolioPayment(roomPayment.id(), roomPayment.folioId(), roomPayment.kind(),
                 roomPayment.provider(), roomPayment.stripePaymentIntentId(), roomPayment.cardLast4(), PaymentStatus.PARTIALLY_REFUNDED,
                 roomPayment.authorizedAmount(), retainedAmount, roomPayment.createdAt(), LocalDateTime.now()));
+    }
+
+    public FolioPayment chargeStoredCredential(Folio folio, ReusablePaymentCredential credential, BigDecimal amount,
+                                               String description) {
+        AuthResult result = providerFactory.getProvider(credential.provider())
+                                           .chargeStoredCredential(amount, credential.providerCustomerId(), credential.providerToken(), description);
+
+        if (!result.success()) {
+            throw new RuntimeException("Failed to charge stored credential for folio " + folio.id() + ": " + result.message());
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.INCIDENT_CHARGE,
+                credential.provider(), result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, now, now));
     }
 
     public record PaymentCaptureResult(FolioPayment room, FolioPayment incidentals, BigDecimal outstandingBalance) {

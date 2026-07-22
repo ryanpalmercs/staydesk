@@ -19,3 +19,11 @@ export function addFolioItem(folioId, extraId, quantity) {
 export function payFolio(folioId) {
     return api.post(`/folios/${folioId}/pay`)
 }
+
+export function requestIncidentCharge(folioId, amount, reason) {
+    return api.post(`/folios/${folioId}/incident-charges`, { amount, reason })
+}
+
+export function getFolioIncidentCharges(folioId) {
+    return api.get(`/folios/${folioId}/incident-charges`)
+}

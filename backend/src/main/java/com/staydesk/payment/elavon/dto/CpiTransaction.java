@@ -6,5 +6,5 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record CpiTransaction(String referenceNumber, String transType, String transAmount,
                              CpiIdentifiers identifiers, String cashierId,
                              CpiSafetyFields safetyFields, CpiCard card,
-                             CpiResponseFields response) {
+                             CpiResponseFields response, String cardTransIdentifierIndicator) {
 }

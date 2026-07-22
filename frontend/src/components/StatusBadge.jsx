@@ -12,6 +12,10 @@ function StatusBadge({ status }) {
         INACTIVE: ['bg-gray-100 text-gray-500', 'Inactive'],
         FLAGGED: ['bg-red-100 text-red-700', 'Flagged'],
         LEGAL_HOLD: ['bg-amber-100 text-amber-800', 'Legal Hold'],
+        PENDING: ['bg-amber-100 text-amber-800', 'Pending'],
+        CHARGED: ['bg-green-100 text-green-800', 'Charged'],
+        FAILED: ['bg-red-100 text-red-700', 'Failed'],
+        REJECTED: ['bg-gray-100 text-gray-500', 'Rejected'],
     }
 
     const [cls, label] = map[status] ?? ['bg-tan text-muted', status]

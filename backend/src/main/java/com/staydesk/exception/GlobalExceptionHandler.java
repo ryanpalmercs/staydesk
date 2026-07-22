@@ -47,4 +47,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleAccountAlreadyExistsException(AccountAlreadyExistsException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
+
+    @ExceptionHandler(NoReusableCredentialException.class)
+    public ResponseEntity<String> handleNoReusableCredentialException(NoReusableCredentialException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(FolioNotClosedException.class)
+    public ResponseEntity<String> handleFolioNotClosedException(FolioNotClosedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(IncidentChargeRequestNotFoundException.class)
+    public ResponseEntity<String> handleIncidentChargeRequestNotFoundException(IncidentChargeRequestNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(IncidentChargeAlreadyDecidedException.class)
+    public ResponseEntity<String> handleIncidentChargeAlreadyDecidedException(IncidentChargeAlreadyDecidedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(FolioNotFoundException.class)
+    public ResponseEntity<String> handleFolioNotFoundException(FolioNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
 }
