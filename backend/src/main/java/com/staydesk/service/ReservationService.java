@@ -251,7 +251,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public CheckInResult checkIn(int id, int roomId, String incidentalsPaymentMethodId) {
+    public CheckInResult checkIn(int id, int roomId, String incidentalsPaymentMethodId, String roomPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -272,6 +272,18 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        if (reservation.channel().equals(Reservation.Channel.WALK_IN)) {
+            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                      .orElseThrow(RateNotFoundException::new);
+
+            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
+                    BigDecimal.valueOf(
+                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+
+            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+        }
+
         paymentService.createIncidentalHold(folio, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId);
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
