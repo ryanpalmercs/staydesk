@@ -4,7 +4,7 @@ import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
 import com.staydesk.payment.PaymentProvider;
 import com.staydesk.payment.RefundResult;
-import com.staydesk.payment.TokenResult;
+import com.staydesk.payment.ReusableCredentialResult;
 import com.staydesk.payment.VoidResult;
 import com.staydesk.payment.elavon.dto.CpiCard;
 import com.staydesk.payment.elavon.dto.CpiResponseFields;
@@ -97,8 +97,20 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public TokenResult tokenize(String customerId) {
-        throw new UnsupportedOperationException("Elavon CPI provider does not support saved/reusable card tokens");
+    public ReusableCredentialResult createReusableCredential(String authorizationTransactionId,
+                                                             String customerReferenceId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
+                                             String description) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void revokeReusableCredential(String providerCustomerId, String providerToken) {
+        throw new UnsupportedOperationException();
     }
 
     private boolean isApproved(CpiTransaction response) {
@@ -107,8 +119,8 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     private String authIdFrom(CpiTransaction response) {
         return response.safetyFields() != null && response.safetyFields().tokenization() != null
-                ? response.safetyFields().tokenization().token()
-                : null;
+               ? response.safetyFields().tokenization().token()
+               : null;
     }
 
     private String responseMessage(CpiTransaction response) {

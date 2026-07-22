@@ -1,12 +1,10 @@
 package com.staydesk.payment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.authorize.api.contract.v1.CreateCustomerProfileRequest;
 import net.authorize.api.contract.v1.CreateCustomerProfileResponse;
 import net.authorize.api.contract.v1.CreateTransactionRequest;
 import net.authorize.api.contract.v1.CreateTransactionResponse;
 import net.authorize.api.contract.v1.CreditCardType;
-import net.authorize.api.contract.v1.CustomerProfileType;
 import net.authorize.api.contract.v1.MerchantAuthenticationType;
 import net.authorize.api.contract.v1.MessageTypeEnum;
 import net.authorize.api.contract.v1.MessagesType;
@@ -16,7 +14,6 @@ import net.authorize.api.contract.v1.PaymentType;
 import net.authorize.api.contract.v1.TransactionRequestType;
 import net.authorize.api.contract.v1.TransactionResponse;
 import net.authorize.api.contract.v1.TransactionTypeEnum;
-import net.authorize.api.controller.CreateCustomerProfileController;
 import net.authorize.api.controller.CreateTransactionController;
 import org.springframework.stereotype.Service;
 
@@ -137,23 +134,20 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public TokenResult tokenize(String customerId) {
-        CustomerProfileType customerProfile = new CustomerProfileType();
-        customerProfile.setMerchantCustomerId(customerId);
+    public ReusableCredentialResult createReusableCredential(String authorizationTransactionId,
+                                                             String customerReferenceId) {
+        throw new UnsupportedOperationException();
+    }
 
-        CreateCustomerProfileRequest request = new CreateCustomerProfileRequest();
-        request.setMerchantAuthentication(merchantAuthenticationType);
-        request.setProfile(customerProfile);
+    @Override
+    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
+                                             String description) {
+        throw new UnsupportedOperationException();
+    }
 
-        CreateCustomerProfileController controller = new CreateCustomerProfileController(request);
-        controller.execute();
-        CreateCustomerProfileResponse response = controller.getApiResponse();
-
-        if (response == null || response.getMessages().getResultCode() != MessageTypeEnum.OK) {
-            return new TokenResult(false, null, errorMessage(response));
-        }
-
-        return new TokenResult(true, response.getCustomerProfileId(), null);
+    @Override
+    public void revokeReusableCredential(String providerCustomerId, String providerToken) {
+        throw new UnsupportedOperationException();
     }
 
     private CreateTransactionResponse execute(TransactionRequestType transactionRequest) {

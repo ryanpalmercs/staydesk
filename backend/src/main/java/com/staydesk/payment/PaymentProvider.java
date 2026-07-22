@@ -13,5 +13,9 @@ public interface PaymentProvider {
 
     RefundResult refund(String transactionId, BigDecimal amount, String cardLast4);
 
-    TokenResult tokenize(String customerId);
+    ReusableCredentialResult createReusableCredential(String authorizationTransactionId, String customerReferenceId);
+
+    AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description);
+
+    void revokeReusableCredential(String providerCustomerId, String providerToken);
 }
