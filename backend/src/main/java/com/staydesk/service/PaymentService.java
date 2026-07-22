@@ -5,6 +5,7 @@ import com.staydesk.model.Folio;
 import com.staydesk.model.FolioPayment;
 import com.staydesk.model.FolioPayment.PaymentKind;
 import com.staydesk.model.FolioPayment.PaymentStatus;
+import com.staydesk.model.ReusablePaymentCredential;
 import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
 import com.staydesk.payment.PaymentProvider;
@@ -211,6 +212,20 @@ public class PaymentService {
         folioPaymentRepository.save(new FolioPayment(roomPayment.id(), roomPayment.folioId(), roomPayment.kind(),
                 roomPayment.provider(), roomPayment.stripePaymentIntentId(), roomPayment.cardLast4(), PaymentStatus.PARTIALLY_REFUNDED,
                 roomPayment.authorizedAmount(), retainedAmount, roomPayment.createdAt(), LocalDateTime.now()));
+    }
+
+    public FolioPayment chargeStoredCredential(Folio folio, ReusablePaymentCredential credential, BigDecimal amount,
+                                               String description) {
+        AuthResult result = providerFactory.getProvider(credential.provider())
+                                           .chargeStoredCredential(amount, credential.providerCustomerId(), credential.providerToken(), description);
+
+        if (!result.success()) {
+            throw new RuntimeException("Failed to charge stored credential for folio " + folio.id() + ": " + result.message());
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.INCIDENT_CHARGE,
+                credential.provider(), result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, now, now));
     }
 
     public record PaymentCaptureResult(FolioPayment room, FolioPayment incidentals, BigDecimal outstandingBalance) {
