@@ -103,4 +103,47 @@ class ElavonCpiClientSpec extends Specification {
         expect:
         !client.healthCheck("device-1")
     }
+
+    def "sendGatewayMessage round-trips a Card-on-File token in the response"() {
+        given:
+        authService.getAccessToken() >> 'fake-token'
+
+        def responseBody = '''
+        {
+          "responseChannelType": "SYNCHRONOUS",
+          "responseChannel": { "responsePayloadFormat": "DEVICEMESSAGE" },
+          "messageId": "VMH1sJKCiEaRStqV",
+          "messageType": "application/vnd.elavon.transaction-b.v1+json",
+          "message": {
+            "referenceNumber": "10234583",
+            "transType": "SALE",
+            "safetyFields": { "tokenization": { "token": "stored-token-1" } },
+            "response": { "responseCode": "0000", "responseText": "SUCCESSFUL" }
+          }
+        }
+        '''
+
+        server = HttpServer.create(new InetSocketAddress(0), 0)
+        server.createContext("/gateways/message") { exchange ->
+            def bytes = responseBody.getBytes(StandardCharsets.UTF_8)
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, bytes.length)
+            exchange.responseBody.write(bytes)
+            exchange.responseBody.close()
+        }
+        server.start()
+
+        def client = clientPointedAt("http://localhost:${server.address.port}")
+        def request = new com.staydesk.payment.elavon.dto.CpiTransaction(
+                "10234583", "SALE", "150", null, null,
+                new com.staydesk.payment.elavon.dto.CpiSafetyFields(
+                        new com.staydesk.payment.elavon.dto.CpiToken("stored-token-1")),
+                null, null, "M206")
+
+        when:
+        def response = client.sendGatewayMessage(request)
+
+        then:
+        response.safetyFields().tokenization().token() == "stored-token-1"
+    }
 }
