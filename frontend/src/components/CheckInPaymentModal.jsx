@@ -153,11 +153,12 @@ function CheckInPaymentForm({ roomId, onConfirm, onClose, onCheckedIn }) {
     )
 }
 
-function AcceptJsCheckInForm({ roomId, onConfirm, onClose, onCheckedIn }) {
+function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCheckedIn }) {
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+    const isWalkIn = reservationChannel === 'WALK_IN'
 
-    async function handleCapture(token) {
-        const doorAccessStatus = await onConfirm(roomId, token)
+    async function handleCapture(incidentalsToken, roomToken) {
+        const doorAccessStatus = await onConfirm(roomId, incidentalsToken, roomToken)
         if (doorAccessStatus === 'FAILED') {
             setDoorAccessFailed(true)
         } else {
@@ -169,7 +170,7 @@ function AcceptJsCheckInForm({ roomId, onConfirm, onClose, onCheckedIn }) {
         return <DoorAccessFailedNotice onClose={onClose} />
     }
 
-    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" />
+    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" dual={isWalkIn} />
 }
 
 function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck }) {
@@ -360,7 +361,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                             />
                         )}
                         {!useTerminal && provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
+                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
                         )}
                         {!useTerminal && provider === 'stripe' && stripePromise && (
                             <Elements stripe={stripePromise}>
