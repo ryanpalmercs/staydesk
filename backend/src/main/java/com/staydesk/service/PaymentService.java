@@ -29,13 +29,16 @@ public class PaymentService {
     private final ProviderFactory providerFactory;
     private final FolioPaymentRepository folioPaymentRepository;
     private final PropertySettingsService propertySettingsService;
+    private final PaymentCredentialService paymentCredentialService;
 
     public PaymentService(ProviderFactory providerFactory,
                           FolioPaymentRepository folioPaymentRepository,
-                          PropertySettingsService propertySettingsService) {
+                          PropertySettingsService propertySettingsService,
+                          PaymentCredentialService paymentCredentialService) {
         this.providerFactory = providerFactory;
         this.folioPaymentRepository = folioPaymentRepository;
         this.propertySettingsService = propertySettingsService;
+        this.paymentCredentialService = paymentCredentialService;
     }
 
     public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId) {
@@ -50,7 +53,7 @@ public class PaymentService {
             LOGGER.error("Could not parse hold amount", e);
         }
 
-        createHold(folio.id(), PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
+        createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
     }
 
     public void cancelOpenHolds(Folio folio) {
@@ -82,18 +85,21 @@ public class PaymentService {
                 payment.authorizedAmount(), payment.capturedAmount(), payment.createdAt(), LocalDateTime.now()));
     }
 
-    private void createHold(int folioId, PaymentKind kind, String providerName, BigDecimal amount,
-                            String paymentMethodId,
-                            LocalDateTime now) {
+    private void createHold(Folio folio, PaymentKind kind, String providerName, BigDecimal amount,
+                            String paymentMethodId, LocalDateTime now) {
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folioId);
+                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id());
 
         if (!result.success()) {
-            throw new RuntimeException("Failed to create " + kind + " hold for folio " + folioId + ": " + result.message());
+            throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
         }
 
-        folioPaymentRepository.save(new FolioPayment(0, folioId, kind, providerName, result.transactionId(), result.cardLast4(),
-                PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
+        FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), kind, providerName, result.transactionId(),
+                result.cardLast4(), PaymentStatus.REQUIRES_CAPTURE, amount, null, now, now));
+
+        if (kind == PaymentKind.INCIDENTALS) {
+            paymentCredentialService.captureCheckInCredential(folio, providerName, saved);
+        }
     }
 
     public PaymentCaptureResult capture(Folio folio) {
