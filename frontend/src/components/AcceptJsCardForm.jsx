@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { displayPrice } from "../utils/price"
 
 const ACCEPT_JS_SRC = import.meta.env.VITE_AUTHORIZE_NET_ENVIRONMENT === 'PRODUCTION'
     ? 'https://js.authorize.net/v1/Accept.js'
@@ -189,7 +190,7 @@ function dispatchAcceptJs(secureData) {
     })
 }
 
-function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual = false }) {
+function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual = false, amount = null, label = 'Amount' }) {
     const [ready, setReady] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
@@ -269,6 +270,12 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual =
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {amount != null && (
+                <div className="flex justify-between items-baseline">
+                    <span className="text-sm text-muted">{label}</span>
+                    <span className="text-lg font-semibold text-black">{displayPrice(amount)}</span>
+                </div>
+            )}
             <div className="filter-input flex items-center gap-2">
                 <div className="relative flex-shrink-0">
                     {cardNumberInvalid ? <CardInvalidIcon /> : <CardBrandIcon brand={brand} />}
