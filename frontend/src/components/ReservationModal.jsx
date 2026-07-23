@@ -597,7 +597,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
             {step === 'payment' && (
                 <div className="px-6 pb-6 overflow-y-auto">
-                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" />
+                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
                 </div>
             )}
 

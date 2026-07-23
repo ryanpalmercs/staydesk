@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react"
 import { getPropertySetting } from "../api/settingsApi"
-import { getAvailableRoomsForCheckIn } from "../api/reservationApi"
+import { getAvailableRoomsForCheckIn, getReservationEstimate } from "../api/reservationApi"
 import { getPosDevices, checkPosDeviceHealth } from "../api/posDeviceApi"
+import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
+
+function AmountBanner({ amount, label }) {
+    if (amount == null) return null
+    return (
+        <div className="flex justify-between items-baseline mb-2">
+            <span className="text-sm text-muted">{label}</span>
+            <span className="text-lg font-semibold text-black">{displayPrice(amount)}</span>
+        </div>
+    )
+}
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
     const [rooms, setRooms] = useState([])
@@ -80,7 +91,7 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCheckedIn }) {
+function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
     const isWalkIn = reservationChannel === 'WALK_IN'
 
@@ -97,10 +108,10 @@ function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, o
         return <DoorAccessFailedNotice onClose={onClose} />
     }
 
-    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" dual={isWalkIn} />
+    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
 }
 
-function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck }) {
+function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
     const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
@@ -150,6 +161,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <AmountBanner amount={chargeAmount} label={chargeLabel} />
             {devices.length > 1 && (
                 <select value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)} className="filter-input">
                     {devices.map(d => (
@@ -182,7 +194,10 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onConfirmTerminal, onClose }) {
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
+    const reservationChannel = reservation.channel
+    const isWalkIn = reservationChannel === 'WALK_IN'
+
     const [step, setStep] = useState('room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
     const [provider, setProvider] = useState(null)
@@ -190,11 +205,26 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
     const [posDevices, setPosDevices] = useState([])
     const [useTerminal, setUseTerminal] = useState(false)
     const [manualEntryUnlocked, setManualEntryUnlocked] = useState(false)
+    const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
+    const [stayTotal, setStayTotal] = useState(null)
 
     useEffect(() => {
         getPropertySetting('payment_provider').then(res => {
             setProvider(res.data.value)
         })
+
+        getPropertySetting('incidentals_hold_amount').then(res => {
+            setIncidentalsHoldAmount(res.data.value)
+        })
+
+        if (isWalkIn) {
+            getReservationEstimate({
+                rateType: reservation.rateType,
+                guestCount: reservation.guestCount,
+                checkInDate: reservation.checkInDate,
+                checkOutDate: reservation.checkOutDate
+            }).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
+        }
 
         getPosDevices().then(res => {
             const devices = res.data ?? []
@@ -202,6 +232,11 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
             setUseTerminal(devices.length > 0)
         })
     }, [])
+
+    const chargeAmount = isWalkIn
+        ? (stayTotal != null && incidentalsHoldAmount != null ? stayTotal + parseFloat(incidentalsHoldAmount) : null)
+        : incidentalsHoldAmount
+    const chargeLabel = isWalkIn ? 'Total Charge' : 'Incidentals Hold'
 
     useEffect(() => {
         if (!useTerminal) return
@@ -272,10 +307,12 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                                 onCheckedIn={handleCheckedIn}
                                 devices={posDevices}
                                 onHealthCheck={handleHealthCheck}
+                                chargeAmount={chargeAmount}
+                                chargeLabel={chargeLabel}
                             />
                         )}
                         {!useTerminal && provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
+                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
                         )}
                         {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
                             <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
