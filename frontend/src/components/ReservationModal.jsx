@@ -5,73 +5,13 @@ import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
-import { getConnectStatus } from "../api/stripeApi"
-import { loadStripe } from "@stripe/stripe-js"
-import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
 import AcceptJsCardForm from "./AcceptJsCardForm"
-import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus } from "lucide-react"
 import Modal from "./Modal"
 
-
-function CardCaptureForm({ onCapture, onCancel }) {
-    const stripe = useStripe()
-    const elements = useElements()
-    const [submitting, setSubmitting] = useState(false)
-    const [error, setError] = useState(null)
-
-    async function handleSubmit(e) {
-        e.preventDefault()
-        if (!stripe || !elements) {
-            return
-        }
-        setSubmitting(true)
-        setError(null)
-        const card = elements.getElement(CardElement)
-        const result = await stripe.createPaymentMethod({ type: 'card', card })
-        if (result.error) {
-            setError(result.error.message)
-            setSubmitting(false)
-            return
-        }
-        try {
-            await onCapture(result.paymentMethod.id)
-        } catch {
-            setError('Failed to create reservation. Please try a different card.')
-            setSubmitting(false)
-        }
-    }
-
-    return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="filter-input">
-                <CardElement options={stripeCardElementOptions} />
-            </div>
-            {error && <p className="text-sm text-error">{error}</p>}
-            <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>Back</button>
-                <button type="submit" className="btn btn-primary" disabled={!stripe || submitting}>
-                    {submitting ? 'Reserving...' : 'Confirm & Reserve'}
-                </button>
-            </div>
-        </form>
-    )
-}
-
-function CardCaptureStep({ provider, stripePromise, onCapture, onCancel }) {
-    if (provider === 'authorizenet') {
-        return <AcceptJsCardForm onCapture={onCapture} onCancel={onCancel} submitLabel="Confirm & Reserve" />
-    }
-
-    return (
-        <Elements stripe={stripePromise}>
-            <CardCaptureForm onCapture={onCapture} onCancel={onCancel} />
-        </Elements>
-    )
-}
 
 function Stepper({ label, value, min, max, onChange }) {
     return (
@@ -135,9 +75,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [guestSearchQuery, setGuestSearchQuery] = useState('')
     const [editingGuestInfo, setEditingGuestInfo] = useState(false)
     const [pendingForm, setPendingForm] = useState(null)
-    const [stripePromise, setStripePromise] = useState(null)
     const [provider, setProvider] = useState(null)
-    const paymentReady = provider === 'authorizenet' || (provider === 'stripe' && stripePromise != null)
+    const paymentReady = provider === 'authorizenet'
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
     const flaggedMatch = selectedGuest?.flagged ? selectedGuest : null
@@ -175,14 +114,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         if (!isEditing) {
             getPropertySetting('payment_provider').then(res => {
                 setProvider(res.data.value)
-
-                if (res.data.value === 'stripe') {
-                    getConnectStatus().then(connectRes => {
-                        if (connectRes.data.connected) {
-                            setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, { stripeAccount: connectRes.data.accountId }))
-                        }
-                    })
-                }
             })
         }
     }, [])
@@ -666,12 +597,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
             {step === 'payment' && (
                 <div className="px-6 pb-6 overflow-y-auto">
-                    <CardCaptureStep
-                        stripePromise={stripePromise}
-                        onCapture={handleCapture}
-                        onCancel={() => setStep('form')}
-                        provider={provider}
-                    />
+                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" />
                 </div>
             )}
 

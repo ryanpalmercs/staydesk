@@ -9,8 +9,6 @@
     "@fullcalendar/react": "^6.1.20",
     "@fullcalendar/timegrid": "^6.1.20",
     "@hotjar/browser": "^1.0.9",
-    "@stripe/react-stripe-js": "^6.6.0",
-    "@stripe/stripe-js": "^9.8.0",
     "@supabase/supabase-js": "^2.108.2",
     "axios": "^1.7.0",
     "date-fns": "^4.4.0",

@@ -4,7 +4,7 @@ Lightweight property management and payroll integration for small independent mo
 
 ## Stack
 
-- **Backend:** Spring Boot 3.5, PostgreSQL 15, Stripe, Gusto API
+- **Backend:** Spring Boot 3.5, PostgreSQL 15, Authorize.net, Elavon CPI, Gusto API
 - **Frontend:** React 19
 - **Auth:** Supabase
 - **CI/CD:** GitHub Actions
@@ -13,7 +13,7 @@ Lightweight property management and payroll integration for small independent mo
 
 - Guest Management (reservations, check-in/out, room inventory, folio)
 - Payroll (Gusto API integration)
-- Payments (Stripe)
+- Payments (Authorize.net, Elavon CPI)
 
 ## Project Structure
 
