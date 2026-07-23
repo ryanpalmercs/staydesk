@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react"
-import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
-import { loadStripe } from "@stripe/stripe-js"
-import { getConnectStatus } from "../api/stripeApi"
 import { getPropertySetting } from "../api/settingsApi"
 import { getAvailableRoomsForCheckIn } from "../api/reservationApi"
 import { getPosDevices, checkPosDeviceHealth } from "../api/posDeviceApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
-import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
 import Modal from "./Modal"
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
@@ -81,75 +77,6 @@ function DoorAccessFailedNotice({ onClose }) {
                 </button>
             </div>
         </div>
-    )
-}
-
-function CheckInPaymentForm({ roomId, onConfirm, onClose, onCheckedIn }) {
-    const stripe = useStripe()
-    const elements = useElements()
-    const [submitting, setSubmitting] = useState(false)
-    const [error, setError] = useState(null)
-    const [slowNotice, setSlowNotice] = useState(false)
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
-
-    async function handleSubmit(e) {
-        e.preventDefault()
-
-        if (!stripe || !elements) {
-            return
-        }
-
-        setSubmitting(true)
-        setError(null)
-
-        const card = elements.getElement(CardElement)
-
-        const incidentalsResult = await stripe.createPaymentMethod({ type: 'card', card })
-        if (incidentalsResult.error) {
-            setError(incidentalsResult.error.message)
-            setSubmitting(false)
-            return
-        }
-
-        const slowTimer = setTimeout(() => setSlowNotice(true), 2000)
-
-        try {
-            const doorAccessStatus = await onConfirm(roomId, incidentalsResult.paymentMethod.id)
-            if (doorAccessStatus === 'FAILED') {
-                setDoorAccessFailed(true)
-            } else {
-                onCheckedIn(doorAccessStatus)
-            }
-        } catch (err) {
-            setError('Failed to check in. Please try a different card.')
-        } finally {
-            clearTimeout(slowTimer)
-            setSubmitting(false)
-            setSlowNotice(false)
-        }
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
-    }
-
-    return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="filter-input">
-                <CardElement options={stripeCardElementOptions} />
-            </div>
-
-            {error && <p className="text-sm text-error">{error}</p>}
-
-            <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
-                    Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={!stripe || submitting}>
-                    {submitting ? (slowNotice ? 'Still setting up door access...' : 'Checking in...') : 'Check In'}
-                </button>
-            </div>
-        </form>
     )
 }
 
@@ -258,7 +185,6 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
 function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onConfirmTerminal, onClose }) {
     const [step, setStep] = useState('room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
-    const [stripePromise, setStripePromise] = useState(null)
     const [provider, setProvider] = useState(null)
     const [error, setError] = useState(null)
     const [posDevices, setPosDevices] = useState([])
@@ -268,18 +194,6 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
     useEffect(() => {
         getPropertySetting('payment_provider').then(res => {
             setProvider(res.data.value)
-
-            if (res.data.value === 'stripe') {
-                getConnectStatus().then(connectRes => {
-                    if (connectRes.data.connected) {
-                        setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, {
-                            stripeAccount: connectRes.data.accountId
-                        }))
-                    } else {
-                        setError('Stripe is not connected. Connect an account in Settings first.')
-                    }
-                })
-            }
         })
 
         getPosDevices().then(res => {
@@ -313,7 +227,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
         }
     }
 
-    const hasManualProvider = provider === 'authorizenet' || (provider === 'stripe' && stripePromise)
+    const hasManualProvider = provider === 'authorizenet'
 
     return (
         <Modal onClose={onClose} size="md">
@@ -362,11 +276,6 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                         )}
                         {!useTerminal && provider === 'authorizenet' && (
                             <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
-                        )}
-                        {!useTerminal && provider === 'stripe' && stripePromise && (
-                            <Elements stripe={stripePromise}>
-                                <CheckInPaymentForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
-                            </Elements>
                         )}
                         {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
                             <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
