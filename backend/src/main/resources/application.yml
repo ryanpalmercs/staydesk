@@ -24,11 +24,6 @@ management:
       exposure:
         include: health
 
-# Stripe
-stripe:
-  api-key: ${STRIPE_API_KEY}
-  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
-
 # Gusto
 gusto:
   api-base-url: https://api.gusto.com
