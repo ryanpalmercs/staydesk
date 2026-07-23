@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import { connectStripe, disconnectStripe, getConnectStatus } from "../api/stripeApi"
 import { connectSifely, disconnectSifely, getSifelyStatus } from "../api/sifelyApi"
-import { useSearchParams } from "react-router-dom"
 import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
 import { getRoomTypes, updateRoomType } from "../api/roomTypeApi"
 import { getRates, updateRate } from "../api/rateApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
-
-const STRIPE_SETTINGS_ENABLED = import.meta.env.VITE_ENABLE_STRIPE_SETTINGS === 'true'
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
 const RATE_TYPE_ORDER = ['NIGHTLY', 'WEEKLY_5', 'WEEKLY_7']
@@ -45,9 +41,6 @@ function RateRow({ rate, onChange }) {
 }
 
 function SettingsPage() {
-    const [loading, setLoading] = useState(true)
-    const [connected, setConnected] = useState(true)
-    const [accountId, setAccountId] = useState(null)
     const [sifelyLoading, setSifelyLoading] = useState(true)
     const [sifelyConnected, setSifelyConnected] = useState(false)
     const [sifelyClientId, setSifelyClientId] = useState(null)
@@ -59,7 +52,6 @@ function SettingsPage() {
     const [lodgingTaxRate, setLodgingTaxRate] = useState('')
     const [incidentalsFocused, setIncidentalsFocused] = useState(false)
     const [taxFocused, setTaxFocused] = useState(false)
-    const [searchParams] = useSearchParams()
     const [saving, setSaving] = useState(false)
     const [confirmationTemplate, setConfirmationTemplate] = useState('')
     const [checkInLinkTemplate, setCheckInLinkTemplate] = useState('')
@@ -72,7 +64,6 @@ function SettingsPage() {
     const confirmationRef = useRef(null)
     const checkInLinkRef = useRef(null)
     const checkInCompleteRef = useRef(null)
-    const error = searchParams.get('error')
     const originalSettings = useRef({})
     const originalRoomTypes = useRef([])
     const originalRates = useRef([])
@@ -82,9 +73,6 @@ function SettingsPage() {
     const [pairError, setPairError] = useState(null)
 
     useEffect(() => {
-        if (STRIPE_SETTINGS_ENABLED) {
-            getStripeSettings()
-        }
         getSifelySettings()
         loadPropertySettings()
         getRoomTypes().then(res => {
@@ -174,19 +162,6 @@ function SettingsPage() {
         const typeDiff = RATE_TYPE_ORDER.indexOf(a.rateType) - RATE_TYPE_ORDER.indexOf(b.rateType)
         return typeDiff !== 0 ? typeDiff : a.guestCount - b.guestCount
     })
-
-    async function getStripeSettings() {
-        setLoading(true)
-        const response = await getConnectStatus()
-        setConnected(response?.data?.connected)
-        setAccountId(response?.data?.accountId)
-        setLoading(false)
-    }
-
-    async function handleDisconnect() {
-        await disconnectStripe()
-        await getStripeSettings()
-    }
 
     async function getSifelySettings() {
         setSifelyLoading(true)
@@ -328,10 +303,6 @@ function SettingsPage() {
         <div>
             <h1 className="section-title">Settings</h1>
 
-            {STRIPE_SETTINGS_ENABLED && error === 'stripe_connect_failed' && (
-                <p className="text-error text-sm mb-6">Failed to connect Stripe account. Please try again.</p>
-            )}
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
                 <div className="feat-card lg:col-span-2">
@@ -390,31 +361,6 @@ function SettingsPage() {
                         {saving ? 'Saving...' : 'Save'}
                     </button>
                 </div>
-
-                {STRIPE_SETTINGS_ENABLED && (
-                    <div className="feat-card">
-                        <h3>Stripe</h3>
-                        <p>Connect your Stripe account to enable payment processing.</p>
-
-                        {loading ? (
-                            <p className="text-muted text-sm mt-4">Loading...</p>
-                        ) : connected ? (
-                            <div className="mt-4">
-                                <p className="text-sm text-muted mb-3">
-                                    Connected account: <span className="font-medium text-black">{accountId}</span>
-                                </p>
-                                <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
-                            </div>
-                        ) : (
-                            <div className="mt-4">
-                                <button className="btn-primary" onClick={async () => {
-                                    const response = await connectStripe()
-                                    window.location.href = response.data.url
-                                }}>Connect Stripe Account</button>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 <div className="feat-card">
                     <h3>Sifely Smart Lock</h3>

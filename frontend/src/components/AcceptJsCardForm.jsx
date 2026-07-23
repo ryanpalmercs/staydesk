@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { displayPrice } from "../utils/price"
 
 const ACCEPT_JS_SRC = import.meta.env.VITE_AUTHORIZE_NET_ENVIRONMENT === 'PRODUCTION'
     ? 'https://js.authorize.net/v1/Accept.js'
@@ -173,7 +174,23 @@ function CardErrorBadge() {
     )
 }
 
-function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
+function dispatchAcceptJs(secureData) {
+    return new Promise((resolve, reject) => {
+        window.Accept.dispatchData(secureData, response => {
+            if (response.messages.resultCode !== 'Ok') {
+                reject(new Error(response.messages.message[0]?.text ?? 'Card was declined.'))
+                return
+            }
+
+            resolve(JSON.stringify({
+                dataDescriptor: response.opaqueData.dataDescriptor,
+                dataValue: response.opaqueData.dataValue
+            }))
+        })
+    })
+}
+
+function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual = false, amount = null, label = 'Amount' }) {
     const [ready, setReady] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
@@ -204,13 +221,8 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
         loadAcceptJs().then(() => setReady(true)).catch(() => setError('Failed to load payment form.'))
     }, [])
 
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault()
-
-        if (cardNumberInvalid) {
-            setError('Card number is invalid.')
-            return
-        }
 
         if (cardNumberInvalid) {
             setError('Card number is invalid.')
@@ -241,29 +253,29 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm' }) {
             }
         }
 
-        window.Accept.dispatchData(secureData, async response => {
-            if (response.messages.resultCode !== 'Ok') {
-                setError(response.messages.message[0]?.text ?? 'Card was declined.')
-                setSubmitting(false)
-                return
-            }
+        try {
+            const firstToken = await dispatchAcceptJs(secureData)
 
-            const token = JSON.stringify({
-                dataDescriptor: response.opaqueData.dataDescriptor,
-                dataValue: response.opaqueData.dataValue
-            })
-
-            try {
-                await onCapture(token)
-            } catch {
-                setError('Failed to process card. Please try again.')
-                setSubmitting(false)
+            if (dual) {
+                const secondToken = await dispatchAcceptJs(secureData)
+                await onCapture(firstToken, secondToken)
+            } else {
+                await onCapture(firstToken)
             }
-        })
+        } catch (err) {
+            setError(err.message ?? 'Failed to process card. Please try again.')
+            setSubmitting(false)
+        }
     }
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {amount != null && (
+                <div className="flex justify-between items-baseline">
+                    <span className="text-sm text-muted">{label}</span>
+                    <span className="text-lg font-semibold text-black">{displayPrice(amount)}</span>
+                </div>
+            )}
             <div className="filter-input flex items-center gap-2">
                 <div className="relative flex-shrink-0">
                     {cardNumberInvalid ? <CardInvalidIcon /> : <CardBrandIcon brand={brand} />}

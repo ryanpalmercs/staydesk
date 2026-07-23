@@ -2,6 +2,7 @@ package com.staydesk.controller;
 
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.model.PosDevice;
+import com.staydesk.model.PosDeviceHealthResponse;
 import com.staydesk.model.request.PairDeviceRequest;
 import com.staydesk.payment.elavon.ElavonCpiClient;
 import com.staydesk.payment.elavon.dto.CpiDevice;
@@ -61,5 +62,14 @@ public class PosDeviceController {
         posDeviceRepository.deleteById(id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("{id}/health-check")
+    public ResponseEntity<PosDeviceHealthResponse> healthCheck(@PathVariable int id) {
+        PosDevice device = posDeviceRepository.findById(id).orElseThrow(PosDeviceNotFoundException::new);
+
+        boolean online = elavonCpiClient.healthCheck(device.deviceId());
+
+        return ResponseEntity.ok(new PosDeviceHealthResponse(online));
     }
 }

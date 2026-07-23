@@ -21,6 +21,7 @@ import GuestsPage from './pages/GuestsPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicy'
 import SmsTermsPage from './pages/SmsTermsPage'
 import WelcomePage from './pages/WelcomePage'
+import PendingIncidentChargesPage from './pages/PendingIncidentChargesPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -85,6 +86,11 @@ export default function App() {
                                         <Route path="/settings" element={<SettingsPage />} />
                                         <Route path="/reports" element={<ReportsPage />} />
                                         <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
+                                    </Route>
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
+                                    <Route element={<Layout />}>
+                                        <Route path="/incident-charges" element={<PendingIncidentChargesPage />} />
                                     </Route>
                                 </Route>
                             </>

@@ -24,8 +24,8 @@ export function getAvailableRoomsForCheckIn(id) {
     return api.get(`/reservations/${id}/available-rooms`)
 }
 
-export function checkIn(id, roomId, incidentalsPaymentMethodId) {
-    return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId })
+export function checkIn(id, roomId, incidentalsPaymentMethodId, roomPaymentMethodId) {
+    return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId, roomPaymentMethodId })
 }
 
 export function checkInTerminal(id, roomId, posDeviceId) {

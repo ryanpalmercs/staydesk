@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react"
-import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js"
-import { loadStripe } from "@stripe/stripe-js"
-import { getConnectStatus } from "../api/stripeApi"
 import { getPropertySetting } from "../api/settingsApi"
-import { getAvailableRoomsForCheckIn } from "../api/reservationApi"
-import { getPosDevices } from "../api/posDeviceApi"
+import { getAvailableRoomsForCheckIn, getReservationEstimate } from "../api/reservationApi"
+import { getPosDevices, checkPosDeviceHealth } from "../api/posDeviceApi"
+import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
-import { stripeCardElementOptions } from "../utils/stripeCardElementStyle"
+import Modal from "./Modal"
+
+function AmountBanner({ amount, label }) {
+    if (amount == null) return null
+    return (
+        <div className="flex justify-between items-baseline mb-2">
+            <span className="text-sm text-muted">{label}</span>
+            <span className="text-lg font-semibold text-black">{displayPrice(amount)}</span>
+        </div>
+    )
+}
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
     const [rooms, setRooms] = useState([])
@@ -83,80 +91,12 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function CheckInPaymentForm({ roomId, onConfirm, onClose, onCheckedIn }) {
-    const stripe = useStripe()
-    const elements = useElements()
-    const [submitting, setSubmitting] = useState(false)
-    const [error, setError] = useState(null)
-    const [slowNotice, setSlowNotice] = useState(false)
+function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+    const isWalkIn = reservationChannel === 'WALK_IN'
 
-    async function handleSubmit(e) {
-        e.preventDefault()
-
-        if (!stripe || !elements) {
-            return
-        }
-
-        setSubmitting(true)
-        setError(null)
-
-        const card = elements.getElement(CardElement)
-
-        const incidentalsResult = await stripe.createPaymentMethod({ type: 'card', card })
-        if (incidentalsResult.error) {
-            setError(incidentalsResult.error.message)
-            setSubmitting(false)
-            return
-        }
-
-        const slowTimer = setTimeout(() => setSlowNotice(true), 2000)
-
-        try {
-            const doorAccessStatus = await onConfirm(roomId, incidentalsResult.paymentMethod.id)
-            if (doorAccessStatus === 'FAILED') {
-                setDoorAccessFailed(true)
-            } else {
-                onCheckedIn(doorAccessStatus)
-            }
-        } catch (err) {
-            setError('Failed to check in. Please try a different card.')
-        } finally {
-            clearTimeout(slowTimer)
-            setSubmitting(false)
-            setSlowNotice(false)
-        }
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
-    }
-
-    return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="filter-input">
-                <CardElement options={stripeCardElementOptions} />
-            </div>
-
-            {error && <p className="text-sm text-error">{error}</p>}
-
-            <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
-                    Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={!stripe || submitting}>
-                    {submitting ? (slowNotice ? 'Still setting up door access...' : 'Checking in...') : 'Check In'}
-                </button>
-            </div>
-        </form>
-    )
-}
-
-function AcceptJsCheckInForm({ roomId, onConfirm, onClose, onCheckedIn }) {
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
-
-    async function handleCapture(token) {
-        const doorAccessStatus = await onConfirm(roomId, token)
+    async function handleCapture(incidentalsToken, roomToken) {
+        const doorAccessStatus = await onConfirm(roomId, incidentalsToken, roomToken)
         if (doorAccessStatus === 'FAILED') {
             setDoorAccessFailed(true)
         } else {
@@ -168,14 +108,33 @@ function AcceptJsCheckInForm({ roomId, onConfirm, onClose, onCheckedIn }) {
         return <DoorAccessFailedNotice onClose={onClose} />
     }
 
-    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" />
+    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
 }
 
-function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices }) {
+function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
     const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+    const [deviceOnline, setDeviceOnline] = useState(null)
+
+    useEffect(() => {
+        if (!selectedDeviceId) return
+        setDeviceOnline(null)
+        let cancelled = false
+        checkPosDeviceHealth(selectedDeviceId)
+            .then(res => {
+                if (cancelled) return
+                setDeviceOnline(res.data.online)
+                onHealthCheck(res.data.online)
+            })
+            .catch(() => {
+                if (cancelled) return
+                setDeviceOnline(false)
+                onHealthCheck(false)
+            })
+        return () => { cancelled = true }
+    }, [selectedDeviceId])
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -202,12 +161,17 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <AmountBanner amount={chargeAmount} label={chargeLabel} />
             {devices.length > 1 && (
                 <select value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)} className="filter-input">
                     {devices.map(d => (
                         <option key={d.id} value={d.id}>{d.friendlyName}{d.location ? ` — ${d.location}` : ''}</option>
                     ))}
                 </select>
+            )}
+
+            {deviceOnline === false && (
+                <p className="text-sm text-error">Terminal isn't responding. Try another device or enter the card manually.</p>
             )}
 
             {submitting && (
@@ -222,7 +186,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
                 <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
                     Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId}>
+                <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId || deviceOnline === false}>
                     {submitting ? 'Waiting on terminal...' : 'Charge on Terminal'}
                 </button>
             </div>
@@ -230,31 +194,37 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onConfirmTerminal, onClose }) {
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
+    const reservationChannel = reservation.channel
+    const isWalkIn = reservationChannel === 'WALK_IN'
+
     const [step, setStep] = useState('room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
-    const [stripePromise, setStripePromise] = useState(null)
     const [provider, setProvider] = useState(null)
     const [error, setError] = useState(null)
     const [posDevices, setPosDevices] = useState([])
     const [useTerminal, setUseTerminal] = useState(false)
+    const [manualEntryUnlocked, setManualEntryUnlocked] = useState(false)
+    const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
+    const [stayTotal, setStayTotal] = useState(null)
 
     useEffect(() => {
         getPropertySetting('payment_provider').then(res => {
             setProvider(res.data.value)
-
-            if (res.data.value === 'stripe') {
-                getConnectStatus().then(connectRes => {
-                    if (connectRes.data.connected) {
-                        setStripePromise(loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, {
-                            stripeAccount: connectRes.data.accountId
-                        }))
-                    } else {
-                        setError('Stripe is not connected. Connect an account in Settings first.')
-                    }
-                })
-            }
         })
+
+        getPropertySetting('incidentals_hold_amount').then(res => {
+            setIncidentalsHoldAmount(res.data.value)
+        })
+
+        if (isWalkIn) {
+            getReservationEstimate({
+                rateType: reservation.rateType,
+                guestCount: reservation.guestCount,
+                checkInDate: reservation.checkInDate,
+                checkOutDate: reservation.checkOutDate
+            }).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
+        }
 
         getPosDevices().then(res => {
             const devices = res.data ?? []
@@ -262,6 +232,22 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
             setUseTerminal(devices.length > 0)
         })
     }, [])
+
+    const chargeAmount = isWalkIn
+        ? (stayTotal != null && incidentalsHoldAmount != null ? stayTotal + parseFloat(incidentalsHoldAmount) : null)
+        : incidentalsHoldAmount
+    const chargeLabel = isWalkIn ? 'Total Charge' : 'Incidentals Hold'
+
+    useEffect(() => {
+        if (!useTerminal) return
+        setManualEntryUnlocked(false)
+        const timer = setTimeout(() => setManualEntryUnlocked(true), 4000)
+        return () => clearTimeout(timer)
+    }, [useTerminal])
+
+    function handleHealthCheck(online) {
+        if (!online) setManualEntryUnlocked(true)
+    }
 
     function handleRoomChosen(roomId) {
         setSelectedRoomId(roomId)
@@ -276,9 +262,10 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
         }
     }
 
+    const hasManualProvider = provider === 'authorizenet'
+
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-warm-white rounded-lg p-6 w-full max-w-md shadow-lg border-t-4 border-rust">
+        <Modal onClose={onClose} size="md">
                 <h2 className="text-lg text-black font-semibold mb-4">
                     {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
                 </h2>
@@ -295,6 +282,23 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                                 : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
                         </p>
                         {error && <p className="text-sm text-error mb-4">{error}</p>}
+
+                        {posDevices.length > 0 && hasManualProvider && (
+                            <div className="flex gap-2 justify-center mb-4">
+                                <button type="button" onClick={() => setUseTerminal(true)} className={`filter-btn${useTerminal ? ' active' : ''}`}>
+                                    Charge on Terminal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setUseTerminal(false)}
+                                    disabled={!manualEntryUnlocked}
+                                    className={`filter-btn${!useTerminal ? ' active' : ''}`}
+                                >
+                                    Enter Card Manually
+                                </button>
+                            </div>
+                        )}
+
                         {useTerminal && posDevices.length > 0 && (
                             <TerminalCheckInForm
                                 roomId={selectedRoomId}
@@ -302,15 +306,16 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                                 onClose={onClose}
                                 onCheckedIn={handleCheckedIn}
                                 devices={posDevices}
+                                onHealthCheck={handleHealthCheck}
+                                chargeAmount={chargeAmount}
+                                chargeLabel={chargeLabel}
                             />
                         )}
                         {!useTerminal && provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
+                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
                         )}
-                        {!useTerminal && provider === 'stripe' && stripePromise && (
-                            <Elements stripe={stripePromise}>
-                                <CheckInPaymentForm roomId={selectedRoomId} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} />
-                            </Elements>
+                        {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
+                            <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
                         )}
                     </>
                 )}
@@ -324,8 +329,7 @@ function CheckInPaymentModal({ reservationId, reservationChannel, onConfirm, onC
                         </div>
                     </div>
                 )}
-            </div>
-        </div>
+        </Modal>
     )
 }
 
