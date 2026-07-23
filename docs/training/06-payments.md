@@ -1,6 +1,6 @@
 ---
 title: StayDesk — Payments
-last_updated: 2026-06-26
+last_updated: 2026-07-23
 pdf_options:
   format: Letter
   margin: 1.25in 1in 1in 1in
@@ -9,7 +9,7 @@ stylesheet: ../style/staydesk.css
 
 # Payments
 
-StayDesk processes all payments through **Stripe**. No card numbers are handled or stored by the front desk — the system manages this securely in the background.
+StayDesk processes all payments through **Authorize.net** (card entered online, by phone, or manually at the desk) or our **card-present terminals** (chip/tap/swipe at check-in). No card numbers are handled or stored by the front desk — the system manages this securely in the background.
 
 ---
 
