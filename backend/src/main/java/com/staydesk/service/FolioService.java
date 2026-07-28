@@ -85,4 +85,9 @@ public class FolioService {
 
         return postCharge(folio, description, amount);
     }
+
+    @Transactional
+    public Folio postIncidentCharge(Folio folio, String description, BigDecimal amount) {
+        return postCharge(folio, description, amount);
+    }
 }

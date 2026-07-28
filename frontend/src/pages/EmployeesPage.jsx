@@ -96,7 +96,7 @@ function EmployeesPage() {
                         {displayed.map(employee => (
                             <div key={employee.id} className="feat-card flex flex-col gap-3">
                                 <div className="flex items-center justify-between">
-                                    <span className="font-semibold text-charcoal">{employee.name}</span>
+                                    <span className="font-semibold text-black">{employee.name}</span>
                                     <StatusBadge status={employee.active ? 'ACTIVE' : 'INACTIVE'} />
                                 </div>
                                 <div className="text-sm text-muted flex flex-col gap-1">
@@ -110,10 +110,10 @@ function EmployeesPage() {
                                     </div>
                                 </div>
                                 <div className="flex gap-3 justify-end">
-                                    <button onClick={() => openEdit(employee)} className="text-brown hover:text-rust text-sm font-medium">Edit</button>
-                                    <button onClick={() => openRole(employee)} className="text-brown hover:text-rust text-sm font-medium">Change Role</button>
-                                    <button onClick={() => openPin(employee)} className="text-brown hover:text-rust text-sm font-medium">Reset Pin</button>
-                                    <button onClick={() => handleDelete(employee.id)} className="text-muted hover:text-rust text-sm font-medium">Deactivate</button>
+                                    <button onClick={() => openEdit(employee)} className="text-muted hover:text-green text-sm font-medium">Edit</button>
+                                    <button onClick={() => openRole(employee)} className="text-muted hover:text-green text-sm font-medium">Change Role</button>
+                                    <button onClick={() => openPin(employee)} className="text-muted hover:text-green text-sm font-medium">Reset Pin</button>
+                                    <button onClick={() => handleDelete(employee.id)} className="text-muted hover:text-green text-sm font-medium">Deactivate</button>
                                 </div>
                             </div>
                         ))}

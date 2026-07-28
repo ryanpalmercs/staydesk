@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import { connectStripe, disconnectStripe, getConnectStatus } from "../api/stripeApi"
 import { connectSifely, disconnectSifely, getSifelyStatus } from "../api/sifelyApi"
-import { useSearchParams } from "react-router-dom"
 import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
 import { getRoomTypes, updateRoomType } from "../api/roomTypeApi"
 import { getRates, updateRate } from "../api/rateApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
-
-const STRIPE_SETTINGS_ENABLED = import.meta.env.VITE_ENABLE_STRIPE_SETTINGS === 'true'
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
 const RATE_TYPE_ORDER = ['NIGHTLY', 'WEEKLY_5', 'WEEKLY_7']
@@ -29,7 +25,7 @@ function RateRow({ rate, onChange }) {
 
     return (
         <div className="flex items-center gap-3">
-            <span className="text-sm text-charcoal flex-1">
+            <span className="text-sm text-black flex-1">
                 {RATE_TYPE_LABELS[rate.rateType] ?? rate.rateType} — {rate.guestCount} guest{rate.guestCount === 1 ? '' : 's'}
             </span>
             <input
@@ -45,9 +41,6 @@ function RateRow({ rate, onChange }) {
 }
 
 function SettingsPage() {
-    const [loading, setLoading] = useState(true)
-    const [connected, setConnected] = useState(true)
-    const [accountId, setAccountId] = useState(null)
     const [sifelyLoading, setSifelyLoading] = useState(true)
     const [sifelyConnected, setSifelyConnected] = useState(false)
     const [sifelyClientId, setSifelyClientId] = useState(null)
@@ -59,7 +52,6 @@ function SettingsPage() {
     const [lodgingTaxRate, setLodgingTaxRate] = useState('')
     const [incidentalsFocused, setIncidentalsFocused] = useState(false)
     const [taxFocused, setTaxFocused] = useState(false)
-    const [searchParams] = useSearchParams()
     const [saving, setSaving] = useState(false)
     const [confirmationTemplate, setConfirmationTemplate] = useState('')
     const [checkInLinkTemplate, setCheckInLinkTemplate] = useState('')
@@ -72,7 +64,6 @@ function SettingsPage() {
     const confirmationRef = useRef(null)
     const checkInLinkRef = useRef(null)
     const checkInCompleteRef = useRef(null)
-    const error = searchParams.get('error')
     const originalSettings = useRef({})
     const originalRoomTypes = useRef([])
     const originalRates = useRef([])
@@ -82,9 +73,6 @@ function SettingsPage() {
     const [pairError, setPairError] = useState(null)
 
     useEffect(() => {
-        if (STRIPE_SETTINGS_ENABLED) {
-            getStripeSettings()
-        }
         getSifelySettings()
         loadPropertySettings()
         getRoomTypes().then(res => {
@@ -174,19 +162,6 @@ function SettingsPage() {
         const typeDiff = RATE_TYPE_ORDER.indexOf(a.rateType) - RATE_TYPE_ORDER.indexOf(b.rateType)
         return typeDiff !== 0 ? typeDiff : a.guestCount - b.guestCount
     })
-
-    async function getStripeSettings() {
-        setLoading(true)
-        const response = await getConnectStatus()
-        setConnected(response?.data?.connected)
-        setAccountId(response?.data?.accountId)
-        setLoading(false)
-    }
-
-    async function handleDisconnect() {
-        await disconnectStripe()
-        await getStripeSettings()
-    }
 
     async function getSifelySettings() {
         setSifelyLoading(true)
@@ -328,10 +303,6 @@ function SettingsPage() {
         <div>
             <h1 className="section-title">Settings</h1>
 
-            {STRIPE_SETTINGS_ENABLED && error === 'stripe_connect_failed' && (
-                <p className="text-rust text-sm mb-6">Failed to connect Stripe account. Please try again.</p>
-            )}
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
                 <div className="feat-card lg:col-span-2">
@@ -391,31 +362,6 @@ function SettingsPage() {
                     </button>
                 </div>
 
-                {STRIPE_SETTINGS_ENABLED && (
-                    <div className="feat-card">
-                        <h3>Stripe</h3>
-                        <p>Connect your Stripe account to enable payment processing.</p>
-
-                        {loading ? (
-                            <p className="text-muted text-sm mt-4">Loading...</p>
-                        ) : connected ? (
-                            <div className="mt-4">
-                                <p className="text-sm text-muted mb-3">
-                                    Connected account: <span className="font-medium text-charcoal">{accountId}</span>
-                                </p>
-                                <button onClick={handleDisconnect} className="btn-secondary">Disconnect</button>
-                            </div>
-                        ) : (
-                            <div className="mt-4">
-                                <button className="btn-primary" onClick={async () => {
-                                    const response = await connectStripe()
-                                    window.location.href = response.data.url
-                                }}>Connect Stripe Account</button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 <div className="feat-card">
                     <h3>Sifely Smart Lock</h3>
                     <p>Connect your Sifely account to enable electronic door lock access.</p>
@@ -425,10 +371,10 @@ function SettingsPage() {
                     ) : sifelyConnected ? (
                         <div className="mt-4">
                             <p className="text-sm text-muted mb-3">
-                                Client ID: <span className="font-medium text-charcoal">{sifelyClientId}</span>
+                                Client ID: <span className="font-medium text-black">{sifelyClientId}</span>
                             </p>
                             <p className="text-sm text-muted mb-3">
-                                Connected: <span className="font-medium text-charcoal">{new Date(sifelyConnectedAt).toLocaleString()}</span>
+                                Connected: <span className="font-medium text-black">{new Date(sifelyConnectedAt).toLocaleString()}</span>
                             </p>
                             <button onClick={handleSifelyDisconnect} className="btn-secondary">Disconnect</button>
                         </div>
@@ -450,7 +396,7 @@ function SettingsPage() {
                                 <label className="block text-sm text-muted mb-1">Client Secret</label>
                                 <input type="password" name="clientSecret" value={sifelyForm.clientSecret} onChange={handleSifelyFieldChange} className="filter-input" required />
                             </div>
-                            {sifelyError && <p className="text-sm text-rust">{sifelyError}</p>}
+                            {sifelyError && <p className="text-sm text-error">{sifelyError}</p>}
                             <button type="submit" className="btn-primary self-start" disabled={sifelyConnecting}>
                                 {sifelyConnecting ? 'Connecting...' : 'Connect Sifely Account'}
                             </button>
@@ -465,7 +411,7 @@ function SettingsPage() {
                             <RoomTypeRow key={roomType.id} roomType={roomType} onChange={handleRoomTypeChange} />
                         ))}
                     </div>
-                    {roomTypesError && <p className="text-sm text-rust mt-2">{roomTypesError}</p>}
+                    {roomTypesError && <p className="text-sm text-error mt-2">{roomTypesError}</p>}
                     <button className="btn-primary mt-4" onClick={handleSaveRoomTypes} disabled={!roomTypesDirty || roomTypesSaving}>
                         {roomTypesSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -480,7 +426,7 @@ function SettingsPage() {
                         <input name="friendlyName" placeholder="Name (max 12 chars)" maxLength={12} value={pairForm.friendlyName} onChange={handlePairFieldChange} className="filter-input" required />
                         <input name="location" placeholder="Location (optional)" maxLength={16} value={pairForm.location} onChange={handlePairFieldChange} className="filter-input" />
                     </form>
-                    {pairError && <p className="text-sm text-rust mt-2">{pairError}</p>}
+                    {pairError && <p className="text-sm text-error mt-2">{pairError}</p>}
                     <button onClick={handlePairDevice} className="btn-primary mt-2" disabled={pairing}>
                         {pairing ? 'Pairing...' : 'Pair Terminal'}
                     </button>
@@ -488,8 +434,8 @@ function SettingsPage() {
                     <div className="flex flex-col gap-2 mt-4">
                         {posDevices.map(device => (
                             <div key={device.id} className="flex items-center justify-between">
-                                <span className="text-sm text-charcoal">{device.friendlyName}{device.location ? ` — ${device.location}` : ''}</span>
-                                <button onClick={() => handleUnpairDevice(device.id)} className="text-sm font-medium text-muted hover:text-rust">Unpair</button>
+                                <span className="text-sm text-black">{device.friendlyName}{device.location ? ` — ${device.location}` : ''}</span>
+                                <button onClick={() => handleUnpairDevice(device.id)} className="text-sm font-medium text-muted hover:text-green">Unpair</button>
                             </div>
                         ))}
                     </div>

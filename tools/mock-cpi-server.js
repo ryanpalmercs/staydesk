@@ -54,7 +54,7 @@ function approvedTransaction(message) {
         },
         response: {
             authorizationCode: '118769',
-            responseCode: '000',
+            responseCode: '0000',
             responseText: 'APPROVED',
             hostResponseCode: '00',
             hostResponseText: 'Approved'

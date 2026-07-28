@@ -27,7 +27,7 @@ function ReservationsPage() {
     const [reviewFolioId, setReviewFolioId] = useState(null)
     const [doorCodeTarget, setDoorCodeTarget] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
-    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '' })
+    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '', status: '' })
     const [error, setError] = useState(null)
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('asc')
@@ -85,10 +85,13 @@ function ReservationsPage() {
         }
     }
 
-    async function handleSaved() {
+    async function handleSaved(newWalkInId) {
         setModalOpen(false)
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
+        if (newWalkInId != null) {
+            openCheckIn(newWalkInId)
+        }
     }
 
     function handleFilterChange(e) {
@@ -99,8 +102,8 @@ function ReservationsPage() {
         setCheckInTarget(id)
     }
 
-    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
-        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
+    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId, roomPaymentMethodId) {
+        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId, roomPaymentMethodId)
         await fetchReservations()
         return res.data.doorAccessStatus
     }
@@ -109,6 +112,15 @@ function ReservationsPage() {
         const res = await checkInTerminal(checkInTarget, roomId, posDeviceId)
         await fetchReservations()
         return res.data.doorAccessStatus
+    }
+
+    async function handleViewFolio(id) {
+        try {
+            const folioRes = await getFolioByReservationId(id)
+            setReviewFolioId(folioRes.data.id)
+        } catch (err) {
+            setError('Failed to load folio.')
+        }
     }
 
     async function handleCheckOut(id) {
@@ -132,6 +144,9 @@ function ReservationsPage() {
     const guestMap = Object.fromEntries(guests.map(g => [g.id, g]))
 
     const filtered = reservations.filter(res => {
+        if (filters.status && res.status !== filters.status) {
+            return false
+        }
         if (filters.roomId === 'unassigned') {
             if (res.roomId != null) {
                 return false
@@ -200,6 +215,17 @@ function ReservationsPage() {
                     </select>
                 </div>
                 <div>
+                    <label className="text-muted block text-xs mb-1">Status</label>
+                    <select name="status" value={filters.status} onChange={handleFilterChange} className="filter-input">
+                        <option value="">All statuses</option>
+                        <option value="CONFIRMED">Confirmed</option>
+                        <option value="CHECKED_IN">Checked In</option>
+                        <option value="CHECKED_OUT">Checked Out</option>
+                        <option value="CANCELLED">Cancelled</option>
+                        <option value="NO_SHOW">No Show</option>
+                    </select>
+                </div>
+                <div>
                     <label className="text-muted block text-xs mb-1">Guest</label>
                     <input name="guestName" value={filters.guestName} onChange={handleFilterChange} className="filter-input" />
                 </div>
@@ -237,7 +263,7 @@ function ReservationsPage() {
                         return (
                             <div key={res.id} className="feat-card">
                                 <div className="flex items-start justify-between gap-4 mb-2">
-                                    <span className="font-semibold text-charcoal">
+                                    <span className="font-semibold text-black">
                                         {guest ? `${guest.firstName} ${guest.lastName}` : res.guestId}
                                     </span>
                                     <StatusBadge status={res.status} />
@@ -249,20 +275,23 @@ function ReservationsPage() {
                                 </div>
                                 <div className="flex gap-4 justify-end">
                                     {res.status === 'CONFIRMED' && (
-                                        <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check In</button>
+                                        <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-green hover:text-black">Check In</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && (
-                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-rust hover:text-rust-light">Check Out</button>
+                                        <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-green hover:text-black">Check Out</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && canViewDoorCode && (
-                                        <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-brown hover:text-rust">Door Code</button>
+                                        <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-muted hover:text-green">Door Code</button>
                                     )}
-                                    <button onClick={() => openEdit(res)} className="text-sm font-medium text-brown hover:text-rust">Edit</button>
+                                    <button onClick={() => openEdit(res)} className="text-sm font-medium text-muted hover:text-green">Edit</button>
                                     {res.status === 'CONFIRMED' && (
-                                        <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-rust">Cancel</button>
+                                        <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-green">Cancel</button>
+                                    )}
+                                    {res.status === 'CHECKED_OUT' && (
+                                        <button onClick={() => handleViewFolio(res.id)} className="text-sm font-medium text-muted hover:text-green">View Folio</button>
                                     )}
                                     {canDeleteReservation && (res.status === 'CANCELLED' || res.status === 'CHECKED_OUT' || res.status === 'NO_SHOW') && (
-                                        <button onClick={() => setDeleteTarget(res)} className="text-sm font-medium text-muted hover:text-rust">Delete</button>
+                                        <button onClick={() => setDeleteTarget(res)} className="text-sm font-medium text-muted hover:text-green">Delete</button>
                                     )}
                                 </div>
                             </div>
@@ -298,7 +327,7 @@ function ReservationsPage() {
             {checkInTarget != null && (
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
-                    reservationChannel={reservations.find(r => r.id === checkInTarget)?.channel}
+                    reservation={reservations.find(r => r.id === checkInTarget)}
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}

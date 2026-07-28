@@ -2,26 +2,25 @@
 @import "tailwindcss";
 
 @theme {
-    --color-rust: #C04A1E;
-    --color-rust-light: #E8694A;
-    --color-cream: #FDF6ED;
+    --color-black: #1A1A1A;
+    --color-cream: #F0E7DE;
     --color-warm-white: #FFFAF4;
     --color-tan: #F0E0C8;
-    --color-brown: #7A4E2D;
-    --color-charcoal: #2C1F14;
+    --color-green: #334428;
     --color-muted: #8C6B50;
-    --color-warm-yellow: #F5A623;
+    --color-gold: #C8B180;
+    --color-error: #DC2626;
 }
 
 body {
     font-family: 'Inter', sans-serif;
     background: var(--color-cream);
-    color: var(--color-charcoal);
+    color: var(--color-black);
     line-height: 1.6;
 }
 
 .btn-primary {
-    background: var(--color-rust);
+    background: var(--color-black);
     color: var(--color-cream);
     padding: 0.65rem 1.5rem;
     border-radius: 4px;
@@ -32,7 +31,7 @@ body {
 }
 
 .btn-primary:hover {
-    background: var(--color-rust-light);
+    background: var(--color-green);
 }
 
 .btn-primary:disabled {
@@ -54,7 +53,7 @@ body {
 
 .btn-secondary:hover {
     border-color: var(--color-muted);
-    color: var(--color-charcoal);
+    color: var(--color-black);
 }
 
 .btn-secondary:disabled {
@@ -73,13 +72,13 @@ body {
 
 .btn-chip:hover {
     border-color: var(--color-muted);
-    color: var(--color-charcoal);
+    color: var(--color-black);
 }
 
 .feat-card {
     background: var(--color-warm-white);
     border: 1px solid var(--color-tan);
-    border-top: 3px solid var(--color-rust);
+    border-top: 3px solid var(--color-green);
     border-radius: 8px;
     padding: 1.4rem;
 }
@@ -87,7 +86,7 @@ body {
 .feat-card h3 {
     font-family: 'DM Serif Display', serif;
     font-size: 1.05rem;
-    color: var(--color-charcoal);
+    color: var(--color-black);
     margin-bottom: 0.4rem;
 }
 
@@ -102,16 +101,25 @@ body {
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--color-rust);
+    color: var(--color-gold);
     margin-bottom: 0.6rem;
 }
 
 .section-title {
     font-family: 'DM Serif Display', serif;
     font-size: clamp(1.5rem, 3.5vw, 2.25rem);
-    color: var(--color-charcoal);
+    color: var(--color-black);
     line-height: 1.25;
     max-width: 500px;
+    margin-bottom: 2.5rem;
+}
+
+.welcome-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(4.5rem, 3.5vw, 2.25rem);
+    color: var(--color-cream);
+    line-height: 1.25;
+    max-width: 700px;
     margin-bottom: 2.5rem;
 }
 
@@ -138,8 +146,8 @@ button:disabled {
 
 .filter-input:focus,
 .filter-input:focus-within {
-    border-color: var(--color-rust);
-    box-shadow: 0 0 0 1px var(--color-rust);
+    border-color: var(--color-green);
+    box-shadow: 0 0 0 1px var(--color-green);
 }
 
 .waking-up-banner {
@@ -147,7 +155,7 @@ button:disabled {
     bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--color-charcoal);
+    background: var(--color-black);
     color: var(--color-cream);
     padding: 0.625rem 1.25rem;
     border-radius: 6px;
@@ -169,13 +177,18 @@ button:disabled {
 
 .filter-btn:hover {
     border-color: var(--color-muted);
-    color: var(--color-charcoal);
+    color: var(--color-black);
 }
 
 .filter-btn.active {
-    background: var(--color-rust);
-    border-color: var(--color-rust);
+    background: var(--color-black);
+    border-color: var(--color-black);
     color: var(--color-cream);
+}
+
+.filter-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .filter-bar {

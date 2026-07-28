@@ -7,7 +7,7 @@
 }
 
 .nav-logo span {
-    color: var(--color-warm-yellow);
+    color: var(--color-gold);
 }
 
 .layout {
@@ -16,9 +16,9 @@
 }
 
 .sidebar {
-    width: 175px;
+    width: 195px;
     flex-shrink: 0;
-    background: var(--color-charcoal);
+    background: var(--color-black);
     display: flex;
     flex-direction: column;
     padding: 1.5rem 1rem;
@@ -72,12 +72,20 @@
     transition: color 0.15s;
 }
 
+.sidebar-nav a svg {
+    flex-shrink: 0;
+}
+
+.sidebar-bottom a svg {
+    flex-shrink: 0;
+}
+
 .sidebar-nav a:hover {
     color: white;
 }
 
 .sidebar-nav a.active {
-    color: var(--color-warm-yellow);
+    color: var(--color-gold);
 }
 
 .sidebar-signout {
@@ -113,7 +121,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.875rem 1rem;
-    background: var(--color-charcoal);
+    background: var(--color-black);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     position: sticky;
     top: 0;
@@ -183,7 +191,7 @@
 }
 
 .sidebar-bottom a.active {
-    color: var(--color-warm-yellow);
+    color: var(--color-gold);
 }
 
 @media (max-width: 768px) {

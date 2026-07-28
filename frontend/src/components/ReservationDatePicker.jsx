@@ -56,7 +56,7 @@ function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeS
                 direction={months === 1 ? 'vertical' : 'horizontal'}
                 minDate={new Date()}
                 disabledDates={disabledDates}
-                rangeColors={['#C04A1E']}
+                rangeColors={['#334428']}
             />
         </div>
     )

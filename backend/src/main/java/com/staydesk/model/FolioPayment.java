@@ -12,7 +12,7 @@ public record FolioPayment(@Id int id, int folioId, PaymentKind kind, String pro
                            BigDecimal capturedAmount, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum PaymentKind {
-        ROOM, INCIDENTALS
+        ROOM, INCIDENTALS, INCIDENT_CHARGE
     }
 
     public enum PaymentStatus {
