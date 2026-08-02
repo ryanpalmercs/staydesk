@@ -72,3 +72,10 @@ elavon:
     base-url: ${ELAVON_CPI_BASE_URL:https://uat.pos.hpi.elavonaws.com}
     client-id: ${ELAVON_CPI_CLIENT_ID:}
     client-secret: ${ELAVON_CPI_CLIENT_SECRET:}
+
+payment:
+  card-present:
+    # TEMPORARY: set CARD_PRESENT_RECORD_ONLY=true in the environment while no Elavon/Ingenico
+    # terminal credentials are available, so card-present check-ins are recorded but not
+    # actually charged. Remove the env var once Elavon is live.
+    record-only: ${CARD_PRESENT_RECORD_ONLY:false}

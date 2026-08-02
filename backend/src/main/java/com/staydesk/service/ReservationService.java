@@ -3,6 +3,7 @@ package com.staydesk.service;
 import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.CannotCancelException;
+import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
@@ -14,7 +15,6 @@ import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.Guest;
-import com.staydesk.model.PosDevice;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
@@ -300,8 +300,18 @@ public class ReservationService {
     }
 
     @Transactional
-    public CheckInResult checkInTerminal(int id, int roomId, int posDeviceId) {
-        PosDevice device = posDeviceRepository.findById(posDeviceId).orElseThrow(PosDeviceNotFoundException::new);
+    public CheckInResult checkInTerminal(int id, int roomId, Integer posDeviceId) {
+        String paymentMethodToken;
+
+        if (posDeviceId != null) {
+            paymentMethodToken = posDeviceRepository.findById(posDeviceId)
+                                                    .orElseThrow(PosDeviceNotFoundException::new)
+                                                    .deviceId();
+        } else if (providerFactory.isCardPresentRecordOnly()) {
+            paymentMethodToken = "no-device-record-only";
+        } else {
+            throw new CardPresentRecordOnlyDisabledException();
+        }
 
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
@@ -332,10 +342,10 @@ public class ReservationService {
                     BigDecimal.valueOf(
                             getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
-            paymentService.chargeFullStay(folio, stayAmount, "elavon_cpi", device.deviceId());
+            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getCardPresentProviderName(), paymentMethodToken);
         }
 
-        paymentService.createIncidentalHold(folio, "elavon_cpi", device.deviceId());
+        paymentService.createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken);
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
