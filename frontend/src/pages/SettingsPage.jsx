@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react"
-import { connectSifely, disconnectSifely, getSifelyStatus } from "../api/sifelyApi"
+import { connectSifely, disconnectSifely, getSifelyLocks, getSifelyStatus } from "../api/sifelyApi"
 import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
 import { getRoomTypes, updateRoomType } from "../api/roomTypeApi"
+import { getRooms, updateRoom } from "../api/roomApi"
 import { getRates, updateRate } from "../api/rateApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
+import { useAuth } from "../contexts/AuthContext"
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
 const RATE_TYPE_ORDER = ['NIGHTLY', 'WEEKLY_5', 'WEEKLY_7']
@@ -17,6 +19,26 @@ function RoomTypeRow({ roomType, onChange }) {
             onChange={e => onChange(roomType.id, e.target.value)}
             className="filter-input w-full"
         />
+    )
+}
+
+function RoomLockRow({ room, locks, onChange }) {
+    return (
+        <div className="flex items-center gap-3">
+            <span className="text-sm text-black flex-1">Room {room.roomNumber}</span>
+            <select
+                className="filter-input w-48"
+                value={room.sifelyLockId ?? ''}
+                onChange={e => onChange(room.id, e.target.value ? Number(e.target.value) : null)}
+            >
+                <option value="">Unassigned</option>
+                {locks.map(lock => (
+                    <option key={lock.lockId} value={lock.lockId}>
+                        {lock.lockAlias || lock.lockName || lock.lockId}
+                    </option>
+                ))}
+            </select>
+        </div>
     )
 }
 
@@ -71,6 +93,12 @@ function SettingsPage() {
     const [pairForm, setPairForm] = useState({ pairingCode: '', friendlyName: '', location: '' })
     const [pairing, setPairing] = useState(false)
     const [pairError, setPairError] = useState(null)
+    const { isSystemAdmin } = useAuth()
+    const [lockRooms, setLockRooms] = useState([])
+    const [sifelyLocks, setSifelyLocks] = useState([])
+    const [lockMappingLoading, setLockMappingLoading] = useState(true)
+    const [lockMappingSaving, setLockMappingSaving] = useState(false)
+    const originalLockRooms = useRef([])
 
     useEffect(() => {
         getSifelySettings()
@@ -87,6 +115,42 @@ function SettingsPage() {
         })
         getPosDevices().then(res => setPosDevices(res.data ?? []))
     }, [])
+
+    useEffect(() => {
+        if (!isSystemAdmin) {
+            return
+        }
+
+        setLockMappingLoading(true)
+        Promise.all([getRooms(), getSifelyLocks()]).then(([roomsRes, locksRes]) => {
+            const rooms = roomsRes.data ?? []
+            setLockRooms(rooms)
+            originalLockRooms.current = rooms
+            setSifelyLocks(locksRes.data ?? [])
+            setLockMappingLoading(false)
+        })
+    }, [isSystemAdmin])
+
+    function handleLockRoomChange(roomId, sifelyLockId) {
+        setLockRooms(prev => prev.map(r => r.id === roomId ? { ...r, sifelyLockId } : r))
+    }
+
+    const lockRoomsDirty = lockRooms.some(r =>
+        r.sifelyLockId !== originalLockRooms.current.find(o => o.id === r.id)?.sifelyLockId)
+
+    async function handleSaveLockRooms() {
+        setLockMappingSaving(true)
+
+        const dirty = lockRooms.filter(r =>
+            r.sifelyLockId !== originalLockRooms.current.find(o => o.id === r.id)?.sifelyLockId)
+
+        const responses = await Promise.all(dirty.map(r => updateRoom(r.id, r)))
+        const updated = responses.map(r => r.data)
+        setLockRooms(prev => prev.map(r => updated.find(u => u.id === r.id) ?? r))
+        originalLockRooms.current = originalLockRooms.current.map(o => updated.find(u => u.id === o.id) ?? o)
+
+        setLockMappingSaving(false)
+    }
 
     function handleRoomTypeChange(id, name) {
         setRoomTypes(prev => prev.map(rt => rt.id === id ? { ...rt, name } : rt))
@@ -157,6 +221,8 @@ function SettingsPage() {
         await unpairPosDevice(id)
         setPosDevices(prev => prev.filter(d => d.id !== id))
     }
+
+    const sortedLockRooms = [...lockRooms].sort((a, b) => a.roomNumber - b.roomNumber)
 
     const sortedRates = [...rates].sort((a, b) => {
         const typeDiff = RATE_TYPE_ORDER.indexOf(a.rateType) - RATE_TYPE_ORDER.indexOf(b.rateType)
@@ -403,6 +469,28 @@ function SettingsPage() {
                         </form>
                     )}
                 </div>
+
+                {isSystemAdmin && (
+                    <div className="feat-card">
+                        <h3>Room Lock Mapping</h3>
+                        <p>Assign each room to its Sifely door lock.</p>
+
+                        {lockMappingLoading ? (
+                            <p className="text-muted text-sm mt-4">Loading...</p>
+                        ) : (
+                            <>
+                                <div className="flex flex-col gap-3 mt-4">
+                                    {sortedLockRooms.map(room => (
+                                        <RoomLockRow key={room.id} room={room} locks={sifelyLocks} onChange={handleLockRoomChange} />
+                                    ))}
+                                </div>
+                                <button className="btn-primary mt-4" onClick={handleSaveLockRooms} disabled={!lockRoomsDirty || lockMappingSaving}>
+                                    {lockMappingSaving ? 'Saving...' : 'Save'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 <div className="feat-card">
                     <h3>Room Types</h3>
