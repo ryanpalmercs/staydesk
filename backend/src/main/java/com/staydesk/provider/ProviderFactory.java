@@ -46,6 +46,10 @@ public class ProviderFactory {
         return cardPresentRecordOnly ? "elavon_cpi_manual" : "elavon_cpi";
     }
 
+    public boolean isCardPresentRecordOnly() {
+        return cardPresentRecordOnly;
+    }
+
     public PaymentProvider getProvider(String name) {
         PaymentProvider provider = paymentProviders.get(name);
 

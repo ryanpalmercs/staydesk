@@ -72,4 +72,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleFolioNotFoundException(FolioNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
+
+    @ExceptionHandler(CardPresentRecordOnlyDisabledException.class)
+    public ResponseEntity<String> handleCardPresentRecordOnlyDisabledException(CardPresentRecordOnlyDisabledException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
 }
