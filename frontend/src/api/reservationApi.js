@@ -28,7 +28,7 @@ export function checkIn(id, roomId, incidentalsPaymentMethodId, roomPaymentMetho
     return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId, roomPaymentMethodId })
 }
 
-export function checkInTerminal(id, roomId, posDeviceId) {
+export function checkInTerminal(id, roomId, posDeviceId = null) {
     return api.post(`/reservations/${id}/check-in/terminal`, { roomId, posDeviceId })
 }
 

@@ -4,6 +4,10 @@ export function getPosDevices() {
     return api.get('/pos-devices')
 }
 
+export function getPosDeviceConfig() {
+    return api.get('/pos-devices/config')
+}
+
 export function pairPosDevice(device) {
     return api.post('/pos-devices', device)
 }
