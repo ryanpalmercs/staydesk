@@ -198,25 +198,6 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
-    const [deviceOnline, setDeviceOnline] = useState(null)
-
-    useEffect(() => {
-        if (!selectedDeviceId) return
-        setDeviceOnline(null)
-        let cancelled = false
-        checkPosDeviceHealth(selectedDeviceId)
-            .then(res => {
-                if (cancelled) return
-                setDeviceOnline(res.data.online)
-                onHealthCheck(res.data.online)
-            })
-            .catch(() => {
-                if (cancelled) return
-                setDeviceOnline(false)
-                onHealthCheck(false)
-            })
-        return () => { cancelled = true }
-    }, [selectedDeviceId])
 
     async function handleSubmit(e) {
         e.preventDefault()
