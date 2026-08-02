@@ -1,5 +1,7 @@
 package com.staydesk.service;
 
+import com.staydesk.model.dto.SifelyLockInfo;
+import com.staydesk.model.dto.SifelyLockInfoListResponse;
 import com.staydesk.model.dto.SifelyLockRecord;
 import com.staydesk.model.dto.SifelyLockRecordListResponse;
 import com.staydesk.model.dto.SifelyPasscodeResponse;
@@ -75,6 +77,33 @@ public class SifelyLockService {
                                                               .header("Authorization", sifelyAuthService.getApiKey())
                                                               .retrieve()
                                                               .body(SifelyLockRecordListResponse.class);
+
+            if (response == null || response.list() == null || response.list().isEmpty()) {
+                break;
+            }
+
+            all.addAll(response.list());
+
+            if (pageNo >= response.pages()) {
+                break;
+            }
+
+            pageNo++;
+        }
+
+        return all;
+    }
+
+    public List<SifelyLockInfo> getLocks() {
+        List<SifelyLockInfo> all = new ArrayList<>();
+        int pageNo = 1;
+
+        while (true) {
+            SifelyLockInfoListResponse response = restClient.post()
+                                                            .uri(baseUrl + "/v3/lock/list?pageNo=" + pageNo + "&pageSize=100")
+                                                            .header("Authorization", sifelyAuthService.getApiKey())
+                                                            .retrieve()
+                                                            .body(SifelyLockInfoListResponse.class);
 
             if (response == null || response.list() == null || response.list().isEmpty()) {
                 break;

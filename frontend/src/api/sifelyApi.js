@@ -11,3 +11,7 @@ export function connectSifely(payload) {
 export function disconnectSifely() {
     return api.delete('/admin/sifely/connect')
 }
+
+export function getSifelyLocks() {
+    return api.get('/admin/sifely/locks')
+}
