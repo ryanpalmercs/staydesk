@@ -2,10 +2,12 @@ package com.staydesk.controller;
 
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.model.PosDevice;
+import com.staydesk.model.PosDeviceConfigResponse;
 import com.staydesk.model.PosDeviceHealthResponse;
 import com.staydesk.model.request.PairDeviceRequest;
 import com.staydesk.payment.elavon.ElavonCpiClient;
 import com.staydesk.payment.elavon.dto.CpiDevice;
+import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.PosDeviceRepository;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -30,15 +32,23 @@ public class PosDeviceController {
 
     private final PosDeviceRepository posDeviceRepository;
     private final ElavonCpiClient elavonCpiClient;
+    private final ProviderFactory providerFactory;
 
-    public PosDeviceController(PosDeviceRepository posDeviceRepository, ElavonCpiClient elavonCpiClient) {
+    public PosDeviceController(PosDeviceRepository posDeviceRepository, ElavonCpiClient elavonCpiClient,
+                               ProviderFactory providerFactory) {
         this.posDeviceRepository = posDeviceRepository;
         this.elavonCpiClient = elavonCpiClient;
+        this.providerFactory = providerFactory;
     }
 
     @GetMapping
     public List<PosDevice> getDevices() {
         return posDeviceRepository.findAll();
+    }
+
+    @GetMapping("config")
+    public PosDeviceConfigResponse getConfig() {
+        return new PosDeviceConfigResponse(providerFactory.isCardPresentRecordOnly());
     }
 
     @PostMapping
@@ -67,6 +77,10 @@ public class PosDeviceController {
     @PostMapping("{id}/health-check")
     public ResponseEntity<PosDeviceHealthResponse> healthCheck(@PathVariable int id) {
         PosDevice device = posDeviceRepository.findById(id).orElseThrow(PosDeviceNotFoundException::new);
+
+        if (providerFactory.isCardPresentRecordOnly()) {
+            return ResponseEntity.ok(new PosDeviceHealthResponse(true));
+        }
 
         boolean online = elavonCpiClient.healthCheck(device.deviceId());
 

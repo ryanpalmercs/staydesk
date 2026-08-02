@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { getPropertySetting } from "../api/settingsApi"
 import { getAvailableRoomsForCheckIn, getReservationEstimate } from "../api/reservationApi"
-import { getPosDevices, checkPosDeviceHealth } from "../api/posDeviceApi"
+import { getPosDevices, getPosDeviceConfig, checkPosDeviceHealth } from "../api/posDeviceApi"
 import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
@@ -194,6 +194,74 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
     )
 }
 
+function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
+    const [submitting, setSubmitting] = useState(false)
+    const [error, setError] = useState(null)
+    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+    const [deviceOnline, setDeviceOnline] = useState(null)
+
+    useEffect(() => {
+        if (!selectedDeviceId) return
+        setDeviceOnline(null)
+        let cancelled = false
+        checkPosDeviceHealth(selectedDeviceId)
+            .then(res => {
+                if (cancelled) return
+                setDeviceOnline(res.data.online)
+                onHealthCheck(res.data.online)
+            })
+            .catch(() => {
+                if (cancelled) return
+                setDeviceOnline(false)
+                onHealthCheck(false)
+            })
+        return () => { cancelled = true }
+    }, [selectedDeviceId])
+
+    async function handleSubmit(e) {
+        e.preventDefault()
+        setSubmitting(true)
+        setError(null)
+
+        try {
+            const doorAccessStatus = await onConfirmTerminal(roomId, null)
+            if (doorAccessStatus === 'FAILED') {
+                setDoorAccessFailed(true)
+            } else {
+                onCheckedIn(doorAccessStatus)
+            }
+        } catch (err) {
+            setError('Failed to check in.')
+        }
+
+        setSubmitting(false)
+    }
+
+    if (doorAccessFailed) {
+        return <DoorAccessFailedNotice onClose={onClose} />
+    }
+
+    return (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <AmountBanner amount={chargeAmount} label={chargeLabel} />
+            <p className="text-sm text-muted">
+                No card-present terminal is paired. This records the charge on the folio without processing a real payment.
+            </p>
+
+            {error && <p className="text-sm text-error">{error}</p>}
+
+            <div className="flex justify-end gap-3 mt-2">
+                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+                    Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? 'Recording...' : 'Record Charge (No Terminal)'}
+                </button>
+            </div>
+        </form>
+    )
+}
+
 function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
@@ -203,6 +271,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     const [provider, setProvider] = useState(null)
     const [error, setError] = useState(null)
     const [posDevices, setPosDevices] = useState([])
+    const [cardPresentRecordOnly, setCardPresentRecordOnly] = useState(false)
     const [useTerminal, setUseTerminal] = useState(false)
     const [manualEntryUnlocked, setManualEntryUnlocked] = useState(false)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
@@ -231,6 +300,8 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
             setPosDevices(devices)
             setUseTerminal(devices.length > 0)
         })
+
+        getPosDeviceConfig().then(res => setCardPresentRecordOnly(res.data.recordOnly))
     }, [])
 
     const chargeAmount = isWalkIn
@@ -263,6 +334,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     }
 
     const hasManualProvider = provider === 'authorizenet'
+    const noDeviceRecordOnly = posDevices.length === 0 && cardPresentRecordOnly
 
     return (
         <Modal onClose={onClose} size="md">
@@ -311,7 +383,17 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                                 chargeLabel={chargeLabel}
                             />
                         )}
-                        {!useTerminal && provider === 'authorizenet' && (
+                        {noDeviceRecordOnly && (
+                            <RecordOnlyCheckInForm
+                                roomId={selectedRoomId}
+                                onConfirmTerminal={onConfirmTerminal}
+                                onClose={onClose}
+                                onCheckedIn={handleCheckedIn}
+                                chargeAmount={chargeAmount}
+                                chargeLabel={chargeLabel}
+                            />
+                        )}
+                        {!useTerminal && !noDeviceRecordOnly && provider === 'authorizenet' && (
                             <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
                         )}
                         {!useTerminal && posDevices.length > 0 && !hasManualProvider && (

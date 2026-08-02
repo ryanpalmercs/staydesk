@@ -3,6 +3,7 @@ package com.staydesk.controller;
 import com.staydesk.exception.AlreadyCheckedInException;
 import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.CannotCancelException;
+import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
@@ -155,7 +156,7 @@ public class ReservationController {
             return ResponseEntity.ok(reservationService.checkInTerminal(id, request.roomId(), request.posDeviceId()));
         } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (AlreadyCheckedInException | NoRoomAvailableException e) {
+        } catch (AlreadyCheckedInException | NoRoomAvailableException | CardPresentRecordOnlyDisabledException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (InvalidReservationException e) {
             return ResponseEntity.badRequest().build();
