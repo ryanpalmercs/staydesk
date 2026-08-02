@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from "react"
 import { createRoom, updateRoom } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
+import { getSifelyLocks } from "../api/sifelyApi"
+import { useAuth } from "../contexts/AuthContext"
 import Modal from "./Modal"
 
 function RoomModal({ room, onSaved, onClose }) {
     const isEditing = room != null
+    const { role } = useAuth()
+    const canManageLocks = role === 'ADMIN'
 
     const [roomTypes, setRoomTypes] = useState([])
+    const [sifelyLocks, setSifelyLocks] = useState([])
     const [form, setForm] = useState({
         roomNumber: room?.roomNumber ?? '',
         roomTypeId: room?.roomTypeId ?? '',
         status: room?.status ?? 'AVAILABLE',
-        maintenanceNote: room?.maintenanceNote ?? ''
+        maintenanceNote: room?.maintenanceNote ?? '',
+        sifelyLockId: room?.sifelyLockId ?? ''
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -22,6 +28,14 @@ function RoomModal({ room, onSaved, onClose }) {
         })
     }, [])
 
+    useEffect(() => {
+        if (!canManageLocks) {
+            return
+        }
+
+        getSifelyLocks().then(res => setSifelyLocks(res.data ?? []))
+    }, [canManageLocks])
+
     function handleChange(e) {
         setForm({ ...form, [e.target.name]: e.target.value })
     }
@@ -29,13 +43,12 @@ function RoomModal({ room, onSaved, onClose }) {
     async function handleSubmit(e) {
         e.preventDefault()
         try {
+            const payload = { ...form, sifelyLockId: form.sifelyLockId === '' ? null : Number(form.sifelyLockId) }
             let result
             if (isEditing) {
-                result = await updateRoom(room.id, { ...room, ...form })
+                result = await updateRoom(room.id, { ...room, ...payload })
             } else {
-                console.log('form:', form)
-                console.log('type:', typeof form, JSON.stringify(form))
-                result = await createRoom(form)
+                result = await createRoom(payload)
             }
 
             console.log(result)
@@ -66,6 +79,20 @@ function RoomModal({ room, onSaved, onClose }) {
                         ))}
                     </select>
                 </div>
+
+                {canManageLocks && (
+                    <div>
+                        <label className="block text-sm text-muted mb-1">Door Lock</label>
+                        <select name="sifelyLockId" value={form.sifelyLockId} onChange={handleChange} className="filter-input">
+                            <option value="">Unassigned</option>
+                            {sifelyLocks.map(lock => (
+                                <option key={lock.lockId} value={lock.lockId}>
+                                    {lock.lockAlias || lock.lockName || lock.lockId}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 {isEditing && (
                     <div>
