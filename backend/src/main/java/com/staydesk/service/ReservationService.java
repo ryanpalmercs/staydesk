@@ -332,10 +332,10 @@ public class ReservationService {
                     BigDecimal.valueOf(
                             getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
-            paymentService.chargeFullStay(folio, stayAmount, "elavon_cpi", device.deviceId());
+            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getCardPresentProviderName(), device.deviceId());
         }
 
-        paymentService.createIncidentalHold(folio, "elavon_cpi", device.deviceId());
+        paymentService.createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), device.deviceId());
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 

@@ -2,8 +2,8 @@ package com.staydesk.provider;
 
 import com.staydesk.lock.LockProvider;
 import com.staydesk.payment.PaymentProvider;
-import com.staydesk.payment.elavon.ElavonCpiPaymentProvider;
 import com.staydesk.service.PropertySettingsService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -14,15 +14,15 @@ public class ProviderFactory {
     private final Map<String, PaymentProvider> paymentProviders;
     private final Map<String, LockProvider> lockProviders;
     private final PropertySettingsService propertySettingsService;
-    private final ElavonCpiPaymentProvider elavonCpiPaymentProvider;
+    private final boolean cardPresentRecordOnly;
 
     public ProviderFactory(Map<String, PaymentProvider> paymentProviders, Map<String, LockProvider> lockProviders,
                            PropertySettingsService propertySettingsService,
-                           ElavonCpiPaymentProvider elavonCpiPaymentProvider) {
+                           @Value("${payment.card-present.record-only:false}") boolean cardPresentRecordOnly) {
         this.paymentProviders = paymentProviders;
         this.lockProviders = lockProviders;
         this.propertySettingsService = propertySettingsService;
-        this.elavonCpiPaymentProvider = elavonCpiPaymentProvider;
+        this.cardPresentRecordOnly = cardPresentRecordOnly;
     }
 
     public PaymentProvider getPaymentProvider() {
@@ -34,7 +34,16 @@ public class ProviderFactory {
     }
 
     public PaymentProvider getCardPresentProvider() {
-        return elavonCpiPaymentProvider;
+        return getProvider(getCardPresentProviderName());
+    }
+
+    /**
+     * Name of the bean to use for card-present (terminal) charges. Falls back to a
+     * record-only stand-in while Elavon/Ingenico terminal credentials are unavailable;
+     * see payment.card-present.record-only.
+     */
+    public String getCardPresentProviderName() {
+        return cardPresentRecordOnly ? "elavon_cpi_manual" : "elavon_cpi";
     }
 
     public PaymentProvider getProvider(String name) {
