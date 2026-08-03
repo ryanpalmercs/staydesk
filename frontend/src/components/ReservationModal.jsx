@@ -161,7 +161,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     }
 
     function handleChange(e) {
-        setForm({ ...form, [e.target.name]: e.target.value })
+        setForm(f => ({ ...f, [e.target.name]: e.target.value }))
     }
 
     function handleGuestFieldChange(e) {
@@ -177,7 +177,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             const res = await createGuest(guestForm)
             const guestsRes = await getGuests()
             setGuests(guestsRes.data)
-            setForm({ ...form, guestId: res.data.id })
+            setForm(f => ({ ...f, guestId: res.data.id }))
             setGuestForm({ firstName: '', lastName: '', email: '', phoneNumber: '', smsConsent: false })
             setStep('form')
         } catch (err) {
@@ -352,7 +352,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <button
                                 key={g.id}
                                 type="button"
-                                onClick={() => { setForm({ ...form, guestId: g.id }); setStep('confirmGuest') }}
+                                onClick={() => { setForm(f => ({ ...f, guestId: g.id })); setStep('confirmGuest') }}
                                 className="filter-input flex justify-between items-center text-left hover:border-green"
                             >
                                 <span>{g.firstName} {g.lastName}</span>
@@ -490,8 +490,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <div>
                                 <label className="block text-sm text-muted mb-1">How is this being booked?</label>
                                 <div className="flex justify-left gap-2">
-                                    <button type="button" onClick={() => setForm({ ...form, channel: 'PHONE' })} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
-                                    <button type="button" onClick={() => setForm({ ...form, channel: 'WALK_IN' })} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -500,14 +500,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     value={form.adults}
                                     min={1}
                                     max={maxGuestCount - form.children}
-                                    onChange={adults => setForm({ ...form, adults })}
+                                    onChange={adults => setForm(f => ({ ...f, adults }))}
                                 />
                                 <Stepper
                                     label="Children"
                                     value={form.children}
                                     min={0}
                                     max={maxGuestCount - form.adults}
-                                    onChange={children => setForm({ ...form, children })}
+                                    onChange={children => setForm(f => ({ ...f, children }))}
                                 />
                             </div>
 
@@ -527,7 +527,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 roomTypeId={form.roomTypeId}
                                 checkInDate={form.checkInDate}
                                 checkOutDate={form.checkOutDate}
-                                onRangeSelected={({ checkInDate, checkOutDate }) => setForm({ ...form, checkInDate, checkOutDate })}
+                                onRangeSelected={({ checkInDate, checkOutDate }) => setForm(f => ({ ...f, checkInDate, checkOutDate }))}
                             />
                         </div>
 
