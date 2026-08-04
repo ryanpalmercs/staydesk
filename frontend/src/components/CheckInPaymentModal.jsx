@@ -6,6 +6,7 @@ import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
+import ConfirmDialog from "./ConfirmDialog"
 
 function AmountBanner({ amount, label }) {
     if (amount == null) return null
@@ -91,7 +92,7 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
+function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
     const isWalkIn = reservationChannel === 'WALK_IN'
 
@@ -108,10 +109,10 @@ function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, o
         return <DoorAccessFailedNotice onClose={onClose} />
     }
 
-    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
+    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onCancel} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
 }
 
-function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
+function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
     const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
@@ -183,7 +184,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
             {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>
                     Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId || deviceOnline === false}>
@@ -194,7 +195,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
     )
 }
 
-function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
+function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
     const [doorAccessFailed, setDoorAccessFailed] = useState(false)
@@ -232,7 +233,7 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn
             {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>
                     Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -243,7 +244,7 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
 
@@ -257,6 +258,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     const [manualEntryUnlocked, setManualEntryUnlocked] = useState(false)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
     const [stayTotal, setStayTotal] = useState(null)
+    const [confirmingCancel, setConfirmingCancel] = useState(false)
 
     useEffect(() => {
         getPropertySetting('payment_provider').then(res => {
@@ -314,6 +316,20 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
         }
     }
 
+    function handleCancelClick() {
+        if (!isWalkIn) {
+            onClose()
+            return
+        }
+        setConfirmingCancel(true)
+    }
+
+    async function confirmCancelReservation() {
+        setConfirmingCancel(false)
+        await onCancelReservation()
+        onClose()
+    }
+
     const hasManualProvider = provider === 'authorizenet'
     const noDeviceRecordOnly = posDevices.length === 0 && cardPresentRecordOnly
 
@@ -324,7 +340,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                 </h2>
 
                 {step === 'room' && (
-                    <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={onClose} />
+                    <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
                 )}
 
                 {step === 'payment' && (
@@ -357,6 +373,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                                 roomId={selectedRoomId}
                                 onConfirmTerminal={onConfirmTerminal}
                                 onClose={onClose}
+                                onCancel={handleCancelClick}
                                 onCheckedIn={handleCheckedIn}
                                 devices={posDevices}
                                 onHealthCheck={handleHealthCheck}
@@ -369,13 +386,14 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                                 roomId={selectedRoomId}
                                 onConfirmTerminal={onConfirmTerminal}
                                 onClose={onClose}
+                                onCancel={handleCancelClick}
                                 onCheckedIn={handleCheckedIn}
                                 chargeAmount={chargeAmount}
                                 chargeLabel={chargeLabel}
                             />
                         )}
                         {!useTerminal && !noDeviceRecordOnly && provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
+                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCancel={handleCancelClick} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
                         )}
                         {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
                             <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
@@ -391,6 +409,16 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                             <button onClick={onClose} className="btn btn-primary">Done</button>
                         </div>
                     </div>
+                )}
+
+                {confirmingCancel && (
+                    <ConfirmDialog
+                        message="Cancel this walk-in reservation? It will be marked as cancelled."
+                        cancelLabel="Keep Going"
+                        confirmLabel="Yes, Cancel"
+                        onCancel={() => setConfirmingCancel(false)}
+                        onConfirm={confirmCancelReservation}
+                    />
                 )}
         </Modal>
     )

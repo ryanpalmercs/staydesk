@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useEscapeKey } from "../hooks/useEscapeKey"
+import ConfirmDialog from "./ConfirmDialog"
 
 const SIZE_CLASSES = {
     sm: "max-w-sm",
@@ -42,25 +43,13 @@ function Modal({ onClose, size = "md", scrollable = false, padded = true, isDirt
             </div>
 
             {confirmingDiscard && (
-                <div
-                    className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]"
-                    onClick={() => setConfirmingDiscard(false)}
-                >
-                    <div
-                        className="bg-warm-white rounded-lg p-6 w-full max-w-sm shadow-lg border-t-4 border-rust"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <p className="text-sm text-black mb-4">Discard unsaved changes?</p>
-                        <div className="flex justify-end gap-3">
-                            <button type="button" onClick={() => setConfirmingDiscard(false)} className="btn btn-secondary">
-                                Keep Editing
-                            </button>
-                            <button type="button" onClick={onClose} className="btn btn-primary">
-                                Discard
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    message="Discard unsaved changes?"
+                    cancelLabel="Keep Editing"
+                    confirmLabel="Discard"
+                    onCancel={() => setConfirmingDiscard(false)}
+                    onConfirm={onClose}
+                />
             )}
         </div>
     )
