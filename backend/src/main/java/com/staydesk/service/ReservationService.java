@@ -174,7 +174,7 @@ public class ReservationService {
             paymentService.chargeFullStay(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
         }
 
-        if (savedReservation.guestId() != null) {
+        if (savedReservation.guestId() != null && savedReservation.channel() != Reservation.Channel.WALK_IN) {
             guestRepository.findById(savedReservation.guestId())
                            .filter(Guest::smsConsent)
                            .ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
