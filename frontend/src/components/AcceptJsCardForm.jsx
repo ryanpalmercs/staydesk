@@ -346,6 +346,7 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual =
                         onChange={e => setZip(e.target.value.slice(0, 10))}
                         inputMode="numeric"
                         autoComplete="off"
+                        maxLength={5}
                         className="w-16 outline-none bg-transparent text-base"
                         required
                     />
