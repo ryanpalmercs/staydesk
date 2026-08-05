@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staydesk.payment.ingenico.IngenicoBridgeClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+@Component
 public class TerminalBridgeWebSocketHandler extends TextWebSocketHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TerminalBridgeWebSocketHandler.class);
@@ -53,7 +55,7 @@ public class TerminalBridgeWebSocketHandler extends TextWebSocketHandler {
 
         if (root.has("event")) {
             JsonNode event = root.get("event");
-            String flowId = event.get("flowId").asText(null);
+            String flowId = event.path("flow_id").asText(null);
 
             if (flowId == null) {
                 LOGGER.warn("Received event message with no flow_id, ignoring: {}", message.getPayload());

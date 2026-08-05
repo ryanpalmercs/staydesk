@@ -65,7 +65,7 @@ public class IngenicoBridgeClient {
         }
 
         TerminalTransaction saved = transactionRepository.save(new TerminalTransaction(0, flowId, folioPaymentId, operation,
-                amount, TerminalTransaction.Status.PENDING, requestJson, null, LocalDateTime.now(), null));
+                amount, TerminalTransaction.Status.PENDING, requestJson, null, LocalDateTime.now(), LocalDateTime.now()));
 
         CompletableFuture<JsonNode> future = new CompletableFuture<>();
         pendingFlows.put(flowId, future);
