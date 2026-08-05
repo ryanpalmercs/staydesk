@@ -8,6 +8,10 @@ export function getFolio(folioId) {
     return api.get(`/folios/${folioId}`)
 }
 
+export function getFolioPayments(folioId) {
+    return api.get(`/folios/${folioId}/payments`)
+}
+
 export function getFolioItems(folioId) {
     return api.get(`/folios/${folioId}/items`)
 }
