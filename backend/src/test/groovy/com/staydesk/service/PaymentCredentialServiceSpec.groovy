@@ -26,7 +26,7 @@ class PaymentCredentialServiceSpec extends Specification {
 
     private static FolioPayment incidentalsHold() {
         new FolioPayment(5, 1, PaymentKind.INCIDENTALS, "authorizenet", "txn-1", "4242",
-                PaymentStatus.REQUIRES_CAPTURE, BigDecimal.valueOf(75), null, LocalDateTime.now(), LocalDateTime.now())
+                PaymentStatus.REQUIRES_CAPTURE, BigDecimal.valueOf(75), null, "", LocalDateTime.now(), LocalDateTime.now())
     }
 
     def "saves a credential row when the provider succeeds"() {
