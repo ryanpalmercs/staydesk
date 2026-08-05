@@ -6,6 +6,7 @@ import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
+import ConfirmDialog from "./ConfirmDialog"
 
 function AmountBanner({ amount, label }) {
     if (amount == null) return null
@@ -216,7 +217,7 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onCancel, onCheckedI
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation, onWalkInAbandoned }) {
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
 
@@ -292,8 +293,15 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
     function handleCancelClick() {
         if (isWalkIn) {
-            onWalkInAbandoned?.()
+            setConfirmingCancel(true)
+            return
         }
+        onClose()
+    }
+
+    async function confirmCancelReservation() {
+        setConfirmingCancel(false)
+        await onCancelReservation()
         onClose()
     }
 
@@ -380,6 +388,16 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
             {step === 'door-failed' && (
                 <DoorAccessFailedNotice onClose={onClose} />
+            )}
+
+            {confirmingCancel && (
+                <ConfirmDialog
+                    message="Cancel this walk-in reservation? It will be marked as cancelled."
+                    cancelLabel="Keep Going"
+                    confirmLabel="Yes, Cancel"
+                    onCancel={() => setConfirmingCancel(false)}
+                    onConfirm={confirmCancelReservation}
+                />
             )}
         </Modal>
     )
