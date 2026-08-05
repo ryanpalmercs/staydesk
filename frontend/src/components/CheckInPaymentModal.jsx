@@ -6,7 +6,6 @@ import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
-import ConfirmDialog from "./ConfirmDialog"
 
 function AmountBanner({ amount, label }) {
     if (amount == null) return null
@@ -103,11 +102,10 @@ function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, o
     return <AcceptJsCardForm onCapture={handleCapture} onCancel={onCancel} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
 }
 
-function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
+function TerminalCheckInForm({ roomId, onConfirmTerminal, onCancel, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
     const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
     const [deviceOnline, setDeviceOnline] = useState(null)
 
     useEffect(() => {
@@ -135,20 +133,12 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, onC
 
         try {
             const doorAccessStatus = await onConfirmTerminal(roomId, Number(selectedDeviceId))
-            if (doorAccessStatus === 'FAILED') {
-                setDoorAccessFailed(true)
-            } else {
-                onCheckedIn(doorAccessStatus)
-            }
+            onCheckedIn(doorAccessStatus)
         } catch (err) {
             setError('Failed to check in. The card may have been declined on the terminal.')
         }
 
         setSubmitting(false)
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
     }
 
     return (
@@ -186,10 +176,9 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, onC
     )
 }
 
-function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
+function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -198,20 +187,12 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, o
 
         try {
             const doorAccessStatus = await onConfirmTerminal(roomId, null)
-            if (doorAccessStatus === 'FAILED') {
-                setDoorAccessFailed(true)
-            } else {
-                onCheckedIn(doorAccessStatus)
-            }
+            onCheckedIn(doorAccessStatus)
         } catch (err) {
             setError('Failed to check in.')
         }
 
         setSubmitting(false)
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
     }
 
     return (
@@ -235,7 +216,7 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCancel, o
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation, onWalkInAbandoned }) {
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
 
@@ -310,16 +291,9 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     }
 
     function handleCancelClick() {
-        if (!isWalkIn) {
-            onClose()
-            return
+        if (isWalkIn) {
+            onWalkInAbandoned?.()
         }
-        setConfirmingCancel(true)
-    }
-
-    async function confirmCancelReservation() {
-        setConfirmingCancel(false)
-        await onCancelReservation()
         onClose()
     }
 
@@ -406,16 +380,6 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
             {step === 'door-failed' && (
                 <DoorAccessFailedNotice onClose={onClose} />
-            )}
-
-            {confirmingCancel && (
-                <ConfirmDialog
-                    message="Cancel this walk-in reservation? It will be marked as cancelled."
-                    cancelLabel="Keep Going"
-                    confirmLabel="Yes, Cancel"
-                    onCancel={() => setConfirmingCancel(false)}
-                    onConfirm={confirmCancelReservation}
-                />
             )}
         </Modal>
     )
