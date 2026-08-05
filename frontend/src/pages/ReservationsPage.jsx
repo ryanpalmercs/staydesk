@@ -33,7 +33,6 @@ function ReservationsPage() {
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('desc')
     const [cancelTarget, setCancelTarget] = useState(null)
-    const [walkInAbandonedNotice, setWalkInAbandonedNotice] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -52,14 +51,6 @@ function ReservationsPage() {
             getGuests().then(res => setGuests(res.data))
         ])
     }, [])
-
-    useEffect(() => {
-        if (!walkInAbandonedNotice) {
-            return
-        }
-        const timer = setTimeout(() => setWalkInAbandonedNotice(false), 8000)
-        return () => clearTimeout(timer)
-    }, [walkInAbandonedNotice])
 
     async function fetchReservations() {
         setLoading(true)
@@ -341,14 +332,14 @@ function ReservationsPage() {
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
-                    onWalkInAbandoned={() => setWalkInAbandonedNotice(true)}
+                    onCancelReservation={() => handleCancel(checkInTarget)}
                 />
             )}
 
             {cancelTarget != null && (
                 <ConfirmDialog
                     message="Cancel this reservation? It will be marked as cancelled."
-                    cancelLabel="Keep Going"
+                    cancelLabel="Nevermind"
                     confirmLabel="Yes, Cancel"
                     onCancel={() => setCancelTarget(null)}
                     onConfirm={async () => {
@@ -356,22 +347,6 @@ function ReservationsPage() {
                         await handleCancel(cancelTarget)
                     }}
                 />
-            )}
-
-            {walkInAbandonedNotice && (
-                <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-                    <div className="bg-warm-white border-l-4 border-amber-500 rounded-lg shadow-lg p-4">
-                        <p className="text-sm font-medium text-black">Walk-in not checked in</p>
-                        <p className="text-sm text-muted mt-1">
-                            This reservation is still pending. Cancel it from the list if the guest isn't staying.
-                        </p>
-                        <div className="flex justify-end mt-2">
-                            <button onClick={() => setWalkInAbandonedNotice(false)} className="text-sm font-medium text-green hover:text-black">
-                                Dismiss
-                            </button>
-                        </div>
-                    </div>
-                </div>
             )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
