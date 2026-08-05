@@ -11,6 +11,7 @@ import FolioModal from "../components/FolioModal"
 import DoorCodeModal from "../components/DoorCodeModal"
 import { useAuth } from "../contexts/AuthContext"
 import DeleteReservationModal from "../components/DeleteReservationModal"
+import ConfirmDialog from "../components/ConfirmDialog"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -30,7 +31,9 @@ function ReservationsPage() {
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '', status: '' })
     const [error, setError] = useState(null)
     const [sortKey, setSortKey] = useState('checkInDate')
-    const [sortDir, setSortDir] = useState('asc')
+    const [sortDir, setSortDir] = useState('desc')
+    const [cancelTarget, setCancelTarget] = useState(null)
+    const [walkInAbandonedNotice, setWalkInAbandonedNotice] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -49,6 +52,14 @@ function ReservationsPage() {
             getGuests().then(res => setGuests(res.data))
         ])
     }, [])
+
+    useEffect(() => {
+        if (!walkInAbandonedNotice) {
+            return
+        }
+        const timer = setTimeout(() => setWalkInAbandonedNotice(false), 8000)
+        return () => clearTimeout(timer)
+    }, [walkInAbandonedNotice])
 
     async function fetchReservations() {
         setLoading(true)
@@ -185,7 +196,7 @@ function ReservationsPage() {
         bVal = b[sortKey] ?? ''
         if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
         if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
-        return 0
+        return b.id - a.id
     })
 
     return (
@@ -285,8 +296,7 @@ function ReservationsPage() {
                                     )}
                                     <button onClick={() => openEdit(res)} className="text-sm font-medium text-muted hover:text-green">Edit</button>
                                     {res.status === 'CONFIRMED' && (
-                                        <button onClick={() => handleCancel(res.id)} className="text-sm font-medium text-muted hover:text-green">Cancel</button>
-                                    )}
+                                        <button onClick={() => setCancelTarget(res.id)} className="text-sm font-medium text-muted hover:text-green">Cancel</button>)}
                                     {res.status === 'CHECKED_OUT' && (
                                         <button onClick={() => handleViewFolio(res.id)} className="text-sm font-medium text-muted hover:text-green">View Folio</button>
                                     )}
@@ -331,8 +341,37 @@ function ReservationsPage() {
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
-                    onCancelReservation={() => handleCancel(checkInTarget)}
+                    onWalkInAbandoned={() => setWalkInAbandonedNotice(true)}
                 />
+            )}
+
+            {cancelTarget != null && (
+                <ConfirmDialog
+                    message="Cancel this reservation? It will be marked as cancelled."
+                    cancelLabel="Keep Going"
+                    confirmLabel="Yes, Cancel"
+                    onCancel={() => setCancelTarget(null)}
+                    onConfirm={async () => {
+                        setCancelTarget(null)
+                        await handleCancel(cancelTarget)
+                    }}
+                />
+            )}
+
+            {walkInAbandonedNotice && (
+                <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+                    <div className="bg-warm-white border-l-4 border-amber-500 rounded-lg shadow-lg p-4">
+                        <p className="text-sm font-medium text-black">Walk-in not checked in</p>
+                        <p className="text-sm text-muted mt-1">
+                            This reservation is still pending. Cancel it from the list if the guest isn't staying.
+                        </p>
+                        <div className="flex justify-end mt-2">
+                            <button onClick={() => setWalkInAbandonedNotice(false)} className="text-sm font-medium text-green hover:text-black">
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}

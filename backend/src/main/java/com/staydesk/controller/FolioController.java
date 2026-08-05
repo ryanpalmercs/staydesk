@@ -57,7 +57,7 @@ public class FolioController {
 
     @GetMapping("{id}/payments")
     public ResponseEntity<List<FolioPayment>> getFolioPayments(@PathVariable Integer id) {
-        if (folioRepository.findById(id).isPresent()) {
+        if (folioRepository.findById(id).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
