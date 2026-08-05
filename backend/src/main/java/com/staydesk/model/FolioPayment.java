@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Table("folio_payments")
 public record FolioPayment(@Id int id, int folioId, PaymentKind kind, String provider, String stripePaymentIntentId,
                            String cardLast4, PaymentStatus status, BigDecimal authorizedAmount,
-                           BigDecimal capturedAmount, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                           BigDecimal capturedAmount, String failureReason, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum PaymentKind {
         ROOM, INCIDENTALS, INCIDENT_CHARGE

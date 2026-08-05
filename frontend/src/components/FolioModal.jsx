@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { getFolio, getFolioItems, addFolioItem, payFolio, getFolioIncidentCharges } from "../api/folioApi"
+import { getFolio, getFolioItems, addFolioItem, payFolio, getFolioIncidentCharges, getFolioPayments } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import Modal from "./Modal"
 import StatusBadge from "./StatusBadge"
@@ -9,12 +9,14 @@ function FolioModal({ folioId, onClose, onPaid }) {
     const [folio, setFolio] = useState(null)
     const [items, setItems] = useState([])
     const [extras, setExtras] = useState([])
+    const [payments, setPayments] = useState([])
     const [incidentCharges, setIncidentCharges] = useState([])
     const [selectedExtraId, setSelectedExtraId] = useState('')
     const [quantity, setQuantity] = useState(1)
     const [paying, setPaying] = useState(false)
     const [error, setError] = useState(null)
     const [showIncidentChargeModal, setShowIncidentChargeModal] = useState(false)
+    const failedPayments = payments.filter(p => p.status === 'FAILED')
 
     useEffect(() => {
         loadFolio()
@@ -22,9 +24,10 @@ function FolioModal({ folioId, onClose, onPaid }) {
     }, [folioId])
 
     async function loadFolio() {
-        const [folioRes, itemsRes] = await Promise.all([getFolio(folioId), getFolioItems(folioId)])
+        const [folioRes, itemsRes, paymentsRes] = await Promise.all([getFolio(folioId), getFolioItems(folioId), getFolioPayments(folioId)])
         setFolio(folioRes.data)
         setItems(itemsRes.data ?? [])
+        setPayments(paymentsRes.data ?? [])
 
         if (folioRes.data.status === 'CLOSED') {
             const chargesRes = await getFolioIncidentCharges(folioId)
@@ -55,6 +58,7 @@ function FolioModal({ folioId, onClose, onPaid }) {
         } catch (err) {
             setError('Payment capture failed.')
             setPaying(false)
+            loadFolio()
         }
     }
 
@@ -115,6 +119,14 @@ function FolioModal({ folioId, onClose, onPaid }) {
             )}
 
             {error && <p className="text-sm text-error mb-4">{error}</p>}
+
+            {failedPayments.length > 0 && (
+                <div className="mb-4 p-3 rounded bg-error/10 text-error text-sm">
+                    {failedPayments.map(p => (
+                        <p key={p.id}>{p.kind} payment failed: {p.failureReason ?? 'Unknown error'}. Retry capture, or resolve manually.</p>
+                    ))}
+                </div>
+            )}
 
             <div className="flex justify-end gap-3">
                 <button onClick={onClose} className="btn btn-secondary" disabled={paying}>Close</button>

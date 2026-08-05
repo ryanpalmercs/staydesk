@@ -93,20 +93,11 @@ function DoorAccessFailedNotice({ onClose }) {
 }
 
 function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
     const isWalkIn = reservationChannel === 'WALK_IN'
 
     async function handleCapture(incidentalsToken, roomToken) {
         const doorAccessStatus = await onConfirm(roomId, incidentalsToken, roomToken)
-        if (doorAccessStatus === 'FAILED') {
-            setDoorAccessFailed(true)
-        } else {
-            onCheckedIn(doorAccessStatus)
-        }
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
+        onCheckedIn(doorAccessStatus)
     }
 
     return <AcceptJsCardForm onCapture={handleCapture} onCancel={onCancel} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
@@ -311,6 +302,8 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     function handleCheckedIn(doorAccessStatus) {
         if (doorAccessStatus === 'ISSUED') {
             setStep('code')
+        } else if (doorAccessStatus === 'FAILED') {
+            setStep('door-failed')
         } else {
             onClose()
         }
@@ -335,91 +328,95 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
     return (
         <Modal onClose={onClose} size="md">
-                <h2 className="text-lg text-black font-semibold mb-4">
-                    {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
-                </h2>
+            <h2 className="text-lg text-black font-semibold mb-4">
+                {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
+            </h2>
 
-                {step === 'room' && (
-                    <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
-                )}
+            {step === 'room' && (
+                <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
+            )}
 
-                {step === 'payment' && (
-                    <>
-                        <p className="text-sm text-muted mb-4">
-                            {reservationChannel === 'WALK_IN'
-                                ? "We'll charge the full stay now, then place a small hold for incidentals."
-                                : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
-                        </p>
-                        {error && <p className="text-sm text-error mb-4">{error}</p>}
+            {step === 'payment' && (
+                <>
+                    <p className="text-sm text-muted mb-4">
+                        {reservationChannel === 'WALK_IN'
+                            ? "We'll charge the full stay now, then place a small hold for incidentals."
+                            : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
+                    </p>
+                    {error && <p className="text-sm text-error mb-4">{error}</p>}
 
-                        {posDevices.length > 0 && hasManualProvider && (
-                            <div className="flex gap-2 justify-center mb-4">
-                                <button type="button" onClick={() => setUseTerminal(true)} className={`filter-btn${useTerminal ? ' active' : ''}`}>
-                                    Charge on Terminal
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setUseTerminal(false)}
-                                    disabled={!manualEntryUnlocked}
-                                    className={`filter-btn${!useTerminal ? ' active' : ''}`}
-                                >
-                                    Enter Card Manually
-                                </button>
-                            </div>
-                        )}
-
-                        {useTerminal && posDevices.length > 0 && (
-                            <TerminalCheckInForm
-                                roomId={selectedRoomId}
-                                onConfirmTerminal={onConfirmTerminal}
-                                onClose={onClose}
-                                onCancel={handleCancelClick}
-                                onCheckedIn={handleCheckedIn}
-                                devices={posDevices}
-                                onHealthCheck={handleHealthCheck}
-                                chargeAmount={chargeAmount}
-                                chargeLabel={chargeLabel}
-                            />
-                        )}
-                        {noDeviceRecordOnly && (
-                            <RecordOnlyCheckInForm
-                                roomId={selectedRoomId}
-                                onConfirmTerminal={onConfirmTerminal}
-                                onClose={onClose}
-                                onCancel={handleCancelClick}
-                                onCheckedIn={handleCheckedIn}
-                                chargeAmount={chargeAmount}
-                                chargeLabel={chargeLabel}
-                            />
-                        )}
-                        {!useTerminal && !noDeviceRecordOnly && provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCancel={handleCancelClick} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
-                        )}
-                        {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
-                            <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
-                        )}
-                    </>
-                )}
-
-                {step === 'code' && (
-                    <div className="flex flex-col gap-4">
-                        <p className="text-sm text-muted">Give this code to the guest for door access.</p>
-                        <DoorCode reservationId={reservationId} />
-                        <div className="flex justify-end mt-2">
-                            <button onClick={onClose} className="btn btn-primary">Done</button>
+                    {posDevices.length > 0 && hasManualProvider && (
+                        <div className="flex gap-2 justify-center mb-4">
+                            <button type="button" onClick={() => setUseTerminal(true)} className={`filter-btn${useTerminal ? ' active' : ''}`}>
+                                Charge on Terminal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setUseTerminal(false)}
+                                disabled={!manualEntryUnlocked}
+                                className={`filter-btn${!useTerminal ? ' active' : ''}`}
+                            >
+                                Enter Card Manually
+                            </button>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {confirmingCancel && (
-                    <ConfirmDialog
-                        message="Cancel this walk-in reservation? It will be marked as cancelled."
-                        cancelLabel="Keep Going"
-                        confirmLabel="Yes, Cancel"
-                        onCancel={() => setConfirmingCancel(false)}
-                        onConfirm={confirmCancelReservation}
-                    />
-                )}
+                    {useTerminal && posDevices.length > 0 && (
+                        <TerminalCheckInForm
+                            roomId={selectedRoomId}
+                            onConfirmTerminal={onConfirmTerminal}
+                            onClose={onClose}
+                            onCancel={handleCancelClick}
+                            onCheckedIn={handleCheckedIn}
+                            devices={posDevices}
+                            onHealthCheck={handleHealthCheck}
+                            chargeAmount={chargeAmount}
+                            chargeLabel={chargeLabel}
+                        />
+                    )}
+                    {noDeviceRecordOnly && (
+                        <RecordOnlyCheckInForm
+                            roomId={selectedRoomId}
+                            onConfirmTerminal={onConfirmTerminal}
+                            onClose={onClose}
+                            onCancel={handleCancelClick}
+                            onCheckedIn={handleCheckedIn}
+                            chargeAmount={chargeAmount}
+                            chargeLabel={chargeLabel}
+                        />
+                    )}
+                    {!useTerminal && !noDeviceRecordOnly && provider === 'authorizenet' && (
+                        <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCancel={handleCancelClick} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
+                    )}
+                    {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
+                        <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
+                    )}
+                </>
+            )}
+
+            {step === 'code' && (
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-muted">Give this code to the guest for door access.</p>
+                    <DoorCode reservationId={reservationId} />
+                    <div className="flex justify-end mt-2">
+                        <button onClick={onClose} className="btn btn-primary">Done</button>
+                    </div>
+                </div>
+            )}
+
+            {step === 'door-failed' && (
+                <DoorAccessFailedNotice onClose={onClose} />
+            )}
+
+            {confirmingCancel && (
+                <ConfirmDialog
+                    message="Cancel this walk-in reservation? It will be marked as cancelled."
+                    cancelLabel="Keep Going"
+                    confirmLabel="Yes, Cancel"
+                    onCancel={() => setConfirmingCancel(false)}
+                    onConfirm={confirmCancelReservation}
+                />
+            )}
         </Modal>
     )
 }
