@@ -120,7 +120,7 @@ class IncidentChargeServiceSpec extends Specification {
         folioRepository.findById(1) >> Optional.of(closedFolio())
 
         def savedPayment = new FolioPayment(9, 1, PaymentKind.INCIDENT_CHARGE, "authorizenet", "txn-1", "4242",
-                PaymentStatus.CAPTURED, BigDecimal.valueOf(150), BigDecimal.valueOf(150), LocalDateTime.now(), LocalDateTime.now())
+                PaymentStatus.CAPTURED, BigDecimal.valueOf(150), BigDecimal.valueOf(150), "", LocalDateTime.now(), LocalDateTime.now())
         paymentService.chargeStoredCredential(_, _, _, _) >> savedPayment
         incidentChargeRequestRepository.save(_) >> { IncidentChargeRequest r -> r }
 
