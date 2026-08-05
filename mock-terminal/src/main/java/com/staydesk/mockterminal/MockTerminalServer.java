@@ -25,6 +25,7 @@ public class MockTerminalServer extends WebSocketServer {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final Map<String, Long> saleAmountsByReferenceNo = new ConcurrentHashMap<>();
+    private final Map<String, Long> preAuthAmountsByReferenceNo = new ConcurrentHashMap<>();
     private final AtomicLong batchSaleAmount = new AtomicLong();
     private final AtomicLong batchSaleCount = new AtomicLong();
     private final AtomicLong batchRefundAmount = new AtomicLong();
@@ -101,7 +102,7 @@ public class MockTerminalServer extends WebSocketServer {
 
         String type = resource.path("type").asText("");
         long amountCents = resource.path("amount").asLong(-1);
-        boolean isSaleOrRefund = type.equals("sale") || type.equals("refund");
+        boolean isSaleOrRefund = type.equals("sale") || type.equals("refund") || type.equals("pre_auth");
 
         if (isSaleOrRefund && amountCents == 999) {
             log("Amount $9.99 magic value - deliberately not sending an event for flow " + flowId);
@@ -118,6 +119,8 @@ public class MockTerminalServer extends WebSocketServer {
             case "sale" -> saleResult(amountCents);
             case "refund" -> refundResult(amountCents);
             case "void" -> voidResult(resource);
+            case "pre_auth" -> preAuthResult(amountCents);
+            case "pre_auth_completion" -> preAuthCompletionResult(resource, amountCents);
             case "settlement" -> settlementResult();
             default -> {
                 log("Unhandled transaction type \"" + type + "\", approving generically");
@@ -149,6 +152,20 @@ public class MockTerminalServer extends WebSocketServer {
         return result;
     }
 
+    private Map<String, Object> preAuthResult(long amountCents) {
+        boolean declined = amountCents == 200; // $2.00 -> declined
+        String referenceNo = String.valueOf(System.currentTimeMillis() % 1_000_000);
+
+        Map<String, Object> result = baseCardResult(declined, "pre_auth", referenceNo, amountCents);
+
+        if (!declined) {
+            preAuthAmountsByReferenceNo.put(referenceNo, amountCents);
+            log("Pre-auth opened: ref " + referenceNo + " ($" + amountCents / 100.0 + ")");
+        }
+
+        return result;
+    }
+
     private Map<String, Object> refundResult(long amountCents) {
         boolean declined = amountCents == 200; // $2.00 -> declined
         String referenceNo = String.valueOf(System.currentTimeMillis() % 1_000_000);
@@ -166,8 +183,11 @@ public class MockTerminalServer extends WebSocketServer {
 
     private Map<String, Object> voidResult(JsonNode resource) {
         String referenceNo = resource.path("reference_no").asText("");
-        Long originalAmount = referenceNo.isBlank() ? null : saleAmountsByReferenceNo.remove(referenceNo);
-        boolean notFound = originalAmount == null;
+        Long originalSaleAmount = referenceNo.isBlank() ? null : saleAmountsByReferenceNo.remove(referenceNo);
+        Long originalPreAuthAmount = originalSaleAmount == null && !referenceNo.isBlank() ?
+                                     preAuthAmountsByReferenceNo.remove(referenceNo) :
+                                     null;
+        boolean notFound = originalSaleAmount == null && originalPreAuthAmount == null;
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", notFound ? "transaction_record_not_found" : "approved");
@@ -175,11 +195,37 @@ public class MockTerminalServer extends WebSocketServer {
         result.put("reference_no", referenceNo.isBlank() ? UUID.randomUUID().toString() : referenceNo);
         result.put("host_response_text", notFound ? "RECORD NOT FOUND" : "APPROVED");
 
-        if (!notFound) {
-            batchVoidAmount.addAndGet(originalAmount);
+        if (originalSaleAmount != null) {
+            batchVoidAmount.addAndGet(originalSaleAmount);
             batchVoidCount.incrementAndGet();
-            batchSaleAmount.addAndGet(-originalAmount);
+            batchSaleAmount.addAndGet(-originalSaleAmount);
             batchSaleCount.decrementAndGet();
+            log("Batch now: " + batchSummary());
+        } else if (originalPreAuthAmount != null) {
+            log("Pre-auth voided: ref " + referenceNo + " ($" + originalPreAuthAmount / 100.0 + ") - never reached the batch, no counters affected");
+        }
+
+        return result;
+    }
+
+    private Map<String, Object> preAuthCompletionResult(JsonNode resource, long amountCents) {
+        String referenceNo = resource.path("reference_no").asText("");
+        Long originalAmount = referenceNo.isBlank() ? null : preAuthAmountsByReferenceNo.remove(referenceNo);
+        boolean notFound = originalAmount == null;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", notFound ? "transaction_record_not_found" : "approved");
+        result.put("type", "pre_auth_completion");
+        result.put("reference_no", referenceNo.isBlank() ? UUID.randomUUID().toString() : referenceNo);
+        result.put("host_response_text", notFound ? "RECORD NOT FOUND" : "APPROVED");
+        result.put("transaction_amount", String.valueOf(amountCents));
+        result.put("total_amount", String.valueOf(amountCents));
+
+        if (!notFound) {
+            batchSaleAmount.addAndGet(amountCents);
+            batchSaleCount.incrementAndGet();
+            log("Pre-auth completed: ref " + referenceNo + " for $" + amountCents / 100.0
+                + " (original hold was $" + originalAmount / 100.0 + ")");
             log("Batch now: " + batchSummary());
         }
 

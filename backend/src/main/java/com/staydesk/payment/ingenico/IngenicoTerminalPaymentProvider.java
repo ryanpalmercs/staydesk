@@ -27,8 +27,14 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult authorize(BigDecimal amount, String token, String description) {
-        throw new UnsupportedOperationException(
-                "IngenicoTerminalPaymentProvider.authorize() is pending confirmation of pre_auth support on the Desk 3500 - see docs/ingenico-bridge-notes.md");
+        try {
+            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH, null,
+                    "pre_auth", amount, null);
+            return toAuthResult(result);
+        } catch (TerminalBridgeException e) {
+            LOGGER.error("Terminal pre-auth failed for amount {}: {}", amount, e.getMessage());
+            return new AuthResult(false, null, e.getMessage(), null);
+        }
     }
 
     @Override
@@ -45,8 +51,19 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
 
     @Override
     public CaptureResult capture(String authId, BigDecimal amount) {
-        throw new UnsupportedOperationException(
-                "IngenicoTerminalPaymentProvider.capture() is pending confirmation of pre_auth_completion support on the Desk 3500 - see docs/ingenico-bridge-notes.md");
+        try {
+            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH_COMPLETION,
+                    null, "pre_auth_completion", amount, authId);
+
+            if (!isApproved(result)) {
+                return new CaptureResult(false, authId, message(result));
+            }
+
+            return new CaptureResult(true, result.referenceNumber() != null ? result.referenceNumber() : authId, null);
+        } catch (TerminalBridgeException e) {
+            LOGGER.error("Terminal pre-auth completion failed for amount {}: {}", amount, e.getMessage());
+            return new CaptureResult(false, authId, e.getMessage());
+        }
     }
 
     @Override
