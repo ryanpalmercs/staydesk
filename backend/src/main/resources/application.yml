@@ -73,6 +73,9 @@ elavon:
     client-id: ${ELAVON_CPI_CLIENT_ID:}
     client-secret: ${ELAVON_CPI_CLIENT_SECRET:}
 
+bridge:
+  shared-secret: ${BRIDGE_SHARED_SECRET}
+
 payment:
   card-present:
     # TEMPORARY: set CARD_PRESENT_RECORD_ONLY=true in the environment while no Elavon/Ingenico
