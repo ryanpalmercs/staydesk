@@ -4,10 +4,12 @@ import com.staydesk.exception.ExtraNotFoundException;
 import com.staydesk.exception.FolioClosedException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
+import com.staydesk.model.FolioPayment;
 import com.staydesk.model.request.AddFolioItemRequest;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
 import com.staydesk.repository.FolioItemRepository;
+import com.staydesk.repository.FolioPaymentRepository;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.service.FolioService;
 import com.staydesk.service.PaymentService;
@@ -32,13 +34,16 @@ public class FolioController {
 
     private final FolioRepository folioRepository;
     private final FolioItemRepository folioItemRepository;
+    private final FolioPaymentRepository folioPaymentRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
 
     public FolioController(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
+                           FolioPaymentRepository folioPaymentRepository,
                            PaymentService paymentService, FolioService folioService) {
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
+        this.folioPaymentRepository = folioPaymentRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
     }
@@ -48,6 +53,15 @@ public class FolioController {
         return folioRepository.findById(id)
                               .map(ResponseEntity::ok)
                               .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("{id}/payments")
+    public ResponseEntity<List<FolioPayment>> getFolioPayments(@PathVariable Integer id) {
+        if (folioRepository.findById(id).isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(folioPaymentRepository.findByFolioId(id));
     }
 
     @GetMapping("{id}/items")

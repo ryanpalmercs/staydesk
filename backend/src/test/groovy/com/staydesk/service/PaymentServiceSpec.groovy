@@ -27,7 +27,7 @@ class PaymentServiceSpec extends Specification {
 
     private static FolioPayment capturedRoomPayment(BigDecimal amount) {
         new FolioPayment(5, 1, PaymentKind.ROOM, "authorizenet", "txn-1", "4242",
-                PaymentStatus.CAPTURED, amount, amount, LocalDateTime.now(), LocalDateTime.now())
+                PaymentStatus.CAPTURED, amount, amount, "", LocalDateTime.now(), LocalDateTime.now())
     }
 
     def "refunds captured amount minus first night and marks PARTIALLY_REFUNDED"() {
