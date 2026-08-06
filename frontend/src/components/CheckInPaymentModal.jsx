@@ -6,6 +6,7 @@ import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
+import ConfirmDialog from "./ConfirmDialog"
 
 function AmountBanner({ amount, label }) {
     if (amount == null) return null
@@ -91,31 +92,21 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
+function AcceptJsCheckInForm({ roomId, reservationChannel, onConfirm, onClose, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
     const isWalkIn = reservationChannel === 'WALK_IN'
 
     async function handleCapture(incidentalsToken, roomToken) {
         const doorAccessStatus = await onConfirm(roomId, incidentalsToken, roomToken)
-        if (doorAccessStatus === 'FAILED') {
-            setDoorAccessFailed(true)
-        } else {
-            onCheckedIn(doorAccessStatus)
-        }
+        onCheckedIn(doorAccessStatus)
     }
 
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
-    }
-
-    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onClose} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
+    return <AcceptJsCardForm onCapture={handleCapture} onCancel={onCancel} submitLabel="Check In" dual={isWalkIn} amount={chargeAmount} label={chargeLabel} />
 }
 
-function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
+function TerminalCheckInForm({ roomId, onConfirmTerminal, onCancel, onCheckedIn, devices, onHealthCheck, chargeAmount, chargeLabel }) {
     const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
     const [deviceOnline, setDeviceOnline] = useState(null)
 
     useEffect(() => {
@@ -143,20 +134,12 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
 
         try {
             const doorAccessStatus = await onConfirmTerminal(roomId, Number(selectedDeviceId))
-            if (doorAccessStatus === 'FAILED') {
-                setDoorAccessFailed(true)
-            } else {
-                onCheckedIn(doorAccessStatus)
-            }
+            onCheckedIn(doorAccessStatus)
         } catch (err) {
             setError('Failed to check in. The card may have been declined on the terminal.')
         }
 
         setSubmitting(false)
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
     }
 
     return (
@@ -183,7 +166,7 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
             {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>
                     Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId || deviceOnline === false}>
@@ -194,10 +177,9 @@ function TerminalCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, 
     )
 }
 
-function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn, chargeAmount, chargeLabel }) {
+function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onCancel, onCheckedIn, chargeAmount, chargeLabel }) {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
-    const [doorAccessFailed, setDoorAccessFailed] = useState(false)
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -206,20 +188,12 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn
 
         try {
             const doorAccessStatus = await onConfirmTerminal(roomId, null)
-            if (doorAccessStatus === 'FAILED') {
-                setDoorAccessFailed(true)
-            } else {
-                onCheckedIn(doorAccessStatus)
-            }
+            onCheckedIn(doorAccessStatus)
         } catch (err) {
             setError('Failed to check in.')
         }
 
         setSubmitting(false)
-    }
-
-    if (doorAccessFailed) {
-        return <DoorAccessFailedNotice onClose={onClose} />
     }
 
     return (
@@ -232,7 +206,7 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn
             {error && <p className="text-sm text-error">{error}</p>}
 
             <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>
                     Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -243,7 +217,7 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onClose, onCheckedIn
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
 
@@ -257,6 +231,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     const [manualEntryUnlocked, setManualEntryUnlocked] = useState(false)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
     const [stayTotal, setStayTotal] = useState(null)
+    const [confirmingCancel, setConfirmingCancel] = useState(false)
 
     useEffect(() => {
         getPropertySetting('payment_provider').then(res => {
@@ -309,9 +284,25 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     function handleCheckedIn(doorAccessStatus) {
         if (doorAccessStatus === 'ISSUED') {
             setStep('code')
+        } else if (doorAccessStatus === 'FAILED') {
+            setStep('door-failed')
         } else {
             onClose()
         }
+    }
+
+    function handleCancelClick() {
+        if (isWalkIn) {
+            setConfirmingCancel(true)
+            return
+        }
+        onClose()
+    }
+
+    async function confirmCancelReservation() {
+        setConfirmingCancel(false)
+        await onCancelReservation()
+        onClose()
     }
 
     const hasManualProvider = provider === 'authorizenet'
@@ -319,79 +310,95 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
     return (
         <Modal onClose={onClose} size="md">
-                <h2 className="text-lg text-black font-semibold mb-4">
-                    {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
-                </h2>
+            <h2 className="text-lg text-black font-semibold mb-4">
+                {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
+            </h2>
 
-                {step === 'room' && (
-                    <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={onClose} />
-                )}
+            {step === 'room' && (
+                <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
+            )}
 
-                {step === 'payment' && (
-                    <>
-                        <p className="text-sm text-muted mb-4">
-                            {reservationChannel === 'WALK_IN'
-                                ? "We'll charge the full stay now, then place a small hold for incidentals."
-                                : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
-                        </p>
-                        {error && <p className="text-sm text-error mb-4">{error}</p>}
+            {step === 'payment' && (
+                <>
+                    <p className="text-sm text-muted mb-4">
+                        {reservationChannel === 'WALK_IN'
+                            ? "We'll charge the full stay now, then place a small hold for incidentals."
+                            : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
+                    </p>
+                    {error && <p className="text-sm text-error mb-4">{error}</p>}
 
-                        {posDevices.length > 0 && hasManualProvider && (
-                            <div className="flex gap-2 justify-center mb-4">
-                                <button type="button" onClick={() => setUseTerminal(true)} className={`filter-btn${useTerminal ? ' active' : ''}`}>
-                                    Charge on Terminal
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setUseTerminal(false)}
-                                    disabled={!manualEntryUnlocked}
-                                    className={`filter-btn${!useTerminal ? ' active' : ''}`}
-                                >
-                                    Enter Card Manually
-                                </button>
-                            </div>
-                        )}
-
-                        {useTerminal && posDevices.length > 0 && (
-                            <TerminalCheckInForm
-                                roomId={selectedRoomId}
-                                onConfirmTerminal={onConfirmTerminal}
-                                onClose={onClose}
-                                onCheckedIn={handleCheckedIn}
-                                devices={posDevices}
-                                onHealthCheck={handleHealthCheck}
-                                chargeAmount={chargeAmount}
-                                chargeLabel={chargeLabel}
-                            />
-                        )}
-                        {noDeviceRecordOnly && (
-                            <RecordOnlyCheckInForm
-                                roomId={selectedRoomId}
-                                onConfirmTerminal={onConfirmTerminal}
-                                onClose={onClose}
-                                onCheckedIn={handleCheckedIn}
-                                chargeAmount={chargeAmount}
-                                chargeLabel={chargeLabel}
-                            />
-                        )}
-                        {!useTerminal && !noDeviceRecordOnly && provider === 'authorizenet' && (
-                            <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
-                        )}
-                        {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
-                            <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
-                        )}
-                    </>
-                )}
-
-                {step === 'code' && (
-                    <div className="flex flex-col gap-4">
-                        <p className="text-sm text-muted">Give this code to the guest for door access.</p>
-                        <DoorCode reservationId={reservationId} />
-                        <div className="flex justify-end mt-2">
-                            <button onClick={onClose} className="btn btn-primary">Done</button>
+                    {posDevices.length > 0 && hasManualProvider && (
+                        <div className="flex gap-2 justify-center mb-4">
+                            <button type="button" onClick={() => setUseTerminal(true)} className={`filter-btn${useTerminal ? ' active' : ''}`}>
+                                Charge on Terminal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setUseTerminal(false)}
+                                disabled={!manualEntryUnlocked}
+                                className={`filter-btn${!useTerminal ? ' active' : ''}`}
+                            >
+                                Enter Card Manually
+                            </button>
                         </div>
+                    )}
+
+                    {useTerminal && posDevices.length > 0 && (
+                        <TerminalCheckInForm
+                            roomId={selectedRoomId}
+                            onConfirmTerminal={onConfirmTerminal}
+                            onClose={onClose}
+                            onCancel={handleCancelClick}
+                            onCheckedIn={handleCheckedIn}
+                            devices={posDevices}
+                            onHealthCheck={handleHealthCheck}
+                            chargeAmount={chargeAmount}
+                            chargeLabel={chargeLabel}
+                        />
+                    )}
+                    {noDeviceRecordOnly && (
+                        <RecordOnlyCheckInForm
+                            roomId={selectedRoomId}
+                            onConfirmTerminal={onConfirmTerminal}
+                            onClose={onClose}
+                            onCancel={handleCancelClick}
+                            onCheckedIn={handleCheckedIn}
+                            chargeAmount={chargeAmount}
+                            chargeLabel={chargeLabel}
+                        />
+                    )}
+                    {!useTerminal && !noDeviceRecordOnly && provider === 'authorizenet' && (
+                        <AcceptJsCheckInForm roomId={selectedRoomId} reservationChannel={reservationChannel} onConfirm={onConfirm} onClose={onClose} onCancel={handleCancelClick} onCheckedIn={handleCheckedIn} chargeAmount={chargeAmount} chargeLabel={chargeLabel} />
+                    )}
+                    {!useTerminal && posDevices.length > 0 && !hasManualProvider && (
+                        <p className="text-sm text-error">Terminal unavailable and no backup card entry is configured. Contact support.</p>
+                    )}
+                </>
+            )}
+
+            {step === 'code' && (
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-muted">Give this code to the guest for door access.</p>
+                    <DoorCode reservationId={reservationId} />
+                    <div className="flex justify-end mt-2">
+                        <button onClick={onClose} className="btn btn-primary">Done</button>
                     </div>
-                )}
+                </div>
+            )}
+
+            {step === 'door-failed' && (
+                <DoorAccessFailedNotice onClose={onClose} />
+            )}
+
+            {confirmingCancel && (
+                <ConfirmDialog
+                    message="Cancel this walk-in reservation? It will be marked as cancelled."
+                    cancelLabel="Keep Going"
+                    confirmLabel="Yes, Cancel"
+                    onCancel={() => setConfirmingCancel(false)}
+                    onConfirm={confirmCancelReservation}
+                />
+            )}
         </Modal>
     )
 }

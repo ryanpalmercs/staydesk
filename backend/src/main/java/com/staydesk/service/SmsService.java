@@ -40,7 +40,7 @@ public class SmsService {
 
     private void sendSms(String to, String body) {
         try {
-            Message.creator(new PhoneNumber(to), new PhoneNumber(fromNumber), body).create();
+            Message.creator(new PhoneNumber("+1" + to), new PhoneNumber(fromNumber), body).create();
         } catch (TwilioException e) {
             LOGGER.error("Failed to send SMS to {}.", to, e);
         }

@@ -70,7 +70,16 @@ function EmployeeModal({ employee, onSaved, onClose }) {
                     return
                 }
 
-                await createEmployee(form)
+                await createEmployee({
+                    ...form, contactInfo: {
+                        phone: form.phone,
+                        addressLine1: form.addressLine1,
+                        addressLine2: form.addressLine2,
+                        city: form.city,
+                        state: form.state,
+                        zipCode: form.zipCode
+                    }
+                })
             }
 
             onSaved()
