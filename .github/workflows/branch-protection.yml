@@ -2,7 +2,7 @@ name: Branch protection
 
 on:
   pull_request:
-    branches: [develop, beta, master]
+    branches: [develop, beta, master, 'v*']
 
 jobs:
   check-source-branch:
@@ -17,8 +17,8 @@ jobs:
 
           echo "PR: $SOURCE → $TARGET"
 
-          if [[ "$TARGET" == "develop" && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
-            echo "Error: PRs targeting 'develop' must come from a 'feature/*' or 'bugfix/*' branch (got '$SOURCE')"
+          if [[ ( "$TARGET" == "develop" || "$TARGET" =~ ^v[0-9] ) && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
+            echo "Error: PRs targeting '$TARGET' must come from a 'feature/*' or 'bugfix/*' branch (got '$SOURCE')"
             exit 1
           fi
 
