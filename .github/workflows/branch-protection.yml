@@ -22,8 +22,8 @@ jobs:
             exit 1
           fi
 
-          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" ]]; then
-            echo "Error: PRs targeting 'beta' must come from 'develop' (got '$SOURCE')"
+          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && ! "$SOURCE" =~ ^bugfix/ ]]; then
+            echo "Error: PRs targeting 'beta' must come from 'develop' or a 'bugfix/*' hotfix branch (got '$SOURCE')"
             exit 1
           fi
 
