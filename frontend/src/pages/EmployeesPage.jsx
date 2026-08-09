@@ -58,7 +58,7 @@ function EmployeesPage() {
         setModal('edit')
     }
 
-    async function handleToggleActivate(employee) {
+    async function handleToggleActive(employee) {
         if (employee.active) {
             await deleteEmployee(employee.id)
         } else {
