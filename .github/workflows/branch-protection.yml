@@ -17,13 +17,13 @@ jobs:
 
           echo "PR: $SOURCE → $TARGET"
 
-          if [[ "$TARGET" == "develop" && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
-            echo "Error: PRs targeting 'develop' must come from a 'feature/*' or 'bugfix/*' branch (got '$SOURCE')"
+          if [[ "$TARGET" == "develop" && "$SOURCE" != "beta" && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
+            echo "Error: PRs targeting 'develop' must come from 'beta' (sync-back) or a 'feature/*'/'bugfix/*' branch (got '$SOURCE')"
             exit 1
           fi
 
-          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" ]]; then
-            echo "Error: PRs targeting 'beta' must come from 'develop' (got '$SOURCE')"
+          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ ]]; then
+            echo "Error: PRs targeting 'beta' must come from 'develop', 'master' (sync-back), or a 'bugfix/*' hotfix branch (got '$SOURCE')"
             exit 1
           fi
 

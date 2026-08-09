@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getEmployees, getEmployee, deleteEmployee, getEmployeeTypes } from "../api/employeeApi";
+import { getEmployees, getEmployee, deleteEmployee, activateEmployee, getEmployeeTypes } from "../api/employeeApi";
 import StatusBadge from "../components/StatusBadge";
 import EmployeeModal from "../components/EmployeeModal";
 import ChangeRoleModal from "../components/ChangeRoleModal";
@@ -58,8 +58,13 @@ function EmployeesPage() {
         setModal('edit')
     }
 
-    async function handleDelete(id) {
-        await deleteEmployee(id)
+    async function handleToggleActive(employee) {
+        if (employee.active) {
+            await deleteEmployee(employee.id)
+        } else {
+            await activateEmployee(employee.id)
+        }
+
         fetchEmployees()
     }
 
@@ -113,7 +118,9 @@ function EmployeesPage() {
                                     <button onClick={() => openEdit(employee)} className="text-muted hover:text-green text-sm font-medium">Edit</button>
                                     <button onClick={() => openRole(employee)} className="text-muted hover:text-green text-sm font-medium">Change Role</button>
                                     <button onClick={() => openPin(employee)} className="text-muted hover:text-green text-sm font-medium">Reset Pin</button>
-                                    <button onClick={() => handleDelete(employee.id)} className="text-muted hover:text-green text-sm font-medium">Deactivate</button>
+                                    <button onClick={() => handleToggleActive(employee)} className="text-muted hover:text-green text-sm font-medium">
+                                        {employee.active ? 'Deactivate' : 'Activate'}
+                                    </button>
                                 </div>
                             </div>
                         ))}

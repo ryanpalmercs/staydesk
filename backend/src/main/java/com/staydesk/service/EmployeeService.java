@@ -133,6 +133,13 @@ public class EmployeeService {
         employeeRepository.deactivate(id);
     }
 
+    public void activateEmployee(UUID id) {
+        employeeRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
+
+        employeeRepository.activate(id);
+    }
+
     public void updateEmployeePersonalInfo(UUID id, UpdatePersonalInfoRequest request) {
         Employee existing = employeeRepository.findById(id)
                                               .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee id"));
