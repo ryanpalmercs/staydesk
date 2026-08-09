@@ -25,4 +25,8 @@ public interface EmployeeRepository extends ListCrudRepository<Employee, UUID> {
     @Modifying
     @Query("UPDATE employees SET door_access_enabled = :enabled WHERE id = :id")
     void updateDoorAccessEnabled(@Param("id") UUID id, @Param("enabled") boolean enabled);
+
+    @Modifying
+    @Query("UPDATE employees SET active = true WHERE id = :id")
+    void activate(@Param("id") UUID id);
 }
