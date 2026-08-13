@@ -5,12 +5,14 @@ import com.staydesk.exception.FolioClosedException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.model.FolioPayment;
+import com.staydesk.model.Reservation;
 import com.staydesk.model.request.AddFolioItemRequest;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
 import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioPaymentRepository;
 import com.staydesk.repository.FolioRepository;
+import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.FolioService;
 import com.staydesk.service.PaymentService;
 import org.slf4j.Logger;
@@ -37,15 +39,18 @@ public class FolioController {
     private final FolioPaymentRepository folioPaymentRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
+    private final ReservationRepository reservationRepository;
 
     public FolioController(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
                            FolioPaymentRepository folioPaymentRepository,
-                           PaymentService paymentService, FolioService folioService) {
+                           PaymentService paymentService, FolioService folioService,
+                           ReservationRepository reservationRepository) {
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
         this.folioPaymentRepository = folioPaymentRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
+        this.reservationRepository = reservationRepository;
     }
 
     @GetMapping("{id}")
@@ -75,9 +80,11 @@ public class FolioController {
 
     @GetMapping("by-reservation/{reservationId}")
     public ResponseEntity<Folio> getByReservation(@PathVariable Integer reservationId) {
-        return folioRepository.getFolioByReservationId(reservationId)
-                              .map(ResponseEntity::ok)
-                              .orElse(ResponseEntity.notFound().build());
+        return reservationRepository.findById(reservationId)
+                                    .map(Reservation::folioId)
+                                    .flatMap(folioRepository::findById)
+                                    .map(ResponseEntity::ok)
+                                    .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("{id}/items")
@@ -101,7 +108,7 @@ public class FolioController {
             Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
             PaymentService.PaymentCaptureResult result = paymentService.capture(folio);
 
-            folioRepository.save(new Folio(folio.id(), folio.reservationId(), folio.status(), folio.total(),
+            folioRepository.save(new Folio(folio.id(), folio.status(), folio.total(),
                     LocalDateTime.now(), folio.createdAt(), folio.updatedAt()));
 
             return ResponseEntity.ok(result);

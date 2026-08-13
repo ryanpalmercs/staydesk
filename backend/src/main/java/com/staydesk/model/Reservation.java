@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Table("reservations")
-public record Reservation(@Id int id, @Nullable Integer guestId, @Nullable Integer roomId, int roomTypeId,
+public record Reservation(@Id int id, int folioId, @Nullable Integer guestId, @Nullable Integer roomId, int roomTypeId,
                           LocalDate checkInDate, LocalDate checkOutDate,
                           ReservationStatus status, @Nullable LocalDateTime checkedInAt,
                           @Nullable LocalDateTime checkedOutAt, Rate.RateType rateType, int guestCount,

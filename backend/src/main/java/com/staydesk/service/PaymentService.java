@@ -41,7 +41,8 @@ public class PaymentService {
         this.paymentCredentialService = paymentCredentialService;
     }
 
-    public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId) {
+    public void createIncidentalHold(Folio folio, int reservationId, String providerName,
+                                     String incidentalsPaymentMethodId) {
         LocalDateTime now = LocalDateTime.now();
 
         String holdAmountString = propertySettingsService.getProperty("incidentals_hold_amount").value();
@@ -53,7 +54,7 @@ public class PaymentService {
             LOGGER.error("Could not parse hold amount", e);
         }
 
-        createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
+        createHold(folio, reservationId, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
     }
 
     public void cancelOpenHolds(Folio folio) {
@@ -88,7 +89,7 @@ public class PaymentService {
                 payment.authorizedAmount(), payment.capturedAmount(), null, payment.createdAt(), LocalDateTime.now()));
     }
 
-    private void createHold(Folio folio, PaymentKind kind, String providerName, BigDecimal amount,
+    private void createHold(Folio folio, int reservationId, PaymentKind kind, String providerName, BigDecimal amount,
                             String paymentMethodId, LocalDateTime now) {
         AuthResult result = providerFactory.getProvider(providerName)
                                            .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id());
@@ -101,7 +102,7 @@ public class PaymentService {
                 result.cardLast4(), PaymentStatus.REQUIRES_CAPTURE, amount, null, null, now, now));
 
         if (kind == PaymentKind.INCIDENTALS) {
-            paymentCredentialService.captureCheckInCredential(folio, providerName, saved);
+            paymentCredentialService.captureCheckInCredential(folio, reservationId, providerName, saved);
         }
     }
 

@@ -78,7 +78,7 @@ public class ReservationController {
 
         try {
             Reservation savedReservation = reservationService.createReservation(
-                    new Reservation(0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
+                    new Reservation(0, 0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null),
                     request.roomPaymentMethodId());
