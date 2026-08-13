@@ -70,4 +70,8 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
             )
             """)
     List<Reservation> findUnsettledWalkIn();
+
+    @Query("SELECT EXISTS(SELECT 1 FROM reservations WHERE folio_id = :folioId AND id != :excludingReservationId AND status IN ('CONFIRMED', 'CHECKED_IN'))")
+    boolean existsOtherActiveByFolioId(@Param("folioId") int folioId,
+                                       @Param("excludingReservationId") int excludingReservationId);
 }

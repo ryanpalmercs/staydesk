@@ -427,13 +427,16 @@ public class ReservationService {
             folio = folioService.postCharge(folio, "GUEST ROOM", rate.amount());
         }
 
-        folioRepository.save(new Folio(folio.id(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
+        boolean isLastActiveReservation = !reservationRepository.existsOtherActiveByFolioId(reservation.folioId(), id);
 
-        paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
+        if (isLastActiveReservation) {
+            folioRepository.save(new Folio(folio.id(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
+            paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
+        }
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
-
+    
     @Transactional
     public Reservation cancelReservation(int id) {
         Reservation reservation = reservationRepository.findById(id)
@@ -443,10 +446,16 @@ public class ReservationService {
             throw new CannotCancelException();
         }
 
+        boolean isLastActiveReservation = !reservationRepository.existsOtherActiveByFolioId(reservation.folioId(), id);
+
         folioRepository.findById(reservation.folioId())
                        .ifPresent(f -> {
-                           paymentService.cancelOpenHolds(f);
-                           folioRepository.closeFolio(f.id());
+                           if (isLastActiveReservation) {
+                               paymentService.cancelOpenHolds(f);
+                               folioRepository.closeFolio(f.id());
+                           } else {
+                               paymentService.refundReservationShare(f, estimateStayAmount(reservation), BigDecimal.ZERO);
+                           }
                        });
 
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
@@ -465,11 +474,15 @@ public class ReservationService {
         }
 
         BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
+        boolean isLastActiveReservation = !reservationRepository.existsOtherActiveByFolioId(reservation.folioId(), id);
 
         folioRepository.findById(reservation.folioId())
                        .ifPresent(f -> {
-                           paymentService.refundAllButFirstNight(f, firstNightAmount);
-                           folioRepository.closeFolio(f.id());
+                           paymentService.refundReservationShare(f, estimateStayAmount(reservation), firstNightAmount);
+
+                           if (isLastActiveReservation) {
+                               folioRepository.closeFolio(f.id());
+                           }
                        });
 
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
