@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { createReservation, getReservationEstimate, updateReservation } from "../api/reservationApi"
+import { createReservation, getReservationEstimate, updateReservation, createMultiRoomReservation } from "../api/reservationApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
@@ -9,7 +9,7 @@ import AcceptJsCardForm from "./AcceptJsCardForm"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
-import { CircleMinus, CirclePlus } from "lucide-react"
+import { CircleMinus, CirclePlus, Trash2 } from "lucide-react"
 import Modal from "./Modal"
 
 
@@ -101,6 +101,26 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const guestCount = form.adults + form.children
 
     const [estimate, setEstimate] = useState(null)
+
+    const [roomLines, setRoomLines] = useState([{ roomTypeId: '', quantity: 1 }])
+
+    function addRoomLine() {
+        setRoomLines(lines => [...lines, { roomTypeId: '', quantity: 1 }])
+    }
+
+    function removeRoomLine(index) {
+        setRoomLines(lines => lines.filter((_, i) => i !== index))
+    }
+
+    function updateRoomLine(index, field, value) {
+        setRoomLines(lines => lines.map((line, i) => i === index ? { ...line, [field]: value } : line))
+    }
+
+    function isMultiRoom(lines) {
+        return lines.length > 1 || lines.some(l => Number(l.quantity) > 1)
+    }
+
+    const totalRoomCount = roomLines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
 
     useEffect(() => {
         getRoomTypes().then(res => setRoomTypes(res.data ?? [])),
@@ -234,7 +254,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     async function handleSubmit(e) {
         e.preventDefault()
-
         setError(null)
 
         if (!form.guestId) {
@@ -242,8 +261,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        if (!form.roomTypeId) {
-            setError('Please select a room type.')
+        if (isEditing) {
+            if (!form.roomTypeId) {
+                setError('Please select a room type.')
+                return
+            }
+        } else if (roomLines.some(l => !l.roomTypeId)) {
+            setError('Please select a room type for each room.')
             return
         }
 
@@ -257,53 +281,83 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        const { adults, children, ...rest } = form
-        const submittedForm = { ...rest, rateType, guestCount }
-
-        // A WALK_IN booking for a future date has no "immediately check in" moment to
-        // collect payment during, so it's treated as a PHONE booking for payment purposes:
-        // card collected now, no auto check-in navigation after creation.
+        const { adults, children, roomTypeId, ...rest } = form
         const isFutureWalkIn = form.channel === 'WALK_IN' && !isToday(form.checkInDate)
 
-        try {
-            if (isEditing) {
-                await updateReservation(reservation.id, { ...reservation, ...submittedForm })
-            } else {
-                if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
-                    try {
-                        const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null })
-                        onSaved(res.data)
-                    } catch (err) {
-                        setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
-                    }
+        if (isEditing) {
+            try {
+                await updateReservation(reservation.id, { ...reservation, ...rest, roomTypeId, rateType, guestCount })
+                onSaved()
+            } catch (err) {
+                if (err.response?.status === 400) setError('No room of this type is available for the selected dates.')
+                else if (err.response?.status === 404) setError('Room type not found.')
+                else setError('Something went wrong.')
+            }
+            return
+        }
 
-                    return
-                }
+        const multiRoom = isMultiRoom(roomLines)
+        const channel = isFutureWalkIn ? 'PHONE' : form.channel
 
-                if (!paymentReady) {
-                    setError('Payment provider is not connected. Check Settings.')
-                    return
+        const basePayload = {
+            guestId: form.guestId,
+            checkInDate: form.checkInDate,
+            checkOutDate: form.checkOutDate,
+            rateType,
+            guestCount,
+            channel
+        }
+
+        if (multiRoom) {
+            const payload = { ...basePayload, rooms: roomLines.map(l => ({ roomTypeId: Number(l.roomTypeId), quantity: Number(l.quantity) })) }
+
+            if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
+                try {
+                    await createMultiRoomReservation({ ...payload, roomPaymentMethodId: null })
+                    onSaved()
+                } catch (err) {
+                    setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
                 }
-                setPendingForm(isFutureWalkIn ? { ...submittedForm, channel: 'PHONE' } : submittedForm)
-                setStep('payment')
                 return
             }
 
-            onSaved()
-        } catch (err) {
-            if (err.response?.status === 400) {
-                setError('No room of this type is available for the selected dates.')
-            } else if (err.response?.status === 404) {
-                setError('Room type not found.')
-            } else {
-                setError('Something went wrong.')
+            if (!paymentReady) {
+                setError('Payment provider is not connected. Check Settings.')
+                return
             }
+            setPendingForm({ ...payload, multiRoom: true })
+            setStep('payment')
+            return
         }
+
+        const payload = { ...basePayload, roomTypeId: Number(roomLines[0].roomTypeId) }
+
+        if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
+            try {
+                const res = await createReservation({ ...payload, roomPaymentMethodId: null })
+                onSaved(res.data)
+            } catch (err) {
+                setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+            }
+            return
+        }
+
+        if (!paymentReady) {
+            setError('Payment provider is not connected. Check Settings.')
+            return
+        }
+        setPendingForm({ ...payload, multiRoom: false })
+        setStep('payment')
     }
 
     async function handleCapture(paymentMethodId) {
         try {
-            await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId })
+            const { multiRoom, ...payload } = pendingForm
+            if (multiRoom) {
+                await createMultiRoomReservation({ ...payload, roomPaymentMethodId: paymentMethodId })
+            } else {
+                await createReservation({ ...payload, roomPaymentMethodId: paymentMethodId })
+            }
             onSaved()
         } catch (err) {
             setStep('form')
@@ -313,7 +367,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 setError('Something went wrong.')
             }
         }
-
     }
 
     return (
@@ -497,40 +550,85 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             {step === 'form' && (
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
                     <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
-                        <div className="flex flex-col sm:flex-row sm:justify-center gap-4 sm:gap-10">
-                            <div>
-                                <label className="block text-sm text-muted mb-1">How is this being booked?</label>
-                                <div className="flex justify-left gap-2">
-                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
-                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-start gap-4 sm:gap-10">
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">How is this being booked?</label>
+                                    <div className="flex justify-left gap-2">
+                                        <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
+                                        <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <Stepper
+                                        label="Adults"
+                                        value={form.adults}
+                                        min={1}
+                                        max={maxGuestCount - form.children}
+                                        onChange={adults => setForm(f => ({ ...f, adults }))}
+                                    />
+                                    <Stepper
+                                        label="Children"
+                                        value={form.children}
+                                        min={0}
+                                        max={maxGuestCount - form.adults}
+                                        onChange={children => setForm(f => ({ ...f, children }))}
+                                    />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <Stepper
-                                    label="Adults"
-                                    value={form.adults}
-                                    min={1}
-                                    max={maxGuestCount - form.children}
-                                    onChange={adults => setForm(f => ({ ...f, adults }))}
-                                />
-                                <Stepper
-                                    label="Children"
-                                    value={form.children}
-                                    min={0}
-                                    max={maxGuestCount - form.adults}
-                                    onChange={children => setForm(f => ({ ...f, children }))}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-muted mb-1">Room Type</label>
-                                <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
-                                    <option value="">Select a room type...</option>
-                                    {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
-                                        <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {isEditing ? (
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Room Type</label>
+                                    <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
+                                        <option value="">Select a room type...</option>
+                                        {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
+                                            <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Rooms</label>
+                                    <div className="flex flex-col gap-2">
+                                        {roomLines.map((line, index) => (
+                                            <div key={index} className="flex gap-2 items-center">
+                                                <select
+                                                    value={line.roomTypeId}
+                                                    onChange={e => updateRoomLine(index, 'roomTypeId', e.target.value)}
+                                                    className="filter-input w-117"
+                                                    required
+                                                >
+                                                    <option value="">Select a room type...</option>
+                                                    {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
+                                                        <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                                                    ))}
+                                                </select>
+                                                <Stepper
+                                                    value={line.quantity}
+                                                    onChange={qty => updateRoomLine(index, 'quantity', qty)}
+                                                    min={1}
+                                                    max={roomTypes.find(rt => String(rt.id) === String(line.roomTypeId))?.availableCount ?? 1}
+                                                    disabled={!line.roomTypeId}
+                                                />
+                                                {roomLines.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeRoomLine(index)}
+                                                        className="p-2 text-muted hover:text-error transition-colors"
+                                                        aria-label="Remove room"
+                                                        title="Remove room"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button type="button" onClick={addRoomLine} className="btn btn-secondary text-sm mt-2">
+                                        + Add another room type
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
