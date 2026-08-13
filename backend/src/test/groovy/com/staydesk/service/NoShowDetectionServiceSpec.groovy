@@ -16,7 +16,7 @@ class NoShowDetectionServiceSpec extends Specification {
     NoShowDetectionService noShowDetectionService = new NoShowDetectionService(reservationRepository, reservationService)
 
     private static Reservation candidate(int id) {
-        new Reservation(id, 1, null, 1, LocalDate.now().minusDays(1), LocalDate.now().plusDays(2),
+        new Reservation(id, 1, 1, null, 1, LocalDate.now().minusDays(1), LocalDate.now().plusDays(2),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY,
                 1, Reservation.Channel.PHONE, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
     }

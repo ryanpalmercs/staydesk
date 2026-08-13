@@ -36,7 +36,7 @@ class ReservationServiceSpec extends Specification {
 
     private static Reservation reservation(Reservation.ReservationStatus status, Reservation.Channel channel,
                                            Rate.RateType rateType = Rate.RateType.NIGHTLY) {
-        new Reservation(1, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
+        new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
                 status, null, null, rateType, 1, channel, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
     }
 
@@ -44,19 +44,21 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.markNoShow(1)
 
         then:
-        1 * paymentService.refundAllButFirstNight(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 })
+        1 * paymentService.refundReservationShare(folio,
+                { BigDecimal share -> share.compareTo(BigDecimal.valueOf(240)) == 0 },
+                { BigDecimal retain -> retain.compareTo(BigDecimal.valueOf(80)) == 0 })
         1 * folioRepository.closeFolio(9)
         result.status() == Reservation.ReservationStatus.NO_SHOW
         result.roomId() == res.roomId()
@@ -72,7 +74,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(InvalidReservationException)
-        0 * paymentService.refundAllButFirstNight(_, _)
+        0 * paymentService.refundReservationShare(_, _, _)
         0 * folioRepository.closeFolio(_)
     }
 
@@ -92,7 +94,7 @@ class ReservationServiceSpec extends Specification {
                    Reservation.ReservationStatus.CANCELLED, Reservation.ReservationStatus.NO_SHOW]
     }
 
-    def "transitions status without throwing when the reservation has no folio"() {
+    def "transitions status without throwing when the reservation's folio can't be found"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
@@ -100,14 +102,14 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
-        folioRepository.getFolioByReservationId(1) >> Optional.empty()
+        folioRepository.findById(9) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.markNoShow(1)
 
         then:
-        0 * paymentService.refundAllButFirstNight(_, _)
+        0 * paymentService.refundReservationShare(_, _, _)
         0 * folioRepository.closeFolio(_)
         result.status() == Reservation.ReservationStatus.NO_SHOW
     }
@@ -117,11 +119,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, rateType)
         def rate = new Rate(1, rateType.name(), 1, rateAmount, LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(500), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(500), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(rateType, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         reservationRepository.save(_) >> { Reservation r -> r }
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }   // identity: isolates division math from tax logic
 
@@ -129,7 +131,7 @@ class ReservationServiceSpec extends Specification {
         reservationService.markNoShow(1)
 
         then:
-        1 * paymentService.refundAllButFirstNight(folio, { BigDecimal amt -> amt.compareTo(expectedBase) == 0 })
+        1 * paymentService.refundReservationShare(folio, _, { BigDecimal amt -> amt.compareTo(expectedBase) == 0 })
 
         where:
         rateType               | rateAmount              || expectedBase
@@ -142,11 +144,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         folioService.postCharge(_, _, _) >> folio
 
         when:

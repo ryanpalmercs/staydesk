@@ -30,7 +30,7 @@ class IncidentChargeServiceSpec extends Specification {
     def staffId = UUID.randomUUID()
 
     private static Folio closedFolio() {
-        new Folio(1, 10, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(150), LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
+        new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(150), LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
     }
 
     private static ReusablePaymentCredential activeCredential() {
@@ -46,7 +46,7 @@ class IncidentChargeServiceSpec extends Specification {
 
     def "requestCharge throws FolioNotClosedException for an OPEN folio"() {
         given:
-        def openFolio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def openFolio = new Folio(1, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         folioRepository.findById(1) >> Optional.of(openFolio)
 
         when:
@@ -119,7 +119,7 @@ class IncidentChargeServiceSpec extends Specification {
         reusablePaymentCredentialRepository.findById(1) >> Optional.of(activeCredential())
         folioRepository.findById(1) >> Optional.of(closedFolio())
 
-        def savedPayment = new FolioPayment(9, 1, PaymentKind.INCIDENT_CHARGE, "authorizenet", "txn-1", "4242",
+        def savedPayment = new FolioPayment(9, 1, null, PaymentKind.INCIDENT_CHARGE, "authorizenet", "txn-1", "4242",
                 PaymentStatus.CAPTURED, BigDecimal.valueOf(150), BigDecimal.valueOf(150), "", LocalDateTime.now(), LocalDateTime.now())
         paymentService.chargeStoredCredential(_, _, _, _) >> savedPayment
         incidentChargeRequestRepository.save(_) >> { IncidentChargeRequest r -> r }
