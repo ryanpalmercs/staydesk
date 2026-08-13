@@ -51,3 +51,11 @@ export function clearReservationLegalHold(id) {
 export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
     return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
 }
+
+export function createMultiRoomReservation(payload) {
+    return api.post('/reservations/multi', payload)
+}
+
+export function getUnsettledReservations() {
+    return api.get('/reservations/unsettled')
+}

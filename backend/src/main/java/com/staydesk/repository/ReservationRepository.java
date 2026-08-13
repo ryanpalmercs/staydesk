@@ -58,4 +58,20 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Modifying
     @Query("UPDATE reservations SET guest_id = NULL WHERE guest_id = :guestId")
     void anonymizeByGuestId(@Param("guestId") Integer guestId);
+
+    List<Reservation> findByFolioId(Integer folioId);
+
+    @Query("""
+            SELECT * FROM reservations r
+            WHERE r.channel = 'WALK_IN' AND r.status = 'CONFIRMED'
+            AND NOT EXISTS (
+                SELECT 1 FROM folio_payments fp
+                WHERE fp.folio_id = r.folio_id AND fp.kind = 'ROOM' AND fp.status = 'CAPTURED'
+            )
+            """)
+    List<Reservation> findUnsettledWalkIn();
+
+    @Query("SELECT EXISTS(SELECT 1 FROM reservations WHERE folio_id = :folioId AND id != :excludingReservationId AND status IN ('CONFIRMED', 'CHECKED_IN'))")
+    boolean existsOtherActiveByFolioId(@Param("folioId") int folioId,
+                                       @Param("excludingReservationId") int excludingReservationId);
 }

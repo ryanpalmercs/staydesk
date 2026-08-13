@@ -63,7 +63,7 @@ public class FolioService {
 
         BigDecimal newTotal = folio.total().add(amount).add(tax);
 
-        return folioRepository.save(new Folio(folio.id(), folio.reservationId(), folio.status(), newTotal, folio.paidAt(), folio.createdAt(), now));
+        return folioRepository.save(new Folio(folio.id(), folio.status(), newTotal, folio.paidAt(), folio.createdAt(), now));
     }
 
     @Transactional

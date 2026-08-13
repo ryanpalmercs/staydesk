@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation, checkInTerminal } from "../api/reservationApi"
+import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation, checkInTerminal, getUnsettledReservations } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import ReservationModal from "../components/ReservationModal"
@@ -33,6 +33,7 @@ function ReservationsPage() {
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('desc')
     const [cancelTarget, setCancelTarget] = useState(null)
+    const [unsettledIds, setUnsettledIds] = useState(new Set())
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -54,8 +55,9 @@ function ReservationsPage() {
 
     async function fetchReservations() {
         setLoading(true)
-        const res = await getReservations()
+        const [res, unsettledRes] = await Promise.all([getReservations(), getUnsettledReservations()])
         setReservations(res.data)
+        setUnsettledIds(new Set(unsettledRes.data.map(r => r.id)))
         setLoading(false)
     }
 
@@ -87,12 +89,12 @@ function ReservationsPage() {
         }
     }
 
-    async function handleSaved(newWalkInId) {
+    async function handleSaved(newWalkIn) {
         setModalOpen(false)
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
-        if (newWalkInId != null) {
-            openCheckIn(newWalkInId)
+        if (newWalkIn != null) {
+            openCheckIn(newWalkIn.id)
         }
     }
 
@@ -263,7 +265,12 @@ function ReservationsPage() {
                         const room = roomMap[res.roomId]
                         const roomType = roomTypeMap[res.roomTypeId]
                         return (
-                            <div key={res.id} className="feat-card">
+                            <div key={res.id} className="feat-card relative">
+                                {unsettledIds.has(res.id) && (
+                                    <span className="absolute top-3 left-1/2 -translate-x-1/2 inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                                        Payment needed
+                                    </span>
+                                )}
                                 <div className="flex items-start justify-between gap-4 mb-2">
                                     <span className="font-semibold text-black">
                                         {guest ? `${guest.firstName} ${guest.lastName}` : res.guestId}
@@ -276,6 +283,11 @@ function ReservationsPage() {
                                     {res.confirmationCode && <span>Conf# {res.confirmationCode}</span>}
                                 </div>
                                 <div className="flex gap-4 justify-end">
+                                    {unsettledIds.has(res.id) && (
+                                        <button onClick={() => openCheckIn(res.id)} className="btn btn-secondary text-sm">
+                                            Settle Payment
+                                        </button>
+                                    )}
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-green hover:text-black">Check In</button>
                                     )}
@@ -325,7 +337,7 @@ function ReservationsPage() {
                 />
             )}
 
-            {checkInTarget != null && (
+            {checkInTarget != null && reservations.find(r => r.id === checkInTarget) && (
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
                     reservation={reservations.find(r => r.id === checkInTarget)}

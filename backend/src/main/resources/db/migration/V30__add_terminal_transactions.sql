@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS terminal_transactions
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS terminal_transactions_updated_at ON terminal_transactions;
+
 CREATE TRIGGER terminal_transactions_updated_at
     BEFORE UPDATE
     ON terminal_transactions

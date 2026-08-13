@@ -5,14 +5,19 @@ import com.staydesk.exception.FolioClosedException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.model.FolioPayment;
+import com.staydesk.model.Reservation;
 import com.staydesk.model.request.AddFolioItemRequest;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
+import com.staydesk.model.request.SettleStayRequest;
+import com.staydesk.model.request.SettleStayTerminalRequest;
 import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioPaymentRepository;
 import com.staydesk.repository.FolioRepository;
+import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.FolioService;
 import com.staydesk.service.PaymentService;
+import com.staydesk.service.ReservationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -37,15 +42,20 @@ public class FolioController {
     private final FolioPaymentRepository folioPaymentRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
+    private final ReservationRepository reservationRepository;
+    private final ReservationService reservationService;
 
     public FolioController(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
                            FolioPaymentRepository folioPaymentRepository,
-                           PaymentService paymentService, FolioService folioService) {
+                           PaymentService paymentService, FolioService folioService,
+                           ReservationRepository reservationRepository, ReservationService reservationService) {
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
         this.folioPaymentRepository = folioPaymentRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
+        this.reservationRepository = reservationRepository;
+        this.reservationService = reservationService;
     }
 
     @GetMapping("{id}")
@@ -75,9 +85,11 @@ public class FolioController {
 
     @GetMapping("by-reservation/{reservationId}")
     public ResponseEntity<Folio> getByReservation(@PathVariable Integer reservationId) {
-        return folioRepository.getFolioByReservationId(reservationId)
-                              .map(ResponseEntity::ok)
-                              .orElse(ResponseEntity.notFound().build());
+        return reservationRepository.findById(reservationId)
+                                    .map(Reservation::folioId)
+                                    .flatMap(folioRepository::findById)
+                                    .map(ResponseEntity::ok)
+                                    .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("{id}/items")
@@ -101,7 +113,7 @@ public class FolioController {
             Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
             PaymentService.PaymentCaptureResult result = paymentService.capture(folio);
 
-            folioRepository.save(new Folio(folio.id(), folio.reservationId(), folio.status(), folio.total(),
+            folioRepository.save(new Folio(folio.id(), folio.status(), folio.total(),
                     LocalDateTime.now(), folio.createdAt(), folio.updatedAt()));
 
             return ResponseEntity.ok(result);
@@ -111,5 +123,17 @@ public class FolioController {
             LOGGER.error("Failed to capture payment for folio {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @PostMapping("{folioId}/settle-stay")
+    public ResponseEntity<Folio> settleStay(@PathVariable Integer folioId, @RequestBody SettleStayRequest request) {
+        LOGGER.info("Setting walk-in stay for folio {}", folioId);
+        return ResponseEntity.ok(reservationService.settleWalkInStay(folioId, request.roomPaymentMethodId()));
+    }
+
+    @PostMapping("{folioId}/settle-stay/terminal")
+    public ResponseEntity<Folio> settleStayTerminal(@PathVariable Integer folioId, @RequestBody SettleStayTerminalRequest request) {
+        LOGGER.info("Setting walk-in stay via terminal for folio {}", folioId);
+        return ResponseEntity.ok(reservationService.settleWalkInStayTerminal(folioId, request.posDeviceId()));
     }
 }
