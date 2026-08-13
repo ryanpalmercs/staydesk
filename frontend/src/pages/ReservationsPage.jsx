@@ -87,12 +87,12 @@ function ReservationsPage() {
         }
     }
 
-    async function handleSaved(newWalkInId) {
+    async function handleSaved(newWalkIn) {
         setModalOpen(false)
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
-        if (newWalkInId != null) {
-            openCheckIn(newWalkInId)
+        if (newWalkIn != null) {
+            openCheckIn(newWalkIn.id)
         }
     }
 
@@ -325,7 +325,7 @@ function ReservationsPage() {
                 />
             )}
 
-            {checkInTarget != null && (
+            {checkInTarget != null && reservations.find(r => r.id === checkInTarget) && (
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
                     reservation={reservations.find(r => r.id === checkInTarget)}

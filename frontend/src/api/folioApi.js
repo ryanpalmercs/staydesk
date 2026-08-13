@@ -31,3 +31,11 @@ export function requestIncidentCharge(folioId, amount, reason) {
 export function getFolioIncidentCharges(folioId) {
     return api.get(`/folios/${folioId}/incident-charges`)
 }
+
+export function settleWalkInStay(folioId, roomPaymentMethodId) {
+    return api.post(`/folios/${folioId}/settle-stay`, { roomPaymentMethodId })
+}
+
+export function settleWalkInStayTerminal(folioId, posDeviceId) {
+    return api.post(`/folios/${folioId}/settle-stay/terminal`, { posDeviceId })
+}

@@ -13,6 +13,8 @@ import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
+import com.staydesk.exception.StayAlreadySettledException;
+import com.staydesk.exception.StayNotSettledException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.Guest;
 import com.staydesk.model.Rate;
@@ -183,6 +185,58 @@ public class ReservationService {
         return savedReservation;
     }
 
+    @Transactional
+    public Folio settleWalkInStay(int folioId, String roomPaymentMethodId) {
+        return settleWalkInStayInternal(folioId, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+    }
+
+    @Transactional
+    public Folio settleWalkInStayTerminal(int folioId, Integer posDeviceId) {
+        String paymentMethodToken;
+
+        if (posDeviceId != null) {
+            paymentMethodToken = posDeviceRepository.findById(posDeviceId)
+                                                    .orElseThrow(PosDeviceNotFoundException::new)
+                                                    .deviceId();
+        } else if (providerFactory.isCardPresentRecordOnly()) {
+            paymentMethodToken = "no-device-record-only";
+        } else {
+            throw new CardPresentRecordOnlyDisabledException();
+        }
+
+        return settleWalkInStayInternal(folioId, providerFactory.getCardPresentProviderName(), paymentMethodToken);
+    }
+
+    private Folio settleWalkInStayInternal(int folioId, String providerName, String paymentToken) {
+        Folio folio = folioRepository.findById(folioId).orElseThrow(FolioNotFoundException::new);
+
+        List<Reservation> reservations = reservationRepository.findByFolioId(folioId);
+
+        if (reservations.isEmpty()) {
+            throw new FolioNotFoundException();
+        }
+
+        if (paymentService.isRoomPaymentSettled(folioId)) {
+            throw new StayAlreadySettledException();
+        }
+
+        BigDecimal combinedAmount = reservations.stream()
+                                                .map(this::estimateStayAmount)
+                                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        paymentService.chargeFullStay(folio, combinedAmount, providerName, paymentToken);
+
+        return folio;
+    }
+
+    private BigDecimal estimateStayAmount(Reservation reservation) {
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        return folioService.estimateWithTax(rate.amount()
+                                                .multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+    }
+
     public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate,
                                                      LocalDate checkOutDate) {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(rateType, guestCount)
@@ -251,7 +305,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public CheckInResult checkIn(int id, int roomId, String incidentalsPaymentMethodId, String roomPaymentMethodId) {
+    public CheckInResult checkIn(int id, int roomId, String incidentalsPaymentMethodId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -259,6 +313,10 @@ public class ReservationService {
             throw new AlreadyCheckedInException();
         } else if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
             throw new InvalidReservationException();
+        }
+
+        if (reservation.channel().equals(Reservation.Channel.WALK_IN) && !paymentService.isRoomPaymentSettled(reservation.folioId())) {
+            throw new StayNotSettledException();
         }
 
         Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
@@ -272,17 +330,6 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.findById(reservation.folioId()).orElseThrow(FolioNotFoundException::new);
-
-        if (reservation.channel().equals(Reservation.Channel.WALK_IN)) {
-            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
-                                      .orElseThrow(RateNotFoundException::new);
-
-            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
-                    BigDecimal.valueOf(
-                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
-
-            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
-        }
 
         paymentService.createIncidentalHold(folio, id, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId);
 
@@ -301,6 +348,15 @@ public class ReservationService {
 
     @Transactional
     public CheckInResult checkInTerminal(int id, int roomId, Integer posDeviceId) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new AlreadyCheckedInException();
+        } else if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
+            throw new InvalidReservationException();
+        }
+
         String paymentMethodToken;
 
         if (posDeviceId != null) {
@@ -311,15 +367,6 @@ public class ReservationService {
             paymentMethodToken = "no-device-record-only";
         } else {
             throw new CardPresentRecordOnlyDisabledException();
-        }
-
-        Reservation reservation = reservationRepository.findById(id)
-                                                       .orElseThrow(ReservationNotFoundException::new);
-
-        if (reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
-            throw new AlreadyCheckedInException();
-        } else if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
-            throw new InvalidReservationException();
         }
 
         Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
@@ -333,17 +380,6 @@ public class ReservationService {
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.findById(reservation.folioId()).orElseThrow(FolioNotFoundException::new);
-
-        if (reservation.channel().equals(Reservation.Channel.WALK_IN)) {
-            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
-                                      .orElseThrow(RateNotFoundException::new);
-
-            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
-                    BigDecimal.valueOf(
-                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
-
-            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getCardPresentProviderName(), paymentMethodToken);
-        }
 
         paymentService.createIncidentalHold(folio, id, providerFactory.getCardPresentProviderName(), paymentMethodToken);
 
@@ -431,10 +467,10 @@ public class ReservationService {
         BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
 
         folioRepository.findById(reservation.folioId())
-                        .ifPresent(f -> {
-                            paymentService.refundAllButFirstNight(f, firstNightAmount);
-                            folioRepository.closeFolio(f.id());
-                        });
+                       .ifPresent(f -> {
+                           paymentService.refundAllButFirstNight(f, firstNightAmount);
+                           folioRepository.closeFolio(f.id());
+                       });
 
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.NO_SHOW, reservation.checkedInAt(),

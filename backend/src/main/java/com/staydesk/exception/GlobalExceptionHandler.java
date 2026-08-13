@@ -77,4 +77,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleCardPresentRecordOnlyDisabledException(CardPresentRecordOnlyDisabledException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
+
+    @ExceptionHandler(StayAlreadySettledException.class)
+    public ResponseEntity<String> handleStayAlreadySettledException(StayAlreadySettledException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(RateNotFoundException.class)
+    public ResponseEntity<String> handleRateNotFoundException(RateNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
 }

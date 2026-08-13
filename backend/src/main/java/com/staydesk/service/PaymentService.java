@@ -106,6 +106,12 @@ public class PaymentService {
         }
     }
 
+    public boolean isRoomPaymentSettled(int folioId) {
+        return folioPaymentRepository.findByFolioId(folioId)
+                                     .stream()
+                                     .anyMatch(p -> p.kind() == PaymentKind.ROOM && p.status() == PaymentStatus.CAPTURED);
+    }
+
     public PaymentCaptureResult capture(Folio folio) {
         List<FolioPayment> payments = folioPaymentRepository.findByFolioId(folio.id());
 

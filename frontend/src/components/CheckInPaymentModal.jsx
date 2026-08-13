@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { getPropertySetting } from "../api/settingsApi"
 import { getAvailableRoomsForCheckIn, getReservationEstimate } from "../api/reservationApi"
+import { getFolioPayments, settleWalkInStay, settleWalkInStayTerminal } from "../api/folioApi"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
 import ConfirmDialog from "./ConfirmDialog"
@@ -84,7 +85,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
 
-    const [step, setStep] = useState('room')
+    const [step, setStep] = useState(isWalkIn ? 'checking' : 'room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
     const [stayTotal, setStayTotal] = useState(null)
@@ -102,17 +103,24 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                 checkInDate: reservation.checkInDate,
                 checkOutDate: reservation.checkOutDate
             }).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
+
+            getFolioPayments(reservation.folioId).then(res => {
+                const settled = (res.data ?? []).some(p => p.kind === 'ROOM' && p.status === 'CAPTURED')
+                setStep(settled ? 'room' : 'settle')
+            }).catch(() => setStep('settle'))
         }
     }, [])
 
-    const chargeAmount = isWalkIn
-        ? (stayTotal != null && incidentalsHoldAmount != null ? stayTotal + parseFloat(incidentalsHoldAmount) : null)
-        : incidentalsHoldAmount
-    const chargeLabel = isWalkIn ? 'Total Charge' : 'Incidentals Hold'
+    const chargeAmount = incidentalsHoldAmount
+    const chargeLabel = 'Incidentals Hold'
 
     function handleRoomChosen(roomId) {
         setSelectedRoomId(roomId)
         setStep('payment')
+    }
+
+    function handleSettled() {
+        setStep('room')
     }
 
     function handleCheckedIn(doorAccessStatus) {
@@ -142,26 +150,47 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     return (
         <Modal onClose={onClose} size="md">
             <h2 className="text-lg text-black font-semibold mb-4">
-                {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
+                {step === 'checking' ? 'Loading...' : step === 'settle' ? 'Charge for Stay' : step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
             </h2>
+
+            {step === 'checking' && (
+                <p className="text-sm text-muted">Loading...</p>
+            )}
 
             {step === 'room' && (
                 <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
+            )}
+
+            {step === 'settle' && (
+                <PaymentMethodStep
+                    amount={stayTotal}
+                    amountLabel="Total Charge"
+                    description="Charge the full stay for this booking now, before continuing."
+                    dual={false}
+                    submitLabel="Charge"
+                    onSubmitToken={async (roomToken) => {
+                        await settleWalkInStay(reservation.folioId, roomToken)
+                        handleSettled()
+                    }}
+                    onSubmitTerminal={async (deviceId) => {
+                        await settleWalkInStayTerminal(reservation.folioId, deviceId)
+                        handleSettled()
+                    }}
+                    onCancel={handleCancelClick}
+                    terminalErrorMessage="Failed to charge card. It may have been declined on the terminal."
+                    recordOnlyErrorMessage="Failed to charge card."
+                />
             )}
 
             {step === 'payment' && (
                 <PaymentMethodStep
                     amount={chargeAmount}
                     amountLabel={chargeLabel}
-                    description={
-                        reservationChannel === 'WALK_IN'
-                            ? "We'll charge the full stay now, then place a small hold for incidentals."
-                            : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."
-                    }
-                    dual={isWalkIn}
+                    description="We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."
+                    dual={false}
                     submitLabel="Check In"
-                    onSubmitToken={async (incidentalsToken, roomToken) => {
-                        const doorAccessStatus = await onConfirm(selectedRoomId, incidentalsToken, roomToken)
+                    onSubmitToken={async (incidentalsToken) => {
+                        const doorAccessStatus = await onConfirm(selectedRoomId, incidentalsToken)
                         handleCheckedIn(doorAccessStatus)
                     }}
                     onSubmitTerminal={async (deviceId) => {

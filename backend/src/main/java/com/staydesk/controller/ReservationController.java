@@ -14,6 +14,7 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
+import com.staydesk.exception.StayNotSettledException;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
@@ -61,6 +62,11 @@ public class ReservationController {
     public List<Reservation> getReservations() {
         LOGGER.info("Getting all reservations");
         return reservationRepository.findAll();
+    }
+
+    @GetMapping("/unsettled")
+    public List<Reservation> getUnsettledWalkIns() {
+        return reservationRepository.findUnsettledWalkIn();
     }
 
     @GetMapping("{id}")
@@ -133,8 +139,7 @@ public class ReservationController {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {
-            return ResponseEntity.ok(reservationService.checkIn(id, request.roomId(), request.incidentalsPaymentMethodId(),
-                    request.roomPaymentMethodId()));
+            return ResponseEntity.ok(reservationService.checkIn(id, request.roomId(), request.incidentalsPaymentMethodId()));
         } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException | NoRoomAvailableException e) {
@@ -154,9 +159,11 @@ public class ReservationController {
 
         try {
             return ResponseEntity.ok(reservationService.checkInTerminal(id, request.roomId(), request.posDeviceId()));
-        } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
+        } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException |
+                 RateNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (AlreadyCheckedInException | NoRoomAvailableException | CardPresentRecordOnlyDisabledException e) {
+        } catch (AlreadyCheckedInException | NoRoomAvailableException | CardPresentRecordOnlyDisabledException |
+                 StayNotSettledException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (InvalidReservationException e) {
             return ResponseEntity.badRequest().build();
