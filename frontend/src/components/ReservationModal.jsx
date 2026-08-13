@@ -226,6 +226,12 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         setCreatingGuest(false)
     }
 
+    function isToday(dateString) {
+        const now = new Date()
+        const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        return dateString === todayString
+    }
+
     async function handleSubmit(e) {
         e.preventDefault()
 
@@ -254,11 +260,16 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         const { adults, children, ...rest } = form
         const submittedForm = { ...rest, rateType, guestCount }
 
+        // A WALK_IN booking for a future date has no "immediately check in" moment to
+        // collect payment during, so it's treated as a PHONE booking for payment purposes:
+        // card collected now, no auto check-in navigation after creation.
+        const isFutureWalkIn = form.channel === 'WALK_IN' && !isToday(form.checkInDate)
+
         try {
             if (isEditing) {
                 await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
-                if (form.channel === 'WALK_IN') {
+                if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
                     try {
                         const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null })
                         onSaved(res.data)
@@ -273,7 +284,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                     setError('Payment provider is not connected. Check Settings.')
                     return
                 }
-                setPendingForm(submittedForm)
+                setPendingForm(isFutureWalkIn ? { ...submittedForm, channel: 'PHONE' } : submittedForm)
                 setStep('payment')
                 return
             }
