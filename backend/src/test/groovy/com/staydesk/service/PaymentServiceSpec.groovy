@@ -6,6 +6,7 @@ import com.staydesk.model.FolioPayment.PaymentKind
 import com.staydesk.model.FolioPayment.PaymentStatus
 import com.staydesk.model.ReusablePaymentCredential
 import com.staydesk.payment.AuthResult
+import com.staydesk.payment.CaptureResult
 import com.staydesk.payment.PaymentProvider
 import com.staydesk.payment.RefundResult
 import com.staydesk.provider.ProviderFactory
@@ -132,5 +133,49 @@ class PaymentServiceSpec extends Specification {
         then:
         thrown(RuntimeException)
         0 * folioPaymentRepository.save(_)
+    }
+
+    def "capture settles every INCIDENTALS hold on the folio, not just the first"() {
+        given:
+        def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(250), null, LocalDateTime.now(), LocalDateTime.now())
+        def roomPayment = new FolioPayment(1, 1, null, PaymentKind.ROOM, "authorizenet", "txn-room", "4242",
+                PaymentStatus.CAPTURED, BigDecimal.valueOf(150), BigDecimal.valueOf(150), "", LocalDateTime.now(), LocalDateTime.now())
+        def incidentals1 = new FolioPayment(2, 1, 10, PaymentKind.INCIDENTALS, "authorizenet", "txn-inc-1", "4242",
+                PaymentStatus.REQUIRES_CAPTURE, BigDecimal.valueOf(50), null, "", LocalDateTime.now(), LocalDateTime.now())
+        def incidentals2 = new FolioPayment(3, 1, 11, PaymentKind.INCIDENTALS, "authorizenet", "txn-inc-2", "4242",
+                PaymentStatus.REQUIRES_CAPTURE, BigDecimal.valueOf(50), null, "", LocalDateTime.now(), LocalDateTime.now())
+        def provider = Mock(PaymentProvider)
+
+        folioPaymentRepository.findByFolioId(1) >> [roomPayment, incidentals1, incidentals2]
+        providerFactory.getProvider("authorizenet") >> provider
+        folioPaymentRepository.save(_) >> { FolioPayment fp -> fp }
+
+        when:
+        def result = paymentService.capture(folio)
+
+        then:
+        1 * provider.capture("txn-inc-1", _) >> new CaptureResult(true, "txn-inc-1", null)
+        1 * provider.capture("txn-inc-2", _) >> new CaptureResult(true, "txn-inc-2", null)
+        result.incidentals().size() == 2
+    }
+
+    def "isRoomPaymentSettled is true only when a CAPTURED ROOM payment exists on the folio"() {
+        given:
+        def capturedRoom = new FolioPayment(1, 5, null, PaymentKind.ROOM, "authorizenet", "txn-1", "4242",
+                PaymentStatus.CAPTURED, BigDecimal.valueOf(200), BigDecimal.valueOf(200), "", LocalDateTime.now(), LocalDateTime.now())
+
+        when:
+        def settled = paymentService.isRoomPaymentSettled(5)
+
+        then:
+        1 * folioPaymentRepository.findByFolioId(5) >> [capturedRoom]
+        settled
+
+        when:
+        def notSettled = paymentService.isRoomPaymentSettled(6)
+
+        then:
+        1 * folioPaymentRepository.findByFolioId(6) >> []
+        !notSettled
     }
 }
