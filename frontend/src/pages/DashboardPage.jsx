@@ -15,6 +15,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
+import { useAuth } from '../contexts/AuthContext'
 
 const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
@@ -35,6 +36,7 @@ function DashboardPage() {
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [folioId, setFolioId] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
+    const { displayName } = useAuth()
 
     function fetchData() {
         Promise.all([getRooms(), getRoomTypes(), getReservations(), getGuests()])
@@ -125,7 +127,11 @@ function DashboardPage() {
 
     return (
         <div className="dashboard">
-            <h1 className="section-title">Dashboard</h1>
+            {displayName ? (
+                <h1 className="section-title">{displayName}'s Dashboard</h1>
+            ) : (
+                <h1 className="section-title">Dashboard</h1>
+            )}
 
             <div className="dashboard-stats">
                 <Link to="/rooms" className="stat-card">
