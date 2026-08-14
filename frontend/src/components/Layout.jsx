@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2, Wrench } from 'lucide-react'
+import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2, Wrench, User } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import DoorAccessToast from './DoorAccessToast'
 import './Layout.css'
 
 export default function Layout() {
-    const { role, signOut, user } = useAuth()
+    const { role, signOut, user, displayName } = useAuth()
     const [drawerOpen, setDrawerOpen] = useState(false)
 
     const closeDrawer = () => setDrawerOpen(false)
@@ -93,6 +93,11 @@ export default function Layout() {
                     )}
                 </nav>
                 <div className="sidebar-bottom">
+                    {displayName && <div className="sidebar-user">
+                        <User size={18}/>
+                        <span>{displayName}</span>
+                    </div>
+                    }
                     {adminOnly && (
                         <NavLink to="/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <BarChart2 size={18} />

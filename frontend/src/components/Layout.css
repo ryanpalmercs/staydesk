@@ -88,6 +88,22 @@
     color: var(--color-gold);
 }
 
+.sidebar-user {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    color: white;
+    background: none;
+    border: none;
+    text-align: left;
+    white-space: nowrap;
+    transition: color 0.15s;
+}
+
 .sidebar-signout {
     display: flex;
     align-items: center;
