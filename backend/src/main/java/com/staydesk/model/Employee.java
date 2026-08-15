@@ -14,7 +14,7 @@ import java.util.UUID;
 public record Employee(@Id UUID id, EncryptedString firstName, EncryptedString lastName, EncryptedString email,
                        @JsonIgnore String emailHash, String username, int employeeTypeId,
                        BigDecimal payRate, LocalDate hireDate, boolean active, ContactInfo contactInfo, PayRateType payRateType,
-                       boolean doorAccessEnabled, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                       boolean doorAccessEnabled, LocalDateTime createdAt, LocalDateTime updatedAt, String quickbooksEmployeeId) {
 
     @JsonProperty()
     public String name() {

@@ -30,6 +30,14 @@ gusto:
   client-id: ${GUSTO_CLIENT_ID}
   client-secret: ${GUSTO_CLIENT_SECRET}
 
+# QuickBooks
+quickbooks:
+  token-url: ${QUICKBOOKS_TOKEN_URL:https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer}
+  api-base-url: ${QUICKBOOKS_API_BASE_URL:https://quickbooks.api.intuit.com}
+  client-id: ${QUICKBOOKS_CLIENT_ID:}
+  client-secret: ${QUICKBOOKS_CLIENT_SECRET:}
+  realm-id: ${QUICKBOOKS_REALM_ID:}
+
 supabase:
   url: https://dmishzzcabozbbbjzlsb.supabase.co
   service:
