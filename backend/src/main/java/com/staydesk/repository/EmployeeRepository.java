@@ -28,5 +28,5 @@ public interface EmployeeRepository extends ListCrudRepository<Employee, UUID> {
 
     @Modifying
     @Query("UPDATE employees SET quickbooks_employee_id = :quickbooksEmployeeId WHERE id = :id")
-    void updateQuickbooksEmployeeId(@Param("id") UUID id, @Param("id") UUID quickbooksEmployeeId);
+    void updateQuickbooksEmployeeId(@Param("id") UUID id, @Param("id") String quickbooksEmployeeId);
 }
