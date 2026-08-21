@@ -8,6 +8,6 @@ import java.util.Optional;
 
 public interface QuickBooksConnectionRepository extends CrudRepository<QuickBooksConnection, Integer> {
 
-    @Query("SELECT & FROM quickbooks_connections LIMIT 1")
+    @Query("SELECT * FROM quickbooks_connections LIMIT 1")
     Optional<QuickBooksConnection> findFirst();
 }

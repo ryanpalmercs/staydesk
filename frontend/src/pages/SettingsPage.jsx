@@ -259,7 +259,7 @@ function SettingsPage() {
         const response = await getQuickBooksStatus()
         setQbConnected(response?.data?.connected)
         setQbRealmId(response?.data?.realmId)
-        setQbConnectedAt(response?.data?.connetdAt)
+        setQbConnectedAt(response?.data?.connectedAt)
         setQbLoading(false)
     }
 
@@ -532,7 +532,7 @@ function SettingsPage() {
                                 Company ID: <span className="font-medium text-black">{qbRealmId}</span>
                             </p>
                             <p className="text-sm text-muted mb-3">
-                                Conencted: <span className="font-medium text-black">{new Date(qbConnectedAt).toLocaleString()}</span>
+                                Connected: <span className="font-medium text-black">{new Date(qbConnectedAt).toLocaleString()}</span>
                             </p>
                             <button onClick={handleQuickBooksDisconnect} className="btn-secondary">Disconnect</button>
                         </div>

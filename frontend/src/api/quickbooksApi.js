@@ -1,7 +1,7 @@
 import api from './baseApi'
 
 export function getQuickBooksStatus() {
-    return api.get('/dmin/quickbooks/status')
+    return api.get('/admin/quickbooks/status')
 }
 
 export async function startQuickBooksConnect() {

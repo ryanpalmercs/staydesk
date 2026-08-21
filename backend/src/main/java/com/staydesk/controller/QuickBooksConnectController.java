@@ -63,7 +63,7 @@ public class QuickBooksConnectController {
                      + "?client_id=" + encode(clientId)
                      + "&redirect_uri=" + encode(redirectUri)
                      + "&response_type=code"
-                     + "&scope" + encode("com.intuit.quickbooks.accounting")
+                     + "&scope=" + encode("com.intuit.quickbooks.accounting")
                      + "&state=" + encode(pendingState);
 
         return ResponseEntity.ok(new QuickBooksAuthorizeUrlResponse(url));
