@@ -29,34 +29,50 @@ public class QuickBooksEmployeeSyncService {
         List<String> matched = new ArrayList<>();
         List<String> failed = new ArrayList<>();
 
-        employeeRepository.findAll().stream()
-                .filter(employee -> employee.quickbooksEmployeeId() == null)
-                .forEach(employee -> syncEmployee(employee, created, matched, failed));
+        employeeRepository.findAll().forEach(employee -> syncEmployee(employee, created, matched, failed));
 
         return new QuickBooksEmployeeSyncResponse(created, matched, failed);
     }
 
     public void syncOne(Employee employee) {
-        syncEmployee(employee, List.of(), List.of(), List.of());
+        syncEmployee(employee, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
     }
 
     private void syncEmployee(Employee employee, List<String> created, List<String> matched, List<String> failed) {
         try {
+            if (employee.quickbooksEmployeeId() != null) {
+                quickBooksClient.updateEmployee(employee);
+                matched.add(employee.name());
+                return;
+            }
+
             String quickBooksEmployeeId = quickBooksClient.findEmployeeByDisplayName(employee.name())
-                    .map(id -> {
-                        matched.add(employee.name());
-                        return id;
-                    })
-                    .orElseGet(() -> {
-                        String newId = quickBooksClient.createEmployee(employee.firstName().value(), employee.lastName().value());
-                        created.add(employee.name());
-                        return newId;
-                    });
+                                                          .map(id -> {
+                                                              matched.add(employee.name());
+                                                              return id;
+                                                          })
+                                                          .orElseGet(() -> {
+                                                              String newId = quickBooksClient.createEmployee(employee);
+                                                              created.add(employee.name());
+                                                              return newId;
+                                                          });
 
             employeeRepository.updateQuickbooksEmployeeId(employee.id(), quickBooksEmployeeId);
         } catch (Exception e) {
-            LOGGER.warn("QuickBlooks employee sync failed for {}: {}", employee.name(), e.getMessage());
+            LOGGER.warn("QuickBooks employee sync failed for {}: {}", employee.name(), e.getMessage());
             failed.add(employee.name() + " (" + e.getMessage() + ")");
+        }
+    }
+
+    public void syncActiveStatus(String quickbooksEmployeeId, boolean active) {
+        if (quickbooksEmployeeId == null) {
+            return;
+        }
+
+        try {
+            quickBooksClient.setEmployeeActive(quickbooksEmployeeId, active);
+        } catch (Exception e) {
+            LOGGER.warn("QuickBooks active-status sync failed for QuickBooks employee {}: {}", quickbooksEmployeeId, e.getMessage());
         }
     }
 }

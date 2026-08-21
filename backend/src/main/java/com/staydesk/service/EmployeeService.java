@@ -136,6 +136,8 @@ public class EmployeeService {
         staffDoorAccessService.revokeAccess(employee);
         employeeRepository.updateDoorAccessEnabled(id, false);
         employeeRepository.deactivate(id);
+
+        quickBooksEmployeeSyncService.syncActiveStatus(employee.quickbooksEmployeeId(), false);
     }
 
     public void updateEmployeePersonalInfo(UUID id, UpdatePersonalInfoRequest request) {
