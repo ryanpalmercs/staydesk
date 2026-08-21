@@ -137,7 +137,7 @@ function SettingsPage() {
         if (qbResult) {
             params.delete('quickbooks')
             const newSearch = params.toString()
-            window.history.replaceState({}, '', window.location.pathnname + (newSearch ? `?${newSearch}` : ''))
+            window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : ''))
         }
     }, [])
 
