@@ -22,13 +22,13 @@ class QuickBooksClientSpec extends Specification {
     private QuickBooksClient clientPointedAt(String baseUrl) {
         def client = new QuickBooksClient(authService)
         client.baseUrl = baseUrl
-        client.realmId = "123456789"
         return client
     }
 
     def "pushTimeActivity succeeds when QuickBooks accepts the time activity"() {
         given:
         authService.getAccessToken() >> 'fake-token'
+        authService.getRealmId() >> '123456789'
 
         server = HttpServer.create(new InetSocketAddress(0), 0)
         server.createContext("/v3/company/123456789/timeactivity") { exchange ->
@@ -54,6 +54,7 @@ class QuickBooksClientSpec extends Specification {
     def "pushTimeActivity wraps a connection failure as a PayrollSyncException"() {
         given:
         authService.getAccessToken() >> 'fake-token'
+        authService.getRealmId() >> '123456789'
 
         def closedPort = new ServerSocket(0).withCloseable { it.localPort }
         def client = clientPointedAt("http://localhost:${closedPort}")
