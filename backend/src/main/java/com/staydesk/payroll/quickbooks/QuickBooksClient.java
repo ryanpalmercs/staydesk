@@ -18,9 +18,6 @@ public class QuickBooksClient {
     @Value("${quickbooks.api-base-url}")
     private String baseUrl;
 
-    @Value("${quickbooks.realm-id}")
-    private String realmId;
-
     public QuickBooksClient(QuickBooksAuthService authService) {
         this.authService = authService;
     }
@@ -28,7 +25,7 @@ public class QuickBooksClient {
     public void pushTimeActivity(QuickBooksTimeActivity activity) {
         try {
             restClient.post()
-                      .uri(baseUrl + "/v3/company/" + realmId + "/timeactivity")
+                      .uri(baseUrl + "/v3/company/" + authService.getRealmId() + "/timeactivity")
                       .header(HttpHeaders.AUTHORIZATION, "Bearer " + authService.getAccessToken())
                       .contentType(MediaType.APPLICATION_JSON)
                       .body(activity)

@@ -6,7 +6,7 @@ import org.springframework.data.repository.CrudRepository;
 
 import java.util.Optional;
 
-public interface QuicBooksConnectionRepository extends CrudRepository<QuickBooksConnection, Integer> {
+public interface QuickBooksConnectionRepository extends CrudRepository<QuickBooksConnection, Integer> {
 
     @Query("SELECT & FROM quickbooks_connections LIMIT 1")
     Optional<QuickBooksConnection> findFirst();
