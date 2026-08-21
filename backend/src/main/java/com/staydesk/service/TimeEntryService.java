@@ -20,12 +20,15 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class TimeEntryService {
+
+    private static final ZoneId PROPERTY_ZONE = ZoneId.of("America/Chicago");
 
     private final TimeEntryRepository timeEntryRepository;
     private final EmployeeRepository employeeRepository;
@@ -45,8 +48,8 @@ public class TimeEntryService {
             throw new AlreadyClockedInException();
         });
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime clockIn = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(PROPERTY_ZONE);
+        LocalDateTime clockIn = LocalDateTime.now(PROPERTY_ZONE);
 
         return jdbcAggregateTemplate.insert(new TimeEntry(
                 null, employeeId, clockIn, null,
@@ -60,9 +63,9 @@ public class TimeEntryService {
         TimeEntry open = timeEntryRepository.getOpenEntry(employeeId)
                                             .orElseThrow(NotClockedInException::new);
 
-        LocalDateTime clockOut = LocalDateTime.now();
+        LocalDateTime clockOut = LocalDateTime.now(PROPERTY_ZONE);
         BigDecimal hours = computeHours(open.clockIn(), clockOut);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(PROPERTY_ZONE);
 
         TimeEntry updated = new TimeEntry(
                 open.id(), open.employeeId(), open.clockIn(), clockOut,
@@ -91,7 +94,7 @@ public class TimeEntryService {
             resolvedHours = computeHours(request.clockIn(), request.clockOut());
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(PROPERTY_ZONE);
         return jdbcAggregateTemplate.insert(new TimeEntry(
                 null, request.employeeId(), request.clockIn(), request.clockOut(),
                 request.date(), resolvedHours, request.notes(), now, now
@@ -105,7 +108,7 @@ public class TimeEntryService {
         return timeEntryRepository.save(new TimeEntry(
                 existing.id(), existing.employeeId(), request.clockIn(), request.clockOut(),
                 request.date(), request.hours(), request.notes(),
-                existing.createdAt(), LocalDateTime.now()
+                existing.createdAt(), LocalDateTime.now(PROPERTY_ZONE)
         ));
     }
 
