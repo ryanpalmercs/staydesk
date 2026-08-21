@@ -34,6 +34,7 @@ class QuickBooksClientSpec extends Specification {
         server.createContext("/v3/company/123456789/timeactivity") { exchange ->
             def bytes = '{"TimeActivity": {"Id": "1"}}'.getBytes(StandardCharsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.responseHeaders.add("Connection", "close")
             exchange.sendResponseHeaders(200, bytes.length)
             exchange.responseBody.write(bytes)
             exchange.responseBody.close()
