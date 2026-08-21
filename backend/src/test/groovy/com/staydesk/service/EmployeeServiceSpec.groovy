@@ -218,4 +218,21 @@ class EmployeeServiceSpec extends Specification {
         1 * quickBooksEmployeeSyncService.syncOne({ it.id() == supabaseId })
         result.doorAccessEnabled()
     }
+
+    def "deactivateEmployee revokes door access, deactivates locally, and syncs the inactive status to QuickBooks"() {
+        given:
+        def mapped = new Employee(UUID.randomUUID(), new EncryptedString("Existing"), new EncryptedString("Employee"),
+                new EncryptedString("existing@staydesk.com"), "existing-hash", "existing", 1, BigDecimal.TEN,
+                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), "qb-42")
+        employeeRepository.findById(mapped.id()) >> Optional.of(mapped)
+
+        when:
+        employeeService.deactivateEmployee(mapped.id())
+
+        then:
+        1 * staffDoorAccessService.revokeAccess(mapped)
+        1 * employeeRepository.updateDoorAccessEnabled(mapped.id(), false)
+        1 * employeeRepository.deactivate(mapped.id())
+        1 * quickBooksEmployeeSyncService.syncActiveStatus("qb-42", false)
+    }
 }
