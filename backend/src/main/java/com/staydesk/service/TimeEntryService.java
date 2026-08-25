@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -80,6 +81,12 @@ public class TimeEntryService {
         enforceOwnershipOrAdmin(jwt, employeeId);
 
         return timeEntryRepository.getByEmployeeAndDateRange(employeeId, start, end);
+    }
+
+    public Optional<TimeEntry> getClockStatus(UUID employeeId, Jwt jwt) {
+        enforceOwnership(jwt, employeeId);
+
+        return timeEntryRepository.getOpenEntry(employeeId);
     }
 
     public TimeEntry createManualEntry(ManualTimeEntryRequest request) {
