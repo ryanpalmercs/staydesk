@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { getEmployee } from '../api/employeeApi'
-import { clockIn, clockOut, getTimesheet, createManualEntry, updateTimeEntry, deleteTimeEntry } from '../api/timeEntryApi'
+import { clockIn, clockOut, getTimesheet, getClockStatus, createManualEntry, updateTimeEntry, deleteTimeEntry } from '../api/timeEntryApi'
 import { Clock, ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 
 function getWeekStart(date) {
@@ -60,7 +60,7 @@ export default function TimesheetPage() {
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
 
-    const openEntry = entries.find(e => !e.clockOut)
+    const [openEntry, setOpenEntry] = useState(null)
     const isClockedIn = !!openEntry
 
 
@@ -71,6 +71,9 @@ export default function TimesheetPage() {
         }
         if (isAdmin) {
             getEmployee(id).then(res => setEmployee(res.data)).catch(() => { })
+        }
+        if (isOwner) {
+            fetchClockStatus()
         }
     }, [id])
 
@@ -112,14 +115,24 @@ export default function TimesheetPage() {
         setLoading(false)
     }
 
+    async function fetchClockStatus() {
+        try {
+            const res = await getClockStatus(id)
+            setOpenEntry(res.data || null)
+        } catch (err) {
+            console.error(err)
+        }
+    }
+
     async function handleClockIn() {
         setClockError(null)
         setSubmitting(true)
         try {
             await clockIn(id, null)
-            await fetchEntries()
+            await Promise.all([fetchEntries(), fetchClockStatus()])
         } catch (err) {
             setClockError(err.response?.data || 'Clock-in failed')
+            await fetchClockStatus()
         }
         setSubmitting(false)
     }
@@ -129,9 +142,10 @@ export default function TimesheetPage() {
         setSubmitting(true)
         try {
             await clockOut(id, null)
-            await fetchEntries()
+            await Promise.all([fetchEntries(), fetchClockStatus()])
         } catch (err) {
             setClockError(err.response?.data || 'Clock-out failed')
+            await fetchClockStatus()
         }
         setSubmitting(false)
     }

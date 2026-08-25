@@ -56,4 +56,13 @@ public class EmployeeTimeController {
 
         return timeEntryService.getEmployeeTimesheet(id, jwt, start, end);
     }
+
+    @GetMapping("clock-status")
+    public ResponseEntity<TimeEntry> getClockStatus(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        LOGGER.info("Received request to get clock status for employee {}", id);
+
+        return timeEntryService.getClockStatus(id, jwt)
+                                .map(ResponseEntity::ok)
+                                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
 }

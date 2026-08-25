@@ -12,6 +12,10 @@ export function getTimesheet(employeeId, start, end) {
     return api.get(`/employees/${employeeId}/time-entries`, { params: { start, end } })
 }
 
+export function getClockStatus(employeeId) {
+    return api.get(`/employees/${employeeId}/clock-status`)
+}
+
 export function getPayPeriodEntries(start, end) {
     return api.get('/admin/time-entries', { params: { start, end } })
 }
