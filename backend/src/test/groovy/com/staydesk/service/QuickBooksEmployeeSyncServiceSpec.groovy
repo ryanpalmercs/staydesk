@@ -6,6 +6,7 @@ import com.staydesk.model.Employee
 import com.staydesk.model.EncryptedString
 import com.staydesk.payroll.quickbooks.QuickBooksClient
 import com.staydesk.repository.EmployeeRepository
+import com.staydesk.repository.EmployeeTypeRepository
 import spock.lang.Specification
 
 import java.time.LocalDate
@@ -14,9 +15,16 @@ import java.time.LocalDateTime
 class QuickBooksEmployeeSyncServiceSpec extends Specification {
 
     EmployeeRepository employeeRepository = Mock()
+    EmployeeTypeRepository employeeTypeRepository = Mock()
     QuickBooksClient quickBooksClient = Mock()
 
-    QuickBooksEmployeeSyncService service = new QuickBooksEmployeeSyncService(employeeRepository, quickBooksClient)
+    QuickBooksEmployeeSyncService service = new QuickBooksEmployeeSyncService(employeeRepository, employeeTypeRepository, quickBooksClient)
+
+    def setup() {
+        // Spock's default response for an unstubbed Optional-returning method is null, not
+        // Optional.empty() -- without this, syncEmployee's jobTitle lookup NPEs in every test.
+        employeeTypeRepository.findById(_) >> Optional.empty()
+    }
 
     private static Employee employee(String quickbooksEmployeeId = null) {
         new Employee(UUID.randomUUID(), new EncryptedString("Jane"), new EncryptedString("Doe"),
@@ -30,7 +38,7 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
         def emp = employee()
         employeeRepository.findAll() >> [emp]
         quickBooksClient.findEmployeeByDisplayName(emp.name()) >> Optional.empty()
-        quickBooksClient.createEmployee(emp) >> "qb-new-1"
+        quickBooksClient.createEmployee(emp, _, _) >> "qb-new-1"
 
         when:
         def result = service.syncAll()
@@ -42,7 +50,7 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
         result.failed() == []
     }
 
-    def "syncAll matches an unmapped employee already found in QuickBooks and writes back its id"() {
+    def "syncAll matches an unmapped employee already found in QuickBooks, updates it, and writes back its id"() {
         given:
         def emp = employee()
         employeeRepository.findAll() >> [emp]
@@ -52,7 +60,8 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
         def result = service.syncAll()
 
         then:
-        0 * quickBooksClient.createEmployee(_)
+        0 * quickBooksClient.createEmployee(_, _, _)
+        1 * quickBooksClient.updateEmployee(emp, "qb-existing-1", _, _)
         1 * employeeRepository.updateQuickbooksEmployeeId(emp.id(), "qb-existing-1")
         result.matched() == [emp.name()]
         result.created() == []
@@ -67,9 +76,9 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
         def result = service.syncAll()
 
         then:
-        1 * quickBooksClient.updateEmployee(emp)
+        1 * quickBooksClient.updateEmployee(emp, "qb-42", _, _)
         0 * quickBooksClient.findEmployeeByDisplayName(_)
-        0 * quickBooksClient.createEmployee(_)
+        0 * quickBooksClient.createEmployee(_, _, _)
         0 * employeeRepository.updateQuickbooksEmployeeId(*_)
         result.matched() == [emp.name()]
     }
@@ -94,7 +103,7 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
         given:
         def emp = employee()
         quickBooksClient.findEmployeeByDisplayName(emp.name()) >> Optional.empty()
-        quickBooksClient.createEmployee(emp) >> "qb-new-2"
+        quickBooksClient.createEmployee(emp, _, _) >> "qb-new-2"
 
         when:
         service.syncOne(emp)
@@ -119,6 +128,14 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
     def "syncActiveStatus does nothing when the employee has no QuickBooks mapping"() {
         when:
         service.syncActiveStatus(null, false)
+
+        then:
+        0 * quickBooksClient.setEmployeeActive(*_)
+    }
+
+    def "syncActiveStatus does nothing when the employee's QuickBooks mapping is blank"() {
+        when:
+        service.syncActiveStatus("", false)
 
         then:
         0 * quickBooksClient.setEmployeeActive(*_)

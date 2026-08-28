@@ -152,15 +152,43 @@ class QuickBooksClientSpec extends Specification {
         def client = clientPointedAt("http://localhost:${server.address.port}")
 
         when:
-        def result = client.createEmployee(testEmployee())
+        def result = client.createEmployee(testEmployee(), "Front Desk", false)
 
         then:
         result == "qb-99"
         capturedBody.contains('"GivenName":"Jane"')
         capturedBody.contains('"FamilyName":"Doe"')
         capturedBody.contains('"EmployeeNumber":"jdoe"')
-        capturedBody.contains('"BillRate":20')
+        capturedBody.contains('"CostRate":20')
         capturedBody.contains('"PrimaryEmailAddr":{"Address":"jane@staydesk.com"}')
+        capturedBody.contains('"Title":"Front Desk"')
+    }
+
+    def "createEmployee omits Title when QuickBooks Payroll is enabled"() {
+        given:
+        authService.getAccessToken() >> 'fake-token'
+        authService.getRealmId() >> '123456789'
+
+        def capturedBody = null
+        server = HttpServer.create(new InetSocketAddress(0), 0)
+        server.createContext("/v3/company/123456789/employee") { exchange ->
+            capturedBody = exchange.requestBody.getText("UTF-8")
+            def bytes = '{"Employee":{"Id":"qb-99"}}'.getBytes(StandardCharsets.UTF_8)
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.responseHeaders.add("Connection", "close")
+            exchange.sendResponseHeaders(200, bytes.length)
+            exchange.responseBody.write(bytes)
+            exchange.responseBody.close()
+        }
+        server.start()
+
+        def client = clientPointedAt("http://localhost:${server.address.port}")
+
+        when:
+        client.createEmployee(testEmployee(), "Front Desk", true)
+
+        then:
+        !capturedBody.contains('Title')
     }
 
     def "createEmployee wraps a connection failure as a PayrollSyncException"() {
@@ -172,7 +200,7 @@ class QuickBooksClientSpec extends Specification {
         def client = clientPointedAt("http://localhost:${closedPort}")
 
         when:
-        client.createEmployee(testEmployee())
+        client.createEmployee(testEmployee(), "Front Desk", false)
 
         then:
         thrown(PayrollSyncException)
@@ -250,12 +278,13 @@ class QuickBooksClientSpec extends Specification {
         def client = clientPointedAt("http://localhost:${server.address.port}")
 
         when:
-        client.updateEmployee(testEmployee("qb-42"))
+        client.updateEmployee(testEmployee(), "qb-42", "Front Desk", false)
 
         then:
         capturedBody.contains('"Id":"qb-42"')
         capturedBody.contains('"SyncToken":"5"')
         capturedBody.contains('"sparse":true')
+        capturedBody.contains('"Title":"Front Desk"')
     }
 
     def "updateEmployee wraps a connection failure as a PayrollSyncException"() {
@@ -267,7 +296,7 @@ class QuickBooksClientSpec extends Specification {
         def client = clientPointedAt("http://localhost:${closedPort}")
 
         when:
-        client.updateEmployee(testEmployee("qb-42"))
+        client.updateEmployee(testEmployee(), "qb-42", "Front Desk", false)
 
         then:
         thrown(PayrollSyncException)
@@ -321,6 +350,65 @@ class QuickBooksClientSpec extends Specification {
 
         when:
         client.setEmployeeActive("qb-42", false)
+
+        then:
+        thrown(PayrollSyncException)
+    }
+
+    def "isPayrollEnabled returns true when PayrollFeature is enabled on the connected company"() {
+        given:
+        authService.getAccessToken() >> 'fake-token'
+        authService.getRealmId() >> '123456789'
+
+        server = HttpServer.create(new InetSocketAddress(0), 0)
+        server.createContext("/v3/company/123456789/companyinfo/123456789") { exchange ->
+            def bytes = '{"CompanyInfo":{"NameValue":[{"Name":"PayrollFeature","Value":"true"}]}}'.getBytes(StandardCharsets.UTF_8)
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.responseHeaders.add("Connection", "close")
+            exchange.sendResponseHeaders(200, bytes.length)
+            exchange.responseBody.write(bytes)
+            exchange.responseBody.close()
+        }
+        server.start()
+
+        def client = clientPointedAt("http://localhost:${server.address.port}")
+
+        expect:
+        client.isPayrollEnabled()
+    }
+
+    def "isPayrollEnabled returns false when PayrollFeature is not present"() {
+        given:
+        authService.getAccessToken() >> 'fake-token'
+        authService.getRealmId() >> '123456789'
+
+        server = HttpServer.create(new InetSocketAddress(0), 0)
+        server.createContext("/v3/company/123456789/companyinfo/123456789") { exchange ->
+            def bytes = '{"CompanyInfo":{"NameValue":[]}}'.getBytes(StandardCharsets.UTF_8)
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.responseHeaders.add("Connection", "close")
+            exchange.sendResponseHeaders(200, bytes.length)
+            exchange.responseBody.write(bytes)
+            exchange.responseBody.close()
+        }
+        server.start()
+
+        def client = clientPointedAt("http://localhost:${server.address.port}")
+
+        expect:
+        !client.isPayrollEnabled()
+    }
+
+    def "isPayrollEnabled wraps a connection failure as a PayrollSyncException"() {
+        given:
+        authService.getAccessToken() >> 'fake-token'
+        authService.getRealmId() >> '123456789'
+
+        def closedPort = new ServerSocket(0).withCloseable { it.localPort }
+        def client = clientPointedAt("http://localhost:${closedPort}")
+
+        when:
+        client.isPayrollEnabled()
 
         then:
         thrown(PayrollSyncException)
