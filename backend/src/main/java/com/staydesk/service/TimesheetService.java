@@ -43,7 +43,7 @@ public class TimesheetService {
         this.templateEngine = templateEngine;
     }
 
-    private TimesheetReport buildReport(LocalDate startDate, LocalDate endDate) {
+    TimesheetReport buildReport(LocalDate startDate, LocalDate endDate) {
         List<TimeEntry> entries = timeEntryRepository.getByDateRange(startDate, endDate);
 
         Map<UUID, Employee> employeeMap = employeeRepository.findAll()
@@ -76,7 +76,7 @@ public class TimesheetService {
                                                                                                              BigDecimal.ZERO)
                                                                                                      .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                                                                return new EmployeeTimesheetRow(employee.name(),
+                                                                return new EmployeeTimesheetRow(employee.id(), employee.name(),
                                                                         String.format("$%.2f/%s", employee.payRate(), employee.payRateTypeDisplayName()),
                                                                         sortedEntries,
                                                                         totalHours

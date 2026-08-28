@@ -35,7 +35,7 @@ public class SecurityConfig {
                    .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                    .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                    .authorizeHttpRequests(auth -> auth
-                           .requestMatchers("/auth/employee/login", "/error", "/stripe/connect/return", "/stripe/connect/refresh").permitAll()
+                           .requestMatchers("/auth/employee/login", "/error", "/stripe/connect/return", "/stripe/connect/refresh", "/quickbooks/connect/callback").permitAll()
                            .requestMatchers("/webhooks/sifely/**").permitAll()
                            .requestMatchers("/actuator/health").permitAll()
                            .requestMatchers(HttpMethod.POST, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")

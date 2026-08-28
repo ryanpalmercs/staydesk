@@ -30,6 +30,15 @@ gusto:
   client-id: ${GUSTO_CLIENT_ID}
   client-secret: ${GUSTO_CLIENT_SECRET}
 
+# QuickBooks
+quickbooks:
+  token-url: ${QUICKBOOKS_TOKEN_URL:https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer}
+  authorize-url: ${QUICKBOOKS_AUTHORIZE_URL:https://appcenter.intuit.com/connect/oauth2}
+  api-base-url: ${QUICKBOOKS_API_BASE_URL:https://quickbooks.api.intuit.com}
+  client-id: ${QUICKBOOKS_CLIENT_ID:}
+  client-secret: ${QUICKBOOKS_CLIENT_SECRET:}
+  redirect-uri: ${QUICKBOOKS_REDIRECT_URI:${app.base-url}/quickbooks/connect/callback}
+
 supabase:
   url: https://dmishzzcabozbbbjzlsb.supabase.co
   service:

@@ -136,7 +136,8 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 Employee.PayRateType.valueOf(rs.getString("pay_rate_type")),
                 rs.getBoolean("door_access_enabled"),
                 toLocalDateTime(rs.getTimestamp("created_at")),
-                toLocalDateTime(rs.getTimestamp("updated_at"))
+                toLocalDateTime(rs.getTimestamp("updated_at")),
+                rs.getString("quickbooks_employee_id")
         );
     }
 
