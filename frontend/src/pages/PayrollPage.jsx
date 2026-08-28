@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { getEmployees } from '../api/employeeApi'
 import { exportTimesheets, getPayPeriodEntries } from '../api/timeEntryApi'
 import { displayPrice } from '../utils/price'
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { syncEmployeesToQuickBooks } from '../api/payrollApi'
+import { ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react'
 
 function getWeekStart(date) {
     const d = new Date(date)
@@ -31,6 +32,8 @@ export default function PayrollPage() {
     const [loading, setLoading] = useState(true)
     const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
     const [exporting, setExporting] = useState(false)
+    const [syncingEmployees, setSyncingEmployees] = useState(false)
+    const [syncResult, setSyncResult] = useState(null)
     const [error, setError] = useState(null)
 
     const weekEnd = new Date(weekStart)
@@ -76,6 +79,23 @@ export default function PayrollPage() {
         setExporting(false)
     }
 
+    async function handleSyncEmployees() {
+        setSyncingEmployees(true)
+        setSyncResult(null)
+        setError(null)
+
+        try {
+            const res = await syncEmployeesToQuickBooks()
+            const { created, matched, failed } = res.data
+            setSyncResult({ created: created.length, matched: matched.length, failed })
+        } catch (err) {
+            setError('Failed to sync employees to QuickBooks. Please try again.')
+            console.error(err)
+        }
+
+        setSyncingEmployees(false)
+    }
+
     const rows = employees
         .filter(e => e.active)
         .map(emp => {
@@ -94,6 +114,9 @@ export default function PayrollPage() {
             <div className="page-header mb-6">
                 <h1 className="section-title">Payroll</h1>
                 <div className="flex gap-2">
+                    <button onClick={handleSyncEmployees} disabled={syncingEmployees} className="btn btn-secondary flex items-center gap-2">
+                        <RefreshCw size={16} /> {syncingEmployees ? 'Syncing...' : 'Sync Employees to QuickBooks'}
+                    </button>
                     <button onClick={() => handleExport('csv')} disabled={exporting} className="btn btn-secondary flex items-center gap-2">
                         <Download size={16} /> CSV
                     </button>
@@ -102,6 +125,13 @@ export default function PayrollPage() {
                     </button>
                 </div>
             </div>
+
+            {syncResult && (
+                <p className="text-sm text-muted mb-4">
+                    QuickBooks employee sync: {syncResult.created} created, {syncResult.matched} matched
+                    {syncResult.failed.length > 0 && `, ${syncResult.failed.length} failed (${syncResult.failed.join('; ')})`}.
+                </p>
+            )}
 
             <div className="flex items-center justify-between mb-6">
                 <button onClick={() => setWeekStart(d => { const p = new Date(d); p.setDate(d.getDate() - 7); return p })} className="text-muted hover:text-green">

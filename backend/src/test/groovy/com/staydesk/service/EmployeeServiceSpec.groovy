@@ -27,9 +27,10 @@ class EmployeeServiceSpec extends Specification {
     JdbcAggregateTemplate jdbcAggregateTemplate = Mock()
     StaffDoorAccessService staffDoorAccessService = Mock()
     PiiCipher piiCipher = Mock()
+    QuickBooksEmployeeSyncService quickBooksEmployeeSyncService = Mock()
 
     EmployeeService employeeService = new EmployeeService(employeeRepository, employeeTypeRepository,
-            supabaseAdminClient, jdbcAggregateTemplate, staffDoorAccessService, piiCipher)
+            supabaseAdminClient, jdbcAggregateTemplate, staffDoorAccessService, piiCipher, quickBooksEmployeeSyncService)
 
     // "482913" is a valid 6-digit PIN under PasscodeRules (not ascending/descending/repeated) --
     // load-bearing for every happy-path test below.
@@ -58,6 +59,7 @@ class EmployeeServiceSpec extends Specification {
         0 * employeeTypeRepository.findById(_)
         0 * supabaseAdminClient.createUser(*_)
         0 * jdbcAggregateTemplate.insert(_)
+        0 * quickBooksEmployeeSyncService.syncOne(_)
     }
 
     def "throws EmployeeAlreadyExistsException when the email hash is already taken, after hashing the stripped/lower-cased email"() {
@@ -74,6 +76,7 @@ class EmployeeServiceSpec extends Specification {
         0 * employeeTypeRepository.findById(_)
         0 * supabaseAdminClient.createUser(*_)
         0 * jdbcAggregateTemplate.insert(_)
+        0 * quickBooksEmployeeSyncService.syncOne(_)
     }
 
     def "throws a 400 ResponseStatusException when the employee type does not exist"() {
@@ -91,6 +94,7 @@ class EmployeeServiceSpec extends Specification {
         ex.statusCode == HttpStatus.BAD_REQUEST
         0 * supabaseAdminClient.createUser(*_)
         0 * jdbcAggregateTemplate.insert(_)
+        0 * quickBooksEmployeeSyncService.syncOne(_)
     }
 
     def "throws a 400 ResponseStatusException when grantDoorAccess is true and the PIN is invalid"() {
@@ -110,6 +114,7 @@ class EmployeeServiceSpec extends Specification {
         0 * supabaseAdminClient.createUser(*_)
         0 * jdbcAggregateTemplate.insert(_)
         0 * staffDoorAccessService.grantAccess(*_)
+        0 * quickBooksEmployeeSyncService.syncOne(_)
     }
 
     def "throws EmployeeAlreadyExistsException and inserts nothing when Supabase responds 422 Unprocessable Entity"() {
@@ -127,6 +132,7 @@ class EmployeeServiceSpec extends Specification {
         thrown(EmployeeAlreadyExistsException)
         0 * jdbcAggregateTemplate.insert(_)
         0 * staffDoorAccessService.grantAccess(*_)
+        0 * quickBooksEmployeeSyncService.syncOne(_)
     }
 
     def "rethrows the original HttpClientErrorException for non-422 Supabase failures and inserts nothing"() {
@@ -144,6 +150,7 @@ class EmployeeServiceSpec extends Specification {
         def ex = thrown(HttpClientErrorException)
         ex.statusCode == HttpStatus.BAD_GATEWAY
         0 * jdbcAggregateTemplate.insert(_)
+        0 * quickBooksEmployeeSyncService.syncOne(_)
     }
 
     def "creates an employee: inserts the Account before the Employee, grants no door access, and returns the saved Employee"() {
@@ -174,6 +181,7 @@ class EmployeeServiceSpec extends Specification {
 
         then: "door access is never granted"
         0 * staffDoorAccessService.grantAccess(*_)
+        1 * quickBooksEmployeeSyncService.syncOne({ it.id() == supabaseId })
         result.id() == supabaseId
         result.username() == "jdoe"
     }
@@ -207,6 +215,24 @@ class EmployeeServiceSpec extends Specification {
         1 * staffDoorAccessService.grantAccess({
             it instanceof Employee && it.id() == supabaseId && it.doorAccessEnabled()
         }, "482913")
+        1 * quickBooksEmployeeSyncService.syncOne({ it.id() == supabaseId })
         result.doorAccessEnabled()
+    }
+
+    def "deactivateEmployee revokes door access, deactivates locally, and syncs the inactive status to QuickBooks"() {
+        given:
+        def mapped = new Employee(UUID.randomUUID(), new EncryptedString("Existing"), new EncryptedString("Employee"),
+                new EncryptedString("existing@staydesk.com"), "existing-hash", "existing", 1, BigDecimal.TEN,
+                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), "qb-42")
+        employeeRepository.findById(mapped.id()) >> Optional.of(mapped)
+
+        when:
+        employeeService.deactivateEmployee(mapped.id())
+
+        then:
+        1 * staffDoorAccessService.revokeAccess(mapped)
+        1 * employeeRepository.updateDoorAccessEnabled(mapped.id(), false)
+        1 * employeeRepository.deactivate(mapped.id())
+        1 * quickBooksEmployeeSyncService.syncActiveStatus("qb-42", false)
     }
 }

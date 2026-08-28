@@ -1,8 +1,10 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.PayrollSyncResponse;
+import com.staydesk.model.QuickBooksEmployeeSyncResponse;
 import com.staydesk.model.request.PayrollSyncRequest;
 import com.staydesk.service.PayrollSyncService;
+import com.staydesk.service.QuickBooksEmployeeSyncService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,9 +19,12 @@ public class PayrollSyncController {
     private final Logger LOGGER = LoggerFactory.getLogger(PayrollSyncController.class);
 
     private final PayrollSyncService payrollSyncService;
+    private final QuickBooksEmployeeSyncService quickBooksEmployeeSyncService;
 
-    public PayrollSyncController(PayrollSyncService payrollSyncService) {
+    public PayrollSyncController(PayrollSyncService payrollSyncService,
+                                 QuickBooksEmployeeSyncService quickBooksEmployeeSyncService) {
         this.payrollSyncService = payrollSyncService;
+        this.quickBooksEmployeeSyncService = quickBooksEmployeeSyncService;
     }
 
     @PostMapping("/sync")
@@ -27,5 +32,11 @@ public class PayrollSyncController {
         LOGGER.info("Received request to sync payroll {} - {} to QuickBooks", request.startDate(), request.endDate());
 
         return payrollSyncService.sync(request.startDate(), request.endDate());
+    }
+
+    @PostMapping("/sync-employees")
+    public QuickBooksEmployeeSyncResponse syncEmployees() {
+        LOGGER.info("Received request to sync employees to QuickBooks");
+        return quickBooksEmployeeSyncService.syncAll();
     }
 }
