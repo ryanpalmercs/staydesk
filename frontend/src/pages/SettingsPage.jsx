@@ -9,6 +9,7 @@ import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
 import { syncBacklogFolios } from "../api/reservationApi"
+import { getQuickBooksStatus, startQuickBooksConnect, disconnectQuickBooks } from "../api/quickbooksApi"
 import { useAuth } from "../contexts/AuthContext"
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
@@ -94,6 +95,12 @@ function SettingsPage() {
     const [sifelyForm, setSifelyForm] = useState({ account: '', password: '', clientId: '', clientSecret: '' })
     const [sifelyError, setSifelyError] = useState(null)
     const [sifelyConnecting, setSifelyConnecting] = useState(false)
+    const [qbLoading, setQbLoading] = useState(true)
+    const [qbConnected, setQbConnected] = useState(false)
+    const [qbRealmId, setQbRealmId] = useState(null)
+    const [qbConnectedAt, setQbConnectedAt] = useState(null)
+    const [qbConnecting, setQbConnecting] = useState(false)
+    const [qbBanner, setQbBanner] = useState(null)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState('')
     const [lodgingTaxRate, setLodgingTaxRate] = useState('')
     const [incidentalsFocused, setIncidentalsFocused] = useState(false)
@@ -146,6 +153,24 @@ function SettingsPage() {
         })
         getPosDevices().then(res => setPosDevices(res.data ?? []))
         getRateOverrides().then(res => setRateOverrides(res.data ?? []))
+        getQuickBooksSettings()
+    }, [])
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        const qbResult = params.get('quickbooks')
+
+        if (qbResult === 'connected') {
+            setQbBanner({ type: 'success', message: 'QuickBooks connected successfully.' })
+        } else if (qbResult === 'error') {
+            setQbBanner({ type: 'error', message: 'Failed to connect QuickBooks. Please try again.' })
+        }
+
+        if (qbResult) {
+            params.delete('quickbooks')
+            const newSearch = params.toString()
+            window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : ''))
+        }
     }, [])
 
     useEffect(() => {
@@ -308,6 +333,25 @@ function SettingsPage() {
     })
 
     const sortedRateOverrides = [...rateOverrides].sort((a, b) => a.startDate.localeCompare(b.startDate))
+
+    async function getQuickBooksSettings() {
+        setQbLoading(true)
+        const response = await getQuickBooksStatus()
+        setQbConnected(response?.data?.connected)
+        setQbRealmId(response?.data?.realmId)
+        setQbConnectedAt(response?.data?.connectedAt)
+        setQbLoading(false)
+    }
+
+    async function handleQuickBooksConnect() {
+        setQbConnecting(true)
+        await startQuickBooksConnect()
+    }
+
+    async function handleQuickBooksDisconnect() {
+        await disconnectQuickBooks()
+        await getQuickBooksSettings()
+    }
 
     async function getSifelySettings() {
         setSifelyLoading(true)
@@ -547,6 +591,35 @@ function SettingsPage() {
                                 {sifelyConnecting ? 'Connecting...' : 'Connect Sifely Account'}
                             </button>
                         </form>
+                    )}
+                </div>
+
+                <div className="feat-card">
+                    <h3>QuickBooks Payroll</h3>
+                    <p>Connect QuickBooks Online to sync employee hours each pay period.</p>
+
+                    {qbBanner && (
+                        <p className={`text-sm mt-2 ${qbBanner.typee === 'success' ? 'text-green' : 'text-error'}`}>
+                            {qbBanner.message}
+                        </p>
+                    )}
+
+                    {qbLoading ? (
+                        <p className="text-muted text-sm mt-4">Loading...</p>
+                    ) : qbConnected ? (
+                        <div className="mt-4">
+                            <p className="text-sm text-muted mb-3">
+                                Company ID: <span className="font-medium text-black">{qbRealmId}</span>
+                            </p>
+                            <p className="text-sm text-muted mb-3">
+                                Connected: <span className="font-medium text-black">{new Date(qbConnectedAt).toLocaleString()}</span>
+                            </p>
+                            <button onClick={handleQuickBooksDisconnect} className="btn-secondary">Disconnect</button>
+                        </div>
+                    ) : (
+                        <button onClick={handleQuickBooksConnect} className="btn-primary mt-4" disabled={qbConnecting}>
+                            {qbConnecting ? 'Redirecting...' :'Connect QuickBooks'}
+                        </button>
                     )}
                 </div>
 

@@ -111,7 +111,8 @@ public class PiiBackfillRunner implements CommandLineRunner {
     private void backfillEmployees() {
         List<Employee> plaintextEmployees = jdbcTemplate.query("""
                 SELECT id, first_name, last_name, email, username, employee_type_id, pay_rate, hire_date, active,
-                       contact_info, pay_rate_type, door_access_enabled, created_at, updated_at, last_seen_release_notes_id
+                       contact_info, pay_rate_type, door_access_enabled, created_at, updated_at, last_seen_release_notes_id,
+                       quickbooks_employee_id
                 FROM employees
                 """, this::mapPlaintextEmployee);
 
@@ -150,7 +151,8 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 rs.getBoolean("door_access_enabled"),
                 toLocalDateTime(rs.getTimestamp("created_at")),
                 toLocalDateTime(rs.getTimestamp("updated_at")),
-                (Integer) rs.getObject("last_seen_release_notes_id")
+                (Integer) rs.getObject("last_seen_release_notes_id"),
+                rs.getString("quickbooks_employee_id")
         );
     }
 
