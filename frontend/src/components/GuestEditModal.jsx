@@ -7,7 +7,7 @@ function GuestEditModal({ guest, onSaved, onClose }) {
     const [form, setForm] = useState({
         firstName: guest.firstName,
         lastName: guest.lastName,
-        email: guest.email,
+        email: guest.email ?? '',
         phoneNumber: guest.phoneNumber,
         smsConsent: guest.smsConsent
     })
@@ -54,8 +54,8 @@ function GuestEditModal({ guest, onSaved, onClose }) {
                 </div>
 
                 <div>
-                    <label className="block text-sm text-muted mb-1">Email</label>
-                    <input type="email" name="email" value={form.email} onChange={handleChange} className="filter-input" required />
+                    <label className="block text-sm text-muted mb-1">Email <span className="text-muted">(optional)</span></label>
+                    <input type="email" name="email" value={form.email} onChange={handleChange} className="filter-input" />
                 </div>
 
                 <div>
