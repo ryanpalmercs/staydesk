@@ -12,6 +12,7 @@ import com.staydesk.model.Rate
 import com.staydesk.model.Reservation
 import com.staydesk.model.ReusablePaymentCredential
 import com.staydesk.model.Room
+import com.staydesk.model.RoomType
 import com.staydesk.model.request.BacklogCheckInRequest
 import com.staydesk.provider.ProviderFactory
 import com.staydesk.repository.*
@@ -63,6 +64,7 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -114,6 +116,7 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         folioRepository.getFolioByReservationId(1) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -135,6 +138,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(rateType, 1) >> Optional.of(rate)
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }   // identity: isolates division math from tax logic
 
@@ -160,6 +164,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
         folioService.postCharge(_, _, _) >> folio
 
         when:
@@ -181,7 +186,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def savedGuest = new Guest(9, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
-                false, false, null, null, null, false, LocalDateTime.now(), LocalDateTime.now())
+                false, false, null, null, null, false, false, null, LocalDateTime.now(), LocalDateTime.now())
         def savedReservation = new Reservation(11, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
                 Reservation.ReservationStatus.CHECKED_IN, LocalDate.of(2026, 8, 21).atTime(15, 0), null,
                 Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
@@ -218,7 +223,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def existingGuest = new Guest(3, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("james@example.com"), "hashed-real-email", new EncryptedString("5551234567"),
-                true, false, null, null, null, false, LocalDateTime.now(), LocalDateTime.now())
+                true, false, null, null, null, false, false, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomRepository.findById(5) >> Optional.of(room)
         piiCipher.hash("james@example.com") >> "hashed-real-email"
@@ -406,5 +411,65 @@ class ReservationServiceSpec extends Specification {
         thrown(NoReusableCredentialException)
         0 * reservationRepository.save(_)
         0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    private static Guest legacyPricedGuest(BigDecimal legacyAmount = BigDecimal.valueOf(50)) {
+        new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
+                "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
+                true, legacyAmount, LocalDateTime.now(), LocalDateTime.now())
+    }
+
+    def "createReservation charges the guest's legacy price instead of the standard rate"() {
+        given:
+        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
+                false, LocalDateTime.now(), LocalDateTime.now(), null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.of(legacyPricedGuest())
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        reservationService.createReservation(draft, "token-1")
+
+        then:
+        1 * folioService.postCharge(savedFolio, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >> savedFolio
+        1 * paymentService.chargeFullStay(savedFolio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1")
+    }
+
+    def "estimateTotal uses the guest's legacy price when legacy pricing is enabled"() {
+        given:
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.of(legacyPricedGuest())
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.NIGHTLY, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), 7)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(100)) == 0
+    }
+
+    def "estimateTotal uses the standard rate when no guestId is given"() {
+        given:
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.NIGHTLY, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), null)
+
+        then:
+        0 * guestRepository.findById(_)
+        result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 }
