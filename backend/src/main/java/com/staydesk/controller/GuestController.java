@@ -63,16 +63,16 @@ public class GuestController {
     public ResponseEntity<Guest> createGuest(@Valid @RequestBody CreateGuestRequest request) {
         LOGGER.info("Creating guest");
 
-        String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
-        if (guestRepository.findByEmailHash(emailHash).isPresent()) {
+        String emailHash = hashEmail(request.email());
+        if (emailHash != null && guestRepository.findByEmailHash(emailHash).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
 
         LocalDateTime now = LocalDateTime.now();
 
         Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()), request.smsConsent(),
-                false, null, null, null, false, now, now);
+                emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
+                request.smsConsent(), false, null, null, null, false, now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -87,13 +87,17 @@ public class GuestController {
             return ResponseEntity.notFound().build();
         }
 
-        String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
+        String emailHash = hashEmail(request.email());
         Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()), request.smsConsent(),
-                existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
+                emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
+                request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
                 existing.legalHold(), existing.createdAt(), LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
+    }
+
+    private String hashEmail(String email) {
+        return email == null || email.isBlank() ? null : piiCipher.hash(email.strip().toLowerCase());
     }
 
     @PostMapping("{id}/flag")

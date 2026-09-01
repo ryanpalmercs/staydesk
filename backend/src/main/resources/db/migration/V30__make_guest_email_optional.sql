@@ -1,0 +1,3 @@
+ALTER TABLE guests
+    ALTER COLUMN email DROP NOT NULL,
+    ALTER COLUMN email_hash DROP NOT NULL;

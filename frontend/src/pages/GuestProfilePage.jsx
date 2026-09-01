@@ -110,7 +110,7 @@ function GuestProfilePage() {
             <div className="flex gap-2 mb-6 flex-wrap">
                 <div>
                     <span className="block text-sm text-muted mb-1">Email</span>
-                    <p className="text-sm text-black">{guest.email}</p>
+                    <p className="text-sm text-black">{guest.email || <span className="text-muted">No email on file</span>}</p>
                 </div>
                 <div>
                     <span className="block text-sm text-muted mb-1">Phone Number</span>

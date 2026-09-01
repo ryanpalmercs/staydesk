@@ -82,7 +82,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const flaggedMatch = selectedGuest?.flagged ? selectedGuest : null
 
     const newGuestFlaggedMatch = guests.find(g => g.flagged && (
-        (guestForm.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
+        (guestForm.email && g.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
         (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
     ))
 
@@ -197,7 +197,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         setGuestForm({
             firstName: selectedGuest.firstName,
             lastName: selectedGuest.lastName,
-            email: selectedGuest.email,
+            email: selectedGuest.email ?? '',
             phoneNumber: selectedGuest.phoneNumber,
             smsConsent: selectedGuest.smsConsent
         })
@@ -377,7 +377,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
                             <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
-                            <input name="email" placeholder="Email" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" required />
+                            <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" />
                             <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
                         </div>
 
@@ -425,7 +425,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Email</label>
-                                <p className="text-sm text-black">{selectedGuest.email}</p>
+                                <p className="text-sm text-black">{selectedGuest.email || <span className="text-muted">No email on file</span>}</p>
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Phone</label>
@@ -447,7 +447,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
                                 <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
-                                <input name="email" placeholder="Email" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" />
                                 <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
                             </div>
 
