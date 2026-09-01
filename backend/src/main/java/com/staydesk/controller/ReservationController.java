@@ -18,12 +18,15 @@ import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
+import com.staydesk.model.request.ExtendStayRequest;
 import com.staydesk.model.request.TerminalCheckInRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -183,6 +186,13 @@ public class ReservationController {
             LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @PostMapping("{id}/extend")
+    public ResponseEntity<ExtendStayResult> extendStay(@PathVariable Integer id, @Valid @RequestBody ExtendStayRequest request) {
+        LOGGER.info("Extending reservation {} to check out {}", id, request.checkOutDate());
+
+        return ResponseEntity.ok(reservationService.extendStay(id, request.checkOutDate()));
     }
 
     @PostMapping("{id}/cancel")

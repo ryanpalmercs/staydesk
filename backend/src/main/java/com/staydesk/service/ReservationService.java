@@ -7,6 +7,7 @@ import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
+import com.staydesk.exception.NoReusableCredentialException;
 import com.staydesk.exception.NoRoomAvailableException;
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.exception.RateNotFoundException;
@@ -21,8 +22,10 @@ import com.staydesk.model.Guest;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.ReusablePaymentCredential;
 import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.BacklogCheckInRequest;
 import com.staydesk.provider.ProviderFactory;
@@ -31,6 +34,7 @@ import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.PosDeviceRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
+import com.staydesk.repository.ReusablePaymentCredentialRepository;
 import com.staydesk.repository.RoomRepository;
 import com.staydesk.repository.RoomTypeRepository;
 import com.staydesk.security.PiiCipher;
@@ -63,6 +67,7 @@ public class ReservationService {
     private final PosDeviceRepository posDeviceRepository;
     private final PaymentCredentialService paymentCredentialService;
     private final PiiCipher piiCipher;
+    private final ReusablePaymentCredentialRepository reusablePaymentCredentialRepository;
 
     private static final String BACKLOG_PLACEHOLDER_PHONE = "0000000000";
     private static final int STANDARD_CHECK_IN_HOUR = 15;
@@ -73,7 +78,8 @@ public class ReservationService {
                               GuestRepository guestRepository, SmsService smsService,
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
                               PosDeviceRepository posDeviceRepository,
-                              PaymentCredentialService paymentCredentialService, PiiCipher piiCipher) {
+                              PaymentCredentialService paymentCredentialService, PiiCipher piiCipher,
+                              ReusablePaymentCredentialRepository reusablePaymentCredentialRepository) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -88,6 +94,7 @@ public class ReservationService {
         this.posDeviceRepository = posDeviceRepository;
         this.paymentCredentialService = paymentCredentialService;
         this.piiCipher = piiCipher;
+        this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -460,6 +467,64 @@ public class ReservationService {
         paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    @Transactional
+    public ExtendStayResult extendStay(int id, LocalDate newCheckOutDate) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        if (!reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new InvalidReservationException();
+        }
+
+        if (!newCheckOutDate.isAfter(reservation.checkOutDate())) {
+            throw new InvalidReservationException();
+        }
+
+        long totalNights = ChronoUnit.DAYS.between(reservation.checkInDate(), newCheckOutDate);
+
+        if ((reservation.rateType().equals(Rate.RateType.WEEKLY_5) && totalNights % 5 != 0)
+            || (reservation.rateType().equals(Rate.RateType.WEEKLY_7) && totalNights % 7 != 0)) {
+            throw new InvalidReservationException();
+        }
+
+        boolean hasConflict = reservationRepository.findOverlapping(reservation.roomId(), newCheckOutDate, reservation.checkOutDate())
+                                                    .stream()
+                                                    .anyMatch(r -> r.id() != id);
+
+        if (hasConflict) {
+            throw new DateConflictException();
+        }
+
+        long additionalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), newCheckOutDate)
+                                  - getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(folio.id())
+                .stream()
+                .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(now))
+                .findFirst()
+                .orElseThrow(NoReusableCredentialException::new);
+
+        BigDecimal chargeAmount = folioService.estimateWithTax(rate.amount().multiply(BigDecimal.valueOf(additionalPeriods)));
+
+        paymentService.chargeStoredCredential(folio, credential, chargeAmount, "Stay extension to " + newCheckOutDate);
+
+        Reservation extended = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
+                reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
+                reservation.createdAt(), now, reservation.confirmationCode());
+
+        Reservation saved = reservationRepository.save(extended);
+
+        return new ExtendStayResult(saved, chargeAmount);
     }
 
     @Transactional

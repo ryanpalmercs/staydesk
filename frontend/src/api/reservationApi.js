@@ -36,6 +36,10 @@ export function checkOut(id) {
     return api.post(`/reservations/${id}/check-out`)
 }
 
+export function extendStay(id, checkOutDate) {
+    return api.post(`/reservations/${id}/extend`, { checkOutDate })
+}
+
 export function cancelReservation(id) {
     return api.post(`/reservations/${id}/cancel`)
 }

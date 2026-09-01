@@ -15,6 +15,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
+import ExtendStayModal from '../components/ExtendStayModal'
 
 const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
@@ -34,6 +35,7 @@ function DashboardPage() {
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [folioId, setFolioId] = useState(null)
+    const [extendTarget, setExtendTarget] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
 
     function fetchData() {
@@ -211,6 +213,18 @@ function DashboardPage() {
                     onCheckIn={() => setCheckInTarget(selectedEvent.reservationId)}
                     onCheckOut={handleCheckOut}
                     onViewFolio={handleViewFolio}
+                    onExtend={() => {
+                        setExtendTarget(reservations.find(r => r.id === selectedEvent.reservationId))
+                        setSelectedEvent(null)
+                    }}
+                />
+            )}
+
+            {extendTarget != null && (
+                <ExtendStayModal
+                    reservation={extendTarget}
+                    onSaved={() => { setExtendTarget(null); fetchData() }}
+                    onClose={() => setExtendTarget(null)}
                 />
             )}
 
