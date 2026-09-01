@@ -51,3 +51,7 @@ export function clearReservationLegalHold(id) {
 export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
     return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
 }
+
+export function backlogCheckIn(payload) {
+    return api.post('/admin/reservations/backlog-check-in', payload)
+}
