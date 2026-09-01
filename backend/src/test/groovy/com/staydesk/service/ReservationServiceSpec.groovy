@@ -1,17 +1,23 @@
 package com.staydesk.service
 
 import com.staydesk.exception.InvalidReservationException
+import com.staydesk.exception.RoomNotFoundException
 import com.staydesk.exception.RoomTypeUnavailableException
+import com.staydesk.exception.RoomUnavailableException
 import com.staydesk.exception.StayAlreadySettledException
 import com.staydesk.exception.StayNotSettledException
+import com.staydesk.model.EncryptedString
 import com.staydesk.model.Folio
+import com.staydesk.model.Guest
 import com.staydesk.model.Rate
 import com.staydesk.model.Reservation
 import com.staydesk.model.Room
 import com.staydesk.model.RoomType
+import com.staydesk.model.request.BacklogCheckInRequest
 import com.staydesk.model.request.CreateMultiRoomReservationRequest
 import com.staydesk.provider.ProviderFactory
 import com.staydesk.repository.*
+import com.staydesk.security.PiiCipher
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Unroll
@@ -34,11 +40,12 @@ class ReservationServiceSpec extends Specification {
     ProviderFactory providerFactory = Mock()
     PosDeviceRepository posDeviceRepository = Mock()
     PaymentCredentialService paymentCredentialService = Mock()
+    PiiCipher piiCipher = Mock()
 
     @Subject
     ReservationService reservationService = new ReservationService(reservationRepository, roomRepository, roomTypeRepository,
             folioRepository, rateRepository, paymentService, folioService, guestRepository, smsService,
-            lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService)
+            lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService, piiCipher)
 
     private static Reservation reservation(Reservation.ReservationStatus status, Reservation.Channel channel,
                                            Rate.RateType rateType = Rate.RateType.NIGHTLY) {
@@ -422,5 +429,105 @@ class ReservationServiceSpec extends Specification {
         then:
         thrown(RoomTypeUnavailableException)
         0 * paymentService.chargeFullStay(*_)
+    }
+
+    private static BacklogCheckInRequest backlogRequest(String email = null, String phoneNumber = null) {
+        new BacklogCheckInRequest(5, "James", "Reece", email, phoneNumber,
+                LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28), null, null)
+    }
+
+    def "backlogCheckIn creates a placeholder guest, an empty folio, and a CHECKED_IN reservation with no payment activity"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedGuest = new Guest(9, new EncryptedString("James"), new EncryptedString("Reece"),
+                new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
+                false, false, null, null, null, false, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(22, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomRepository.findById(5) >> Optional.of(room)
+        piiCipher.hash(_) >> "hashed-placeholder-email"
+        guestRepository.findByEmailHash("hashed-placeholder-email") >> Optional.empty()
+        reservationRepository.existsByConfirmationCode(_) >> false
+
+        when:
+        def result = reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        1 * guestRepository.save({ Guest g ->
+            g.firstName().value() == "James" && g.lastName().value() == "Reece" &&
+                    g.phoneNumber().value() == "0000000000" && !g.smsConsent()
+        }) >> savedGuest
+        1 * folioRepository.save({ Folio f -> f.status() == Folio.FolioStatus.OPEN && f.total().compareTo(BigDecimal.ZERO) == 0 }) >> savedFolio
+        1 * roomRepository.updateRoomStatus(5, Room.RoomStatus.OCCUPIED)
+        1 * reservationRepository.save({ Reservation r ->
+            r.folioId() == 22 && r.guestId() == 9 && r.roomId() == 5 && r.roomTypeId() == 2 &&
+                    r.status() == Reservation.ReservationStatus.CHECKED_IN && r.checkedInAt() != null &&
+                    r.checkedOutAt() == null && r.rateType() == Rate.RateType.NIGHTLY && r.guestCount() == 1 &&
+                    r.channel() == Reservation.Channel.WALK_IN
+        }) >> { Reservation r -> r }
+        0 * paymentService._
+        result.status() == Reservation.ReservationStatus.CHECKED_IN
+    }
+
+    def "backlogCheckIn reuses an existing guest found by email hash instead of creating a new one"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def existingGuest = new Guest(3, new EncryptedString("James"), new EncryptedString("Reece"),
+                new EncryptedString("james@example.com"), "hashed-real-email", new EncryptedString("5551234567"),
+                true, false, null, null, null, false, LocalDateTime.now(), LocalDateTime.now())
+
+        roomRepository.findById(5) >> Optional.of(room)
+        piiCipher.hash("james@example.com") >> "hashed-real-email"
+        guestRepository.findByEmailHash("hashed-real-email") >> Optional.of(existingGuest)
+        folioRepository.save(_) >> new Folio(22, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.backlogCheckIn(backlogRequest("James@Example.com"))
+
+        then:
+        0 * guestRepository.save(_)
+        result.guestId() == 3
+    }
+
+    def "backlogCheckIn throws RoomNotFoundException when the room doesn't exist"() {
+        given:
+        roomRepository.findById(5) >> Optional.empty()
+
+        when:
+        reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        thrown(RoomNotFoundException)
+        0 * guestRepository.save(_)
+        0 * reservationRepository.save(_)
+    }
+
+    def "backlogCheckIn throws RoomUnavailableException when the room is already OCCUPIED"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.OCCUPIED, null, null, LocalDateTime.now(), LocalDateTime.now())
+        roomRepository.findById(5) >> Optional.of(room)
+
+        when:
+        reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        thrown(RoomUnavailableException)
+        0 * guestRepository.save(_)
+        0 * reservationRepository.save(_)
+    }
+
+    def "backlogCheckIn throws InvalidReservationException when checkOutDate is not after checkInDate"() {
+        given:
+        def request = new BacklogCheckInRequest(5, "James", "Reece", null, null,
+                LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 21), null, null)
+
+        when:
+        reservationService.backlogCheckIn(request)
+
+        then:
+        thrown(InvalidReservationException)
+        0 * roomRepository.findById(_)
     }
 }

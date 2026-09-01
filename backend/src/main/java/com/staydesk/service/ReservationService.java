@@ -11,10 +11,13 @@ import com.staydesk.exception.NoRoomAvailableException;
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
+import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
+import com.staydesk.exception.RoomUnavailableException;
 import com.staydesk.exception.StayAlreadySettledException;
 import com.staydesk.exception.StayNotSettledException;
+import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Folio;
 import com.staydesk.model.Guest;
 import com.staydesk.model.Rate;
@@ -23,6 +26,7 @@ import com.staydesk.model.Room;
 import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
+import com.staydesk.model.request.BacklogCheckInRequest;
 import com.staydesk.model.request.CreateMultiRoomReservationRequest;
 import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.FolioRepository;
@@ -32,6 +36,7 @@ import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.RoomRepository;
 import com.staydesk.repository.RoomTypeRepository;
+import com.staydesk.security.PiiCipher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +48,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ReservationService {
@@ -60,6 +66,10 @@ public class ReservationService {
     private final ProviderFactory providerFactory;
     private final PosDeviceRepository posDeviceRepository;
     private final PaymentCredentialService paymentCredentialService;
+    private final PiiCipher piiCipher;
+
+    private static final String BACKLOG_PLACEHOLDER_PHONE = "0000000000";
+    private static final int STANDARD_CHECK_IN_HOUR = 15;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
@@ -67,7 +77,7 @@ public class ReservationService {
                               GuestRepository guestRepository, SmsService smsService,
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
                               PosDeviceRepository posDeviceRepository,
-                              PaymentCredentialService paymentCredentialService) {
+                              PaymentCredentialService paymentCredentialService, PiiCipher piiCipher) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -81,6 +91,7 @@ public class ReservationService {
         this.providerFactory = providerFactory;
         this.posDeviceRepository = posDeviceRepository;
         this.paymentCredentialService = paymentCredentialService;
+        this.piiCipher = piiCipher;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -445,6 +456,59 @@ public class ReservationService {
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
+    }
+
+    @Transactional
+    public Reservation backlogCheckIn(BacklogCheckInRequest request) {
+        if (!request.checkOutDate().isAfter(request.checkInDate())) {
+            throw new InvalidReservationException();
+        }
+
+        Room room = roomRepository.findById(request.roomId()).orElseThrow(RoomNotFoundException::new);
+
+        if (room.status() == Room.RoomStatus.OCCUPIED) {
+            throw new RoomUnavailableException();
+        }
+
+        Guest guest = findOrCreateBacklogGuest(request);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Folio folio = folioRepository.save(new Folio(0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
+
+        String confirmationCode = generateUniqueConfirmationCode();
+
+        Rate.RateType rateType = request.rateType() != null ? request.rateType() : Rate.RateType.NIGHTLY;
+        int guestCount = request.guestCount() != null ? request.guestCount() : 1;
+
+        Reservation reservation = reservationRepository.save(new Reservation(0, folio.id(), guest.id(), room.id(), room.roomTypeId(),
+                request.checkInDate(), request.checkOutDate(), Reservation.ReservationStatus.CHECKED_IN,
+                request.checkInDate().atTime(STANDARD_CHECK_IN_HOUR, 0), null, rateType, guestCount,
+                Reservation.Channel.WALK_IN, false, now, now, confirmationCode));
+
+        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
+
+        return reservation;
+    }
+
+    private Guest findOrCreateBacklogGuest(BacklogCheckInRequest request) {
+        String email = request.email() != null && !request.email().isBlank()
+                ? request.email().strip().toLowerCase()
+                : "backlog." + UUID.randomUUID() + "@placeholder.martinhousemotel.local";
+
+        String phoneNumber = request.phoneNumber() != null && !request.phoneNumber().isBlank()
+                ? request.phoneNumber()
+                : BACKLOG_PLACEHOLDER_PHONE;
+
+        String emailHash = piiCipher.hash(email);
+
+        return guestRepository.findByEmailHash(emailHash).orElseGet(() -> {
+            LocalDateTime createdAt = LocalDateTime.now();
+
+            return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+                    new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
+                    false, null, null, null, false, createdAt, createdAt));
+        });
     }
 
     @Transactional

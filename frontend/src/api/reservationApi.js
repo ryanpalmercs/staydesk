@@ -59,3 +59,7 @@ export function createMultiRoomReservation(payload) {
 export function getUnsettledReservations() {
     return api.get('/reservations/unsettled')
 }
+
+export function backlogCheckIn(payload) {
+    return api.post('/admin/reservations/backlog-check-in', payload)
+}
