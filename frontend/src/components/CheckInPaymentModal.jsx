@@ -247,7 +247,8 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                 rateType: reservation.rateType,
                 guestCount: reservation.guestCount,
                 checkInDate: reservation.checkInDate,
-                checkOutDate: reservation.checkOutDate
+                checkOutDate: reservation.checkOutDate,
+                guestId: reservation.guestId
             }).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
         }
 

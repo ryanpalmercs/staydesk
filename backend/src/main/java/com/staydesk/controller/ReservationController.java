@@ -237,11 +237,12 @@ public class ReservationController {
     public ResponseEntity<ReservationEstimateResponse> getEstimate(@RequestParam Rate.RateType rateType,
                                                                    @RequestParam int guestCount,
                                                                    @RequestParam LocalDate checkInDate,
-                                                                   @RequestParam LocalDate checkOutDate) {
+                                                                   @RequestParam LocalDate checkOutDate,
+                                                                   @RequestParam(required = false) Integer guestId) {
         LOGGER.info("Estimating total for rateType={} guestCount={} {} to {}", rateType, guestCount, checkInDate, checkOutDate);
 
         try {
-            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate));
+            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate, guestId));
         } catch (RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         }

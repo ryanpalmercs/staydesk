@@ -6,6 +6,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.lang.Nullable;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -13,7 +14,8 @@ import java.util.UUID;
 public record Guest(@Id int id, EncryptedString firstName, EncryptedString lastName, @Nullable EncryptedString email,
                     @JsonIgnore @Nullable String emailHash, EncryptedString phoneNumber, boolean smsConsent,
                     boolean flagged, @Nullable String flagReason, @Nullable LocalDateTime flaggedDate,
-                    @Nullable UUID flaggedBy, boolean legalHold, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                    @Nullable UUID flaggedBy, boolean legalHold, boolean legacyPricing,
+                    @Nullable BigDecimal legacyPricingAmount, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     @JsonProperty()
     public String name() {
