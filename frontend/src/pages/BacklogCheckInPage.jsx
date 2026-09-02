@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { differenceInCalendarDays, parseISO } from "date-fns"
 import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { backlogCheckIn } from "../api/reservationApi"
@@ -26,6 +27,14 @@ function BacklogCheckInPage() {
     const availableRooms = rooms.filter(r => r.status === 'AVAILABLE').sort((a, b) => a.roomNumber - b.roomNumber)
     const roomTypeName = id => roomTypes.find(rt => rt.id === id)?.name.replace('_', ' ') ?? ''
 
+    const totalNights = form.checkInDate && form.checkOutDate
+        ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
+        : 0
+
+    const rateType = totalNights > 0 && totalNights % 7 === 0 ? 'WEEKLY_7'
+        : totalNights > 0 && totalNights % 5 === 0 ? 'WEEKLY_5'
+            : 'NIGHTLY'
+
     useEffect(() => {
         getRooms().then(res => setRooms(res.data ?? [])).catch(err => console.error(err))
         getRoomTypes().then(res => setRoomTypes(res.data ?? [])).catch(err => console.error(err))
@@ -49,7 +58,8 @@ function BacklogCheckInPage() {
                 email: form.email || null,
                 phoneNumber: form.phoneNumber || null,
                 checkInDate: form.checkInDate,
-                checkOutDate: form.checkOutDate
+                checkOutDate: form.checkOutDate,
+                rateType
             })
 
             setSuccess(response.data)
