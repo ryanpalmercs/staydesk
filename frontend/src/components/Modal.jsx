@@ -6,6 +6,7 @@ const SIZE_CLASSES = {
     sm: "max-w-sm",
     md: "max-w-md",
     lg: "max-w-lg",
+    "lg-xl": "max-w-xl",
     xl: "max-w-2xl",
     wide: "max-w-md md:max-w-2xl lg:max-w-4xl",
     reservation: "max-w-md sm:max-w-3xl",

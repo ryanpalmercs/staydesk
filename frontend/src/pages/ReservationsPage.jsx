@@ -12,6 +12,7 @@ import DoorCodeModal from "../components/DoorCodeModal"
 import { useAuth } from "../contexts/AuthContext"
 import DeleteReservationModal from "../components/DeleteReservationModal"
 import ConfirmDialog from "../components/ConfirmDialog"
+import ExtendStayModal from "../components/ExtendStayModal"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -33,6 +34,7 @@ function ReservationsPage() {
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('desc')
     const [cancelTarget, setCancelTarget] = useState(null)
+    const [extendTarget, setExtendTarget] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -282,6 +284,9 @@ function ReservationsPage() {
                                     {res.status === 'CHECKED_IN' && (
                                         <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-green hover:text-black">Check Out</button>
                                     )}
+                                    {res.status === 'CHECKED_IN' && (
+                                        <button onClick={() => setExtendTarget(res)} className="text-sm font-medium text-muted hover:text-green">Extend Stay</button>
+                                    )}
                                     {res.status === 'CHECKED_IN' && canViewDoorCode && (
                                         <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-muted hover:text-green">Door Code</button>
                                     )}
@@ -314,6 +319,14 @@ function ReservationsPage() {
                     reservationId={doorCodeTarget.id}
                     roomNumber={roomMap[doorCodeTarget.roomId]?.roomNumber ?? '—'}
                     onClose={() => setDoorCodeTarget(null)}
+                />
+            )}
+
+            {extendTarget != null && (
+                <ExtendStayModal
+                    reservation={extendTarget}
+                    onSaved={() => { setExtendTarget(null); fetchReservations() }}
+                    onClose={() => setExtendTarget(null)}
                 />
             )}
 
