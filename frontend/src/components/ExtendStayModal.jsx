@@ -26,7 +26,8 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
             rateType: reservation.rateType,
             guestCount: reservation.guestCount,
             checkInDate: reservation.checkInDate,
-            checkOutDate: reservation.checkOutDate
+            checkOutDate: reservation.checkOutDate,
+            guestId: reservation.guestId
         }).then(res => setCurrentTotal(res.data.total)).catch(() => setCurrentTotal(null))
     }, [])
 
@@ -40,7 +41,8 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
             rateType: reservation.rateType,
             guestCount: reservation.guestCount,
             checkInDate: reservation.checkInDate,
-            checkOutDate
+            checkOutDate,
+            guestId: reservation.guestId
         }).then(res => { if (!cancelled) setNewTotal(res.data.total) }).catch(() => { if (!cancelled) setNewTotal(null) })
         return () => { cancelled = true }
     }, [checkOutDate])

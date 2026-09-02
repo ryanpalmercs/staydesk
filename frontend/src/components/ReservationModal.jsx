@@ -131,7 +131,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
         let cancelled = false
-        getReservationEstimate({ rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate })
+        getReservationEstimate({
+            rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
+            guestId: form.guestId || undefined
+        })
             .then(res => {
                 if (!cancelled) {
                     setEstimate(res.data)
@@ -143,7 +146,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 }
             })
         return () => { cancelled = true }
-    }, [rateType, guestCount, form.checkInDate, form.checkOutDate])
+    }, [rateType, guestCount, form.checkInDate, form.checkOutDate, form.guestId])
 
     async function handleAddExtra() {
         if (!selectedExtraId || !folioId) return
