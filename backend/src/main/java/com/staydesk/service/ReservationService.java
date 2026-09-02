@@ -7,28 +7,37 @@ import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.DateConflictException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
+import com.staydesk.exception.NoReusableCredentialException;
 import com.staydesk.exception.NoRoomAvailableException;
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.exception.RateNotFoundException;
 import com.staydesk.exception.ReservationNotFoundException;
+import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
+import com.staydesk.exception.RoomUnavailableException;
+import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Folio;
 import com.staydesk.model.Guest;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.ReusablePaymentCredential;
 import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
+import com.staydesk.model.request.BacklogCheckInRequest;
 import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.repository.PosDeviceRepository;
 import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
+import com.staydesk.repository.ReusablePaymentCredentialRepository;
 import com.staydesk.repository.RoomRepository;
 import com.staydesk.repository.RoomTypeRepository;
+import com.staydesk.security.PiiCipher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +48,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ReservationService {
@@ -56,6 +66,11 @@ public class ReservationService {
     private final ProviderFactory providerFactory;
     private final PosDeviceRepository posDeviceRepository;
     private final PaymentCredentialService paymentCredentialService;
+    private final PiiCipher piiCipher;
+    private final ReusablePaymentCredentialRepository reusablePaymentCredentialRepository;
+
+    private static final String BACKLOG_PLACEHOLDER_PHONE = "0000000000";
+    private static final int STANDARD_CHECK_IN_HOUR = 15;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
                               RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
@@ -63,7 +78,8 @@ public class ReservationService {
                               GuestRepository guestRepository, SmsService smsService,
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
                               PosDeviceRepository posDeviceRepository,
-                              PaymentCredentialService paymentCredentialService) {
+                              PaymentCredentialService paymentCredentialService, PiiCipher piiCipher,
+                              ReusablePaymentCredentialRepository reusablePaymentCredentialRepository) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -77,6 +93,8 @@ public class ReservationService {
         this.providerFactory = providerFactory;
         this.posDeviceRepository = posDeviceRepository;
         this.paymentCredentialService = paymentCredentialService;
+        this.piiCipher = piiCipher;
+        this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
     }
 
     private static long getRemainingPeriods(Reservation reservation) {
@@ -361,6 +379,59 @@ public class ReservationService {
     }
 
     @Transactional
+    public Reservation backlogCheckIn(BacklogCheckInRequest request) {
+        if (!request.checkOutDate().isAfter(request.checkInDate())) {
+            throw new InvalidReservationException();
+        }
+
+        Room room = roomRepository.findById(request.roomId()).orElseThrow(RoomNotFoundException::new);
+
+        if (room.status() == Room.RoomStatus.OCCUPIED) {
+            throw new RoomUnavailableException();
+        }
+
+        Guest guest = findOrCreateBacklogGuest(request);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        String confirmationCode = generateUniqueConfirmationCode();
+
+        Rate.RateType rateType = request.rateType() != null ? request.rateType() : Rate.RateType.NIGHTLY;
+        int guestCount = request.guestCount() != null ? request.guestCount() : 1;
+
+        Reservation savedReservation = reservationRepository.save(new Reservation(0, guest.id(), room.id(), room.roomTypeId(),
+                request.checkInDate(), request.checkOutDate(), Reservation.ReservationStatus.CHECKED_IN,
+                request.checkInDate().atTime(STANDARD_CHECK_IN_HOUR, 0), null, rateType, guestCount,
+                Reservation.Channel.WALK_IN, false, now, now, confirmationCode));
+
+        folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
+
+        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
+
+        return savedReservation;
+    }
+
+    private Guest findOrCreateBacklogGuest(BacklogCheckInRequest request) {
+        String email = request.email() != null && !request.email().isBlank()
+                ? request.email().strip().toLowerCase()
+                : "backlog." + UUID.randomUUID() + "@placeholder.martinhousemotel.local";
+
+        String phoneNumber = request.phoneNumber() != null && !request.phoneNumber().isBlank()
+                ? request.phoneNumber()
+                : BACKLOG_PLACEHOLDER_PHONE;
+
+        String emailHash = piiCipher.hash(email);
+
+        return guestRepository.findByEmailHash(emailHash).orElseGet(() -> {
+            LocalDateTime createdAt = LocalDateTime.now();
+
+            return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+                    new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
+                    false, null, null, null, false, createdAt, createdAt));
+        });
+    }
+
+    @Transactional
     public Reservation checkOut(int id) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
@@ -396,6 +467,64 @@ public class ReservationService {
         paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    @Transactional
+    public ExtendStayResult extendStay(int id, LocalDate newCheckOutDate) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        if (!reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
+            throw new InvalidReservationException();
+        }
+
+        if (!newCheckOutDate.isAfter(reservation.checkOutDate())) {
+            throw new InvalidReservationException();
+        }
+
+        long totalNights = ChronoUnit.DAYS.between(reservation.checkInDate(), newCheckOutDate);
+
+        if ((reservation.rateType().equals(Rate.RateType.WEEKLY_5) && totalNights % 5 != 0)
+            || (reservation.rateType().equals(Rate.RateType.WEEKLY_7) && totalNights % 7 != 0)) {
+            throw new InvalidReservationException();
+        }
+
+        boolean hasConflict = reservationRepository.findOverlapping(reservation.roomId(), newCheckOutDate, reservation.checkOutDate())
+                                                    .stream()
+                                                    .anyMatch(r -> r.id() != id);
+
+        if (hasConflict) {
+            throw new DateConflictException();
+        }
+
+        long additionalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), newCheckOutDate)
+                                  - getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(folio.id())
+                .stream()
+                .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(now))
+                .findFirst()
+                .orElseThrow(NoReusableCredentialException::new);
+
+        BigDecimal chargeAmount = folioService.estimateWithTax(rate.amount().multiply(BigDecimal.valueOf(additionalPeriods)));
+
+        paymentService.chargeStoredCredential(folio, credential, chargeAmount, "Stay extension to " + newCheckOutDate);
+
+        Reservation extended = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
+                reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
+                reservation.createdAt(), now, reservation.confirmationCode());
+
+        Reservation saved = reservationRepository.save(extended);
+
+        return new ExtendStayResult(saved, chargeAmount);
     }
 
     @Transactional

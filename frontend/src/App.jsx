@@ -22,6 +22,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicy'
 import SmsTermsPage from './pages/SmsTermsPage'
 import WelcomePage from './pages/WelcomePage'
 import PendingIncidentChargesPage from './pages/PendingIncidentChargesPage'
+import BacklogCheckInPage from './pages/BacklogCheckInPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -86,6 +87,7 @@ export default function App() {
                                         <Route path="/settings" element={<SettingsPage />} />
                                         <Route path="/reports" element={<ReportsPage />} />
                                         <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
+                                        <Route path="/backlog-check-in" element={<BacklogCheckInPage />} />
                                     </Route>
                                 </Route>
                                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>

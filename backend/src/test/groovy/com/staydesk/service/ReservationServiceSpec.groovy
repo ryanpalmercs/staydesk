@@ -1,11 +1,21 @@
 package com.staydesk.service
 
+import com.staydesk.exception.DateConflictException
 import com.staydesk.exception.InvalidReservationException
+import com.staydesk.exception.NoReusableCredentialException
+import com.staydesk.exception.RoomNotFoundException
+import com.staydesk.exception.RoomUnavailableException
+import com.staydesk.model.EncryptedString
 import com.staydesk.model.Folio
+import com.staydesk.model.Guest
 import com.staydesk.model.Rate
 import com.staydesk.model.Reservation
+import com.staydesk.model.ReusablePaymentCredential
+import com.staydesk.model.Room
+import com.staydesk.model.request.BacklogCheckInRequest
 import com.staydesk.provider.ProviderFactory
 import com.staydesk.repository.*
+import com.staydesk.security.PiiCipher
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Unroll
@@ -28,11 +38,14 @@ class ReservationServiceSpec extends Specification {
     ProviderFactory providerFactory = Mock()
     PosDeviceRepository posDeviceRepository = Mock()
     PaymentCredentialService paymentCredentialService = Mock()
+    PiiCipher piiCipher = Mock()
+    ReusablePaymentCredentialRepository reusablePaymentCredentialRepository = Mock()
 
     @Subject
     ReservationService reservationService = new ReservationService(reservationRepository, roomRepository, roomTypeRepository,
             folioRepository, rateRepository, paymentService, folioService, guestRepository, smsService,
-            lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService)
+            lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService, piiCipher,
+            reusablePaymentCredentialRepository)
 
     private static Reservation reservation(Reservation.ReservationStatus status, Reservation.Channel channel,
                                            Rate.RateType rateType = Rate.RateType.NIGHTLY) {
@@ -156,5 +169,242 @@ class ReservationServiceSpec extends Specification {
         1 * paymentCredentialService.scheduleExpiry(9, { LocalDateTime expiry ->
             expiry.isAfter(LocalDateTime.now().plusDays(29)) && expiry.isBefore(LocalDateTime.now().plusDays(31))
         })
+    }
+
+    private static BacklogCheckInRequest backlogRequest(String email = null, String phoneNumber = null) {
+        new BacklogCheckInRequest(5, "James", "Reece", email, phoneNumber,
+                LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28), null, null)
+    }
+
+    def "backlogCheckIn creates a placeholder guest, then a CHECKED_IN reservation and its folio, with no payment activity"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedGuest = new Guest(9, new EncryptedString("James"), new EncryptedString("Reece"),
+                new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
+                false, false, null, null, null, false, LocalDateTime.now(), LocalDateTime.now())
+        def savedReservation = new Reservation(11, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
+                Reservation.ReservationStatus.CHECKED_IN, LocalDate.of(2026, 8, 21).atTime(15, 0), null,
+                Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
+
+        roomRepository.findById(5) >> Optional.of(room)
+        piiCipher.hash(_) >> "hashed-placeholder-email"
+        guestRepository.findByEmailHash("hashed-placeholder-email") >> Optional.empty()
+        reservationRepository.existsByConfirmationCode(_) >> false
+
+        when:
+        def result = reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        1 * guestRepository.save({ Guest g ->
+            g.firstName().value() == "James" && g.lastName().value() == "Reece" &&
+                    g.phoneNumber().value() == "0000000000" && !g.smsConsent()
+        }) >> savedGuest
+        1 * reservationRepository.save({ Reservation r ->
+            r.guestId() == 9 && r.roomId() == 5 && r.roomTypeId() == 2 &&
+                    r.status() == Reservation.ReservationStatus.CHECKED_IN && r.checkedInAt() != null &&
+                    r.checkedOutAt() == null && r.rateType() == Rate.RateType.NIGHTLY && r.guestCount() == 1 &&
+                    r.channel() == Reservation.Channel.WALK_IN
+        }) >> savedReservation
+        1 * folioRepository.save({ Folio f ->
+            f.reservationId() == 11 && f.status() == Folio.FolioStatus.OPEN && f.total().compareTo(BigDecimal.ZERO) == 0
+        })
+        1 * roomRepository.updateRoomStatus(5, Room.RoomStatus.OCCUPIED)
+        0 * paymentService._
+        result.status() == Reservation.ReservationStatus.CHECKED_IN
+    }
+
+    def "backlogCheckIn reuses an existing guest found by email hash instead of creating a new one"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def existingGuest = new Guest(3, new EncryptedString("James"), new EncryptedString("Reece"),
+                new EncryptedString("james@example.com"), "hashed-real-email", new EncryptedString("5551234567"),
+                true, false, null, null, null, false, LocalDateTime.now(), LocalDateTime.now())
+
+        roomRepository.findById(5) >> Optional.of(room)
+        piiCipher.hash("james@example.com") >> "hashed-real-email"
+        guestRepository.findByEmailHash("hashed-real-email") >> Optional.of(existingGuest)
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> { Folio f -> f }
+
+        when:
+        def result = reservationService.backlogCheckIn(backlogRequest("James@Example.com"))
+
+        then:
+        0 * guestRepository.save(_)
+        result.guestId() == 3
+    }
+
+    def "backlogCheckIn throws RoomNotFoundException when the room doesn't exist"() {
+        given:
+        roomRepository.findById(5) >> Optional.empty()
+
+        when:
+        reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        thrown(RoomNotFoundException)
+        0 * guestRepository.save(_)
+        0 * reservationRepository.save(_)
+    }
+
+    def "backlogCheckIn throws RoomUnavailableException when the room is already OCCUPIED"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.OCCUPIED, null, null, LocalDateTime.now(), LocalDateTime.now())
+        roomRepository.findById(5) >> Optional.of(room)
+
+        when:
+        reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        thrown(RoomUnavailableException)
+        0 * guestRepository.save(_)
+        0 * reservationRepository.save(_)
+    }
+
+    def "backlogCheckIn throws InvalidReservationException when checkOutDate is not after checkInDate"() {
+        given:
+        def request = new BacklogCheckInRequest(5, "James", "Reece", null, null,
+                LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 21), null, null)
+
+        when:
+        reservationService.backlogCheckIn(request)
+
+        then:
+        thrown(InvalidReservationException)
+        0 * roomRepository.findById(_)
+    }
+
+    private static ReusablePaymentCredential credential(LocalDateTime expiresAt = null) {
+        new ReusablePaymentCredential(4, 9, 1, "authorizenet", "cust-1", "tok-1", "4242",
+                false, null, expiresAt, LocalDateTime.now(), LocalDateTime.now())
+    }
+
+    def "extendStay charges the stored credential for the added periods and updates checkOutDate"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(350), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 17), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 17))
+
+        then:
+        1 * paymentService.chargeStoredCredential(folio, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }, _)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 17)
+        result.reservation().checkInDate() == LocalDate.of(2026, 7, 10)
+        result.amountCharged().compareTo(BigDecimal.valueOf(350)) == 0
+    }
+
+    def "extendStay throws InvalidReservationException when the reservation isn't CHECKED_IN"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 20))
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    def "extendStay throws InvalidReservationException when the new checkout isn't after the current one"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 13))
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    def "extendStay throws InvalidReservationException when the extended length doesn't land on a WEEKLY_7 boundary"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    def "extendStay allows any extension length for NIGHTLY reservations and charges per added night"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+
+        then:
+        1 * paymentService.chargeStoredCredential(folio, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, _)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
+        result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
+    }
+
+    def "extendStay throws DateConflictException when another reservation occupies the room during the extension window"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def conflicting = new Reservation(2, 8, 4, 2, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 15),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN,
+                false, LocalDateTime.now(), LocalDateTime.now(), "654321")
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> [conflicting]
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+
+        then:
+        thrown(DateConflictException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    def "extendStay throws NoReusableCredentialException when there's no active credential on file"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> []
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+
+        then:
+        thrown(NoReusableCredentialException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
     }
 }

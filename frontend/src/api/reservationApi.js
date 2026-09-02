@@ -36,6 +36,10 @@ export function checkOut(id) {
     return api.post(`/reservations/${id}/check-out`)
 }
 
+export function extendStay(id, checkOutDate) {
+    return api.post(`/reservations/${id}/extend`, { checkOutDate })
+}
+
 export function cancelReservation(id) {
     return api.post(`/reservations/${id}/cancel`)
 }
@@ -50,4 +54,8 @@ export function clearReservationLegalHold(id) {
 
 export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
     return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
+}
+
+export function backlogCheckIn(payload) {
+    return api.post('/admin/reservations/backlog-check-in', payload)
 }
