@@ -1,15 +1,19 @@
 import { useRef, useState } from "react"
 import { PatternFormat } from "react-number-format"
 import { updateGuest } from "../api/guestApi"
+import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import Modal from "./Modal"
 
 function GuestEditModal({ guest, onSaved, onClose }) {
+    const [priceFocused, setPriceFocused] = useState(false)
     const [form, setForm] = useState({
         firstName: guest.firstName,
         lastName: guest.lastName,
         email: guest.email ?? '',
         phoneNumber: guest.phoneNumber,
-        smsConsent: guest.smsConsent
+        smsConsent: guest.smsConsent,
+        legacyPricing: guest.legacyPricing ?? false,
+        legacyPricingAmount: guest.legacyPricingAmount ?? ''
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -23,9 +27,15 @@ function GuestEditModal({ guest, onSaved, onClose }) {
     async function handleSubmit(e) {
         e.preventDefault()
         setError(null)
+
+        if (form.legacyPricing && !(parseFloat(form.legacyPricingAmount) > 0)) {
+            setError('Enter a legacy pricing amount greater than zero.')
+            return
+        }
+
         setSubmitting(true)
         try {
-            await updateGuest(guest.id, form)
+            await updateGuest(guest.id, { ...form, legacyPricingAmount: form.legacyPricing ? form.legacyPricingAmount : null })
             onSaved()
         } catch (err) {
             if (err.response?.status === 400) {
@@ -84,6 +94,32 @@ function GuestEditModal({ guest, onSaved, onClose }) {
                         data rates may apply. See our <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-green underline">SMS Terms</a>.
                     </span>
                 </label>
+
+                <label className="flex items-start gap-2 text-sm text-muted">
+                    <input
+                        type="checkbox"
+                        checked={form.legacyPricing}
+                        onChange={e => setForm({ ...form, legacyPricing: e.target.checked })}
+                        className="mt-1"
+                    />
+                    <span>Legacy Pricing — grandfather this guest into a fixed rate instead of current pricing.</span>
+                </label>
+
+                {form.legacyPricing && (
+                    <div>
+                        <label className="block text-sm text-muted mb-1">Legacy Price</label>
+                        <input
+                            type="text"
+                            name="legacyPricingAmount"
+                            value={priceFocused ? form.legacyPricingAmount : displayPrice(form.legacyPricingAmount)}
+                            onChange={e => setForm({ ...form, legacyPricingAmount: sanitizePrice(e.target.value) })}
+                            onFocus={() => setPriceFocused(true)}
+                            onBlur={e => { setPriceFocused(false); setForm({ ...form, legacyPricingAmount: formatPrice(sanitizePrice(e.target.value)) }) }}
+                            className="filter-input"
+                            required
+                        />
+                    </div>
+                )}
 
                 {error && <p className="text-sm text-error">{error}</p>}
 
