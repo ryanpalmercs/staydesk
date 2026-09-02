@@ -6,9 +6,10 @@ import 'react-date-range/dist/styles.css'
 import 'react-date-range/dist/theme/default.css'
 import './ReservationDatePicker.css'
 
-function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeSelected }) {
+function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeSelected, excludeReservationId }) {
     const [disabledDates, setDisabledDates] = useState([])
     const [months, setMonths] = useState(window.innerWidth < 768 ? 1 : 2)
+    const [focusedRange, setFocusedRange] = useState([0, 0])
     const containerRef = useRef(null)
 
     useEffect(() => {
@@ -16,10 +17,10 @@ function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeS
             setDisabledDates([])
             return
         }
-        getRoomTypeOccupiedDates(roomTypeId).then(res => {
+        getRoomTypeOccupiedDates(roomTypeId, excludeReservationId).then(res => {
             setDisabledDates((res.data ?? []).map(date => parseISO(date)))
         })
-    }, [roomTypeId])
+    }, [roomTypeId, excludeReservationId])
 
     useEffect(() => {
         if (!containerRef.current) {
@@ -52,6 +53,8 @@ function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeS
             <DateRange
                 ranges={[selection]}
                 onChange={handleChange}
+                focusedRange={focusedRange}
+                onRangeFocusChange={setFocusedRange}
                 months={months}
                 direction={months === 1 ? 'vertical' : 'horizontal'}
                 minDate={new Date()}

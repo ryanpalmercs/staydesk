@@ -531,6 +531,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 checkInDate={form.checkInDate}
                                 checkOutDate={form.checkOutDate}
                                 onRangeSelected={({ checkInDate, checkOutDate }) => setForm(f => ({ ...f, checkInDate, checkOutDate }))}
+                                excludeReservationId={reservation?.id}
                             />
                         </div>
 

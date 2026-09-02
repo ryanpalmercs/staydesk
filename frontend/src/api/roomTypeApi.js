@@ -4,8 +4,8 @@ export function getRoomTypes() {
     return api.get('/room-types')
 }
 
-export function getRoomTypeOccupiedDates(roomTypeId) {
-    return api.get(`/room-types/${roomTypeId}/occupied-dates`)
+export function getRoomTypeOccupiedDates(roomTypeId, excludeReservationId) {
+    return api.get(`/room-types/${roomTypeId}/occupied-dates`, { params: { excludeReservationId } })
 }
 
 export function updateRoomType(id, roomType) {
