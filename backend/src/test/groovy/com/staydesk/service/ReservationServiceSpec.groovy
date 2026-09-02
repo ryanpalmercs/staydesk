@@ -1,13 +1,16 @@
 package com.staydesk.service
 
+import com.staydesk.exception.CardPresentRecordOnlyDisabledException
 import com.staydesk.exception.DateConflictException
 import com.staydesk.exception.InvalidReservationException
 import com.staydesk.exception.NoReusableCredentialException
+import com.staydesk.exception.PosDeviceNotFoundException
 import com.staydesk.exception.RoomNotFoundException
 import com.staydesk.exception.RoomUnavailableException
 import com.staydesk.model.EncryptedString
 import com.staydesk.model.Folio
 import com.staydesk.model.Guest
+import com.staydesk.model.PosDevice
 import com.staydesk.model.Rate
 import com.staydesk.model.Reservation
 import com.staydesk.model.ReusablePaymentCredential
@@ -295,6 +298,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 17), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         reservationRepository.save(_) >> { Reservation r -> r }
@@ -361,6 +365,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         reservationRepository.save(_) >> { Reservation r -> r }
@@ -402,6 +407,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> []
 
         when:
@@ -411,6 +417,83 @@ class ReservationServiceSpec extends Specification {
         thrown(NoReusableCredentialException)
         0 * reservationRepository.save(_)
         0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    def "extendStayTerminal charges the paired POS device for the added periods and updates checkOutDate"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
+
+        posDeviceRepository.findById(6) >> Optional.of(device)
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        providerFactory.getCardPresentProviderName() >> "elavon_cpi"
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), 6)
+
+        then:
+        1 * paymentService.chargeCardPresent(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, "elavon_cpi", "dev-token-1", _)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
+        result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
+    }
+
+    def "extendStayTerminal throws PosDeviceNotFoundException when the given device doesn't resolve"() {
+        given:
+        posDeviceRepository.findById(6) >> Optional.empty()
+
+        when:
+        reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), 6)
+
+        then:
+        thrown(PosDeviceNotFoundException)
+        0 * reservationRepository.findById(_)
+        0 * paymentService.chargeCardPresent(*_)
+    }
+
+    def "extendStayTerminal falls back to record-only charging when no device is given and record-only is enabled"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        providerFactory.isCardPresentRecordOnly() >> true
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), null)
+
+        then:
+        1 * paymentService.chargeCardPresent(folio, _, "elavon_cpi_manual", "no-device-record-only", _)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
+        0 * posDeviceRepository.findById(_)
+    }
+
+    def "extendStayTerminal throws CardPresentRecordOnlyDisabledException when no device is given and record-only is disabled"() {
+        given:
+        providerFactory.isCardPresentRecordOnly() >> false
+
+        when:
+        reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), null)
+
+        then:
+        thrown(CardPresentRecordOnlyDisabledException)
+        0 * reservationRepository.findById(_)
+        0 * paymentService.chargeCardPresent(*_)
     }
 
     private static Guest legacyPricedGuest(BigDecimal legacyAmount = BigDecimal.valueOf(50)) {

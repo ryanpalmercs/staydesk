@@ -23,6 +23,7 @@ import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.model.request.ExtendStayRequest;
+import com.staydesk.model.request.ExtendStayTerminalRequest;
 import com.staydesk.model.request.TerminalCheckInRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
@@ -193,6 +194,14 @@ public class ReservationController {
         LOGGER.info("Extending reservation {} to check out {}", id, request.checkOutDate());
 
         return ResponseEntity.ok(reservationService.extendStay(id, request.checkOutDate()));
+    }
+
+    @PostMapping("{id}/extend/terminal")
+    public ResponseEntity<ExtendStayResult> extendStayTerminal(@PathVariable Integer id,
+                                                                @Valid @RequestBody ExtendStayTerminalRequest request) {
+        LOGGER.info("Extending reservation {} to check out {} via terminal", id, request.checkOutDate());
+
+        return ResponseEntity.ok(reservationService.extendStayTerminal(id, request.checkOutDate(), request.posDeviceId()));
     }
 
     @PostMapping("{id}/cancel")
