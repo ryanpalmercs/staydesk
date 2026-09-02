@@ -498,8 +498,10 @@ public class ReservationService {
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 
-    @Transactional
-    public ExtendStayResult extendStay(int id, LocalDate newCheckOutDate) {
+    private record ExtendStayContext(Reservation reservation, Folio folio, BigDecimal chargeAmount, LocalDateTime now) {
+    }
+
+    private ExtendStayContext prepareExtendStay(int id, LocalDate newCheckOutDate) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -534,26 +536,62 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
-        LocalDateTime now = LocalDateTime.now();
+        BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+        BigDecimal chargeAmount = folioService.estimateWithTax(rateAmount.multiply(BigDecimal.valueOf(additionalPeriods)));
 
-        ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(folio.id())
+        return new ExtendStayContext(reservation, folio, chargeAmount, LocalDateTime.now());
+    }
+
+    private Reservation saveExtendedReservation(ExtendStayContext ctx, LocalDate newCheckOutDate) {
+        Reservation reservation = ctx.reservation();
+
+        Reservation extended = new Reservation(reservation.id(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
+                reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
+                reservation.createdAt(), ctx.now(), reservation.confirmationCode());
+
+        return reservationRepository.save(extended);
+    }
+
+    @Transactional
+    public ExtendStayResult extendStay(int id, LocalDate newCheckOutDate) {
+        ExtendStayContext ctx = prepareExtendStay(id, newCheckOutDate);
+
+        ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(ctx.folio().id())
                 .stream()
-                .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(now))
+                .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(ctx.now()))
                 .findFirst()
                 .orElseThrow(NoReusableCredentialException::new);
 
-        BigDecimal chargeAmount = folioService.estimateWithTax(rate.amount().multiply(BigDecimal.valueOf(additionalPeriods)));
+        paymentService.chargeStoredCredential(ctx.folio(), credential, ctx.chargeAmount(), "Stay extension to " + newCheckOutDate);
 
-        paymentService.chargeStoredCredential(folio, credential, chargeAmount, "Stay extension to " + newCheckOutDate);
+        Reservation saved = saveExtendedReservation(ctx, newCheckOutDate);
 
-        Reservation extended = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
-                reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), now, reservation.confirmationCode());
+        return new ExtendStayResult(saved, ctx.chargeAmount());
+    }
 
-        Reservation saved = reservationRepository.save(extended);
+    @Transactional
+    public ExtendStayResult extendStayTerminal(int id, LocalDate newCheckOutDate, Integer posDeviceId) {
+        String paymentMethodToken;
 
-        return new ExtendStayResult(saved, chargeAmount);
+        if (posDeviceId != null) {
+            paymentMethodToken = posDeviceRepository.findById(posDeviceId)
+                                                    .orElseThrow(PosDeviceNotFoundException::new)
+                                                    .deviceId();
+        } else if (providerFactory.isCardPresentRecordOnly()) {
+            paymentMethodToken = "no-device-record-only";
+        } else {
+            throw new CardPresentRecordOnlyDisabledException();
+        }
+
+        ExtendStayContext ctx = prepareExtendStay(id, newCheckOutDate);
+
+        paymentService.chargeCardPresent(ctx.folio(), ctx.chargeAmount(), providerFactory.getCardPresentProviderName(),
+                paymentMethodToken, "Stay extension to " + newCheckOutDate);
+
+        Reservation saved = saveExtendedReservation(ctx, newCheckOutDate);
+
+        return new ExtendStayResult(saved, ctx.chargeAmount());
     }
 
     @Transactional

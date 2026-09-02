@@ -40,6 +40,10 @@ export function extendStay(id, checkOutDate) {
     return api.post(`/reservations/${id}/extend`, { checkOutDate })
 }
 
+export function extendStayTerminal(id, checkOutDate, posDeviceId = null) {
+    return api.post(`/reservations/${id}/extend/terminal`, { checkOutDate, posDeviceId })
+}
+
 export function cancelReservation(id) {
     return api.post(`/reservations/${id}/cancel`)
 }
