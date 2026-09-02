@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -41,8 +42,9 @@ public class RoomTypeController {
     }
 
     @GetMapping("{id}/occupied-dates")
-    public List<LocalDate> getFullyBookedDates(@PathVariable int id) {
-        return roomTypeAvailabilityRepository.getFullyBookedDates(id);
+    public List<LocalDate> getFullyBookedDates(@PathVariable int id,
+                                               @RequestParam(required = false) Integer excludeReservationId) {
+        return roomTypeAvailabilityRepository.getFullyBookedDates(id, excludeReservationId);
     }
 
     @PutMapping("{id}")
