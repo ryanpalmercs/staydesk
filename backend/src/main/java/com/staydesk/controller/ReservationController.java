@@ -23,6 +23,7 @@ import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.model.request.ExtendStayRequest;
+import com.staydesk.model.request.ExtendStayTerminalRequest;
 import com.staydesk.model.request.TerminalCheckInRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
@@ -195,6 +196,14 @@ public class ReservationController {
         return ResponseEntity.ok(reservationService.extendStay(id, request.checkOutDate()));
     }
 
+    @PostMapping("{id}/extend/terminal")
+    public ResponseEntity<ExtendStayResult> extendStayTerminal(@PathVariable Integer id,
+                                                                @Valid @RequestBody ExtendStayTerminalRequest request) {
+        LOGGER.info("Extending reservation {} to check out {} via terminal", id, request.checkOutDate());
+
+        return ResponseEntity.ok(reservationService.extendStayTerminal(id, request.checkOutDate(), request.posDeviceId()));
+    }
+
     @PostMapping("{id}/cancel")
     public ResponseEntity<Reservation> cancelReservation(@PathVariable Integer id) {
         LOGGER.info("Canceling reservation with id {}", id);
@@ -237,11 +246,12 @@ public class ReservationController {
     public ResponseEntity<ReservationEstimateResponse> getEstimate(@RequestParam Rate.RateType rateType,
                                                                    @RequestParam int guestCount,
                                                                    @RequestParam LocalDate checkInDate,
-                                                                   @RequestParam LocalDate checkOutDate) {
+                                                                   @RequestParam LocalDate checkOutDate,
+                                                                   @RequestParam(required = false) Integer guestId) {
         LOGGER.info("Estimating total for rateType={} guestCount={} {} to {}", rateType, guestCount, checkInDate, checkOutDate);
 
         try {
-            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate));
+            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate, guestId));
         } catch (RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         }

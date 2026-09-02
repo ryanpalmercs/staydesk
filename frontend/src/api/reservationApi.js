@@ -40,6 +40,10 @@ export function extendStay(id, checkOutDate) {
     return api.post(`/reservations/${id}/extend`, { checkOutDate })
 }
 
+export function extendStayTerminal(id, checkOutDate, posDeviceId = null) {
+    return api.post(`/reservations/${id}/extend/terminal`, { checkOutDate, posDeviceId })
+}
+
 export function cancelReservation(id) {
     return api.post(`/reservations/${id}/cancel`)
 }
@@ -52,8 +56,8 @@ export function clearReservationLegalHold(id) {
     return api.delete(`/reservations/${id}/legal-hold`)
 }
 
-export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
-    return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
+export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate, guestId }) {
+    return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate, guestId } })
 }
 
 export function backlogCheckIn(payload) {

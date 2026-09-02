@@ -48,6 +48,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -123,6 +124,23 @@ public class ReservationService {
         return totalPeriods;
     }
 
+    /**
+     * A guest with legacy pricing enabled has their flat override amount substituted for the
+     * normal rate lookup, no matter which rate type they're booked under - it stands in for
+     * rate.amount() everywhere billing math happens.
+     */
+    private BigDecimal resolveRateAmount(Integer guestId, Rate rate) {
+        if (guestId == null) {
+            return rate.amount();
+        }
+
+        return guestRepository.findById(guestId)
+                              .filter(Guest::legacyPricing)
+                              .map(Guest::legacyPricingAmount)
+                              .filter(Objects::nonNull)
+                              .orElse(rate.amount());
+    }
+
     private String generateUniqueConfirmationCode() {
         String code;
 
@@ -137,10 +155,12 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
+        BigDecimal amount = resolveRateAmount(reservation.guestId(), rate);
+
         BigDecimal baseAmount = switch (reservation.rateType()) {
-            case NIGHTLY -> rate.amount();
-            case WEEKLY_5 -> rate.amount().divide(BigDecimal.valueOf(5), 2, RoundingMode.HALF_UP);
-            case WEEKLY_7 -> rate.amount().divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
+            case NIGHTLY -> amount;
+            case WEEKLY_5 -> amount.divide(BigDecimal.valueOf(5), 2, RoundingMode.HALF_UP);
+            case WEEKLY_7 -> amount.divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
         };
 
         return folioService.estimateWithTax(baseAmount);
@@ -183,10 +203,12 @@ public class ReservationService {
 
         Folio savedFolio = folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
 
-        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rate.amount());
+        BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+
+        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rateAmount);
 
         BigDecimal estimatedStayAmount = folioService.estimateWithTax(
-                rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+                rateAmount.multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
         if (savedReservation.channel().equals(Reservation.Channel.PHONE)) {
             paymentService.chargeFullStay(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
@@ -202,11 +224,12 @@ public class ReservationService {
     }
 
     public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate,
-                                                     LocalDate checkOutDate) {
+                                                     LocalDate checkOutDate, Integer guestId) {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(rateType, guestCount)
                                   .orElseThrow(RateNotFoundException::new);
 
-        BigDecimal subtotal = rate.amount().multiply(BigDecimal.valueOf(getTotalPeriods(rateType, checkInDate, checkOutDate)));
+        BigDecimal rateAmount = resolveRateAmount(guestId, rate);
+        BigDecimal subtotal = rateAmount.multiply(BigDecimal.valueOf(getTotalPeriods(rateType, checkInDate, checkOutDate)));
         BigDecimal total = folioService.estimateWithTax(subtotal);
         BigDecimal tax = total.subtract(subtotal);
 
@@ -295,7 +318,9 @@ public class ReservationService {
             Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                       .orElseThrow(RateNotFoundException::new);
 
-            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
+            BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+
+            BigDecimal stayAmount = folioService.estimateWithTax(rateAmount.multiply(
                     BigDecimal.valueOf(
                             getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
@@ -356,7 +381,9 @@ public class ReservationService {
             Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                       .orElseThrow(RateNotFoundException::new);
 
-            BigDecimal stayAmount = folioService.estimateWithTax(rate.amount().multiply(
+            BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+
+            BigDecimal stayAmount = folioService.estimateWithTax(rateAmount.multiply(
                     BigDecimal.valueOf(
                             getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
 
@@ -427,7 +454,7 @@ public class ReservationService {
 
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                     new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
-                    false, null, null, null, false, createdAt, createdAt));
+                    false, null, null, null, false, false, null, createdAt, createdAt));
         });
     }
 
@@ -456,10 +483,12 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
+        BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+
         long remainingPeriods = getRemainingPeriods(reservation);
 
         for (long i = 0; i < remainingPeriods; i++) {
-            folio = folioService.postCharge(folio, "GUEST ROOM", rate.amount());
+            folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
         }
 
         folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
@@ -469,8 +498,10 @@ public class ReservationService {
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 
-    @Transactional
-    public ExtendStayResult extendStay(int id, LocalDate newCheckOutDate) {
+    private record ExtendStayContext(Reservation reservation, Folio folio, BigDecimal chargeAmount, LocalDateTime now) {
+    }
+
+    private ExtendStayContext prepareExtendStay(int id, LocalDate newCheckOutDate) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -505,26 +536,62 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
-        LocalDateTime now = LocalDateTime.now();
+        BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+        BigDecimal chargeAmount = folioService.estimateWithTax(rateAmount.multiply(BigDecimal.valueOf(additionalPeriods)));
 
-        ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(folio.id())
+        return new ExtendStayContext(reservation, folio, chargeAmount, LocalDateTime.now());
+    }
+
+    private Reservation saveExtendedReservation(ExtendStayContext ctx, LocalDate newCheckOutDate) {
+        Reservation reservation = ctx.reservation();
+
+        Reservation extended = new Reservation(reservation.id(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
+                reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
+                reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
+                reservation.createdAt(), ctx.now(), reservation.confirmationCode());
+
+        return reservationRepository.save(extended);
+    }
+
+    @Transactional
+    public ExtendStayResult extendStay(int id, LocalDate newCheckOutDate) {
+        ExtendStayContext ctx = prepareExtendStay(id, newCheckOutDate);
+
+        ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(ctx.folio().id())
                 .stream()
-                .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(now))
+                .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(ctx.now()))
                 .findFirst()
                 .orElseThrow(NoReusableCredentialException::new);
 
-        BigDecimal chargeAmount = folioService.estimateWithTax(rate.amount().multiply(BigDecimal.valueOf(additionalPeriods)));
+        paymentService.chargeStoredCredential(ctx.folio(), credential, ctx.chargeAmount(), "Stay extension to " + newCheckOutDate);
 
-        paymentService.chargeStoredCredential(folio, credential, chargeAmount, "Stay extension to " + newCheckOutDate);
+        Reservation saved = saveExtendedReservation(ctx, newCheckOutDate);
 
-        Reservation extended = new Reservation(id, reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
-                reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
-                reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), now, reservation.confirmationCode());
+        return new ExtendStayResult(saved, ctx.chargeAmount());
+    }
 
-        Reservation saved = reservationRepository.save(extended);
+    @Transactional
+    public ExtendStayResult extendStayTerminal(int id, LocalDate newCheckOutDate, Integer posDeviceId) {
+        String paymentMethodToken;
 
-        return new ExtendStayResult(saved, chargeAmount);
+        if (posDeviceId != null) {
+            paymentMethodToken = posDeviceRepository.findById(posDeviceId)
+                                                    .orElseThrow(PosDeviceNotFoundException::new)
+                                                    .deviceId();
+        } else if (providerFactory.isCardPresentRecordOnly()) {
+            paymentMethodToken = "no-device-record-only";
+        } else {
+            throw new CardPresentRecordOnlyDisabledException();
+        }
+
+        ExtendStayContext ctx = prepareExtendStay(id, newCheckOutDate);
+
+        paymentService.chargeCardPresent(ctx.folio(), ctx.chargeAmount(), providerFactory.getCardPresentProviderName(),
+                paymentMethodToken, "Stay extension to " + newCheckOutDate);
+
+        Reservation saved = saveExtendedReservation(ctx, newCheckOutDate);
+
+        return new ExtendStayResult(saved, ctx.chargeAmount());
     }
 
     @Transactional

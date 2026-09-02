@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, unflagGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
+import { displayPrice } from "../utils/price"
 import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
 import GuestEditModal from "../components/GuestEditModal"
@@ -103,6 +104,7 @@ function GuestProfilePage() {
                 <h1 className="section-title">{guest.name}</h1>
                 {guest.flagged && <StatusBadge status="FLAGGED" />}
                 {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
+                {guest.legacyPricing && <StatusBadge status="LEGACY_PRICING" />}
                 {canManage && (
                     <button onClick={() => setEditModalOpen(true)} className="btn btn-secondary">Edit</button>
                 )}
@@ -116,6 +118,12 @@ function GuestProfilePage() {
                     <span className="block text-sm text-muted mb-1">Phone Number</span>
                     <p className="text-sm text-black">{formatPhone(guest.phoneNumber)}</p>
                 </div>
+                {guest.legacyPricing && (
+                    <div>
+                        <span className="block text-sm text-muted mb-1">Legacy Price</span>
+                        <p className="text-sm text-black">{displayPrice(guest.legacyPricingAmount)}</p>
+                    </div>
+                )}
             </div>
 
             {guest.flagged && (

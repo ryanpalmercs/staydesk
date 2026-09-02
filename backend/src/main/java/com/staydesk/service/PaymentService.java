@@ -229,6 +229,19 @@ public class PaymentService {
                 roomPayment.authorizedAmount(), retainedAmount, null, roomPayment.createdAt(), LocalDateTime.now()));
     }
 
+    public FolioPayment chargeCardPresent(Folio folio, BigDecimal amount, String providerName, String paymentMethodId,
+                                          String description) {
+        AuthResult result = providerFactory.getProvider(providerName).sale(amount, paymentMethodId, description);
+
+        if (!result.success()) {
+            throw new RuntimeException("Failed to charge card-present for folio " + folio.id() + ": " + result.message());
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.INCIDENT_CHARGE, providerName,
+                result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
+    }
+
     public FolioPayment chargeStoredCredential(Folio folio, ReusablePaymentCredential credential, BigDecimal amount,
                                                String description) {
         AuthResult result = providerFactory.getProvider(credential.provider())

@@ -60,7 +60,7 @@ public class PiiBackfillRunner implements CommandLineRunner {
     private void backfillGuests() {
         List<Guest> plaintextGuests = jdbcTemplate.query("""
                 SELECT id, first_name, last_name, email, phone_number, flagged, flag_reason, flagged_date,
-                       flagged_by, legal_hold, created_at, updated_at
+                       flagged_by, legal_hold, legacy_pricing, legacy_pricing_amount, created_at, updated_at
                 FROM guests
                 """, this::mapPlaintextGuest);
 
@@ -90,6 +90,8 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 toLocalDateTime(rs.getTimestamp("flagged_date")),
                 flaggedBy,
                 rs.getBoolean("legal_hold"),
+                rs.getBoolean("legacy_pricing"),
+                rs.getBigDecimal("legacy_pricing_amount"),
                 toLocalDateTime(rs.getTimestamp("created_at")),
                 toLocalDateTime(rs.getTimestamp("updated_at"))
         );
