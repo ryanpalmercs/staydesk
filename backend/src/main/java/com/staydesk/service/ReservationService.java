@@ -236,6 +236,20 @@ public class ReservationService {
         return new ReservationEstimateResponse(subtotal, tax, total);
     }
 
+    public ReservationEstimateResponse estimateTotalWithExtras(Rate.RateType rateType, int guestCount, LocalDate checkInDate,
+                                                               LocalDate checkOutDate, Integer guestId,
+                                                               List<FolioService.ExtraSelection> extraSelections) {
+        ReservationEstimateResponse roomEstimate = estimateTotal(rateType, guestCount, checkInDate, checkOutDate, guestId);
+
+        long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
+        BigDecimal extrasSubtotal = folioService.priceExtras(extraSelections, nights);
+
+        BigDecimal subtotal = roomEstimate.subtotal().add(extrasSubtotal);
+        BigDecimal total = folioService.estimateWithTax(subtotal);
+
+        return new ReservationEstimateResponse(subtotal, total.subtract(subtotal), total);
+    }
+
     @Transactional
     public Reservation updateReservation(int id, Reservation reservation) {
         Reservation existing = reservationRepository.findById(id)
@@ -501,10 +515,7 @@ public class ReservationService {
     private record ExtendStayContext(Reservation reservation, Folio folio, BigDecimal chargeAmount, LocalDateTime now) {
     }
 
-    private ExtendStayContext prepareExtendStay(int id, LocalDate newCheckOutDate) {
-        Reservation reservation = reservationRepository.findById(id)
-                                                       .orElseThrow(ReservationNotFoundException::new);
-
+    private void validateExtendStay(Reservation reservation, LocalDate newCheckOutDate) {
         if (!reservation.status().equals(Reservation.ReservationStatus.CHECKED_IN)) {
             throw new InvalidReservationException();
         }
@@ -519,6 +530,42 @@ public class ReservationService {
             || (reservation.rateType().equals(Rate.RateType.WEEKLY_7) && totalNights % 7 != 0)) {
             throw new InvalidReservationException();
         }
+    }
+
+    public ReservationEstimateResponse estimateExtendStayCharge(int id, LocalDate newCheckOutDate) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        validateExtendStay(reservation, newCheckOutDate);
+
+        long additionalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), newCheckOutDate)
+                                  - getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+        long additionalNights = ChronoUnit.DAYS.between(reservation.checkOutDate(), newCheckOutDate);
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+        BigDecimal subtotal = rateAmount.multiply(BigDecimal.valueOf(additionalPeriods));
+
+        for (FolioService.PerNightExtraCharge extra : folioService.distinctPerNightExtras(folio.id())) {
+            subtotal = subtotal.add(extra.unitPrice()
+                    .multiply(BigDecimal.valueOf(extra.quantity()))
+                    .multiply(BigDecimal.valueOf(additionalNights)));
+        }
+
+        BigDecimal total = folioService.estimateWithTax(subtotal);
+
+        return new ReservationEstimateResponse(subtotal, total.subtract(subtotal), total);
+    }
+
+    private ExtendStayContext prepareExtendStay(int id, LocalDate newCheckOutDate) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        validateExtendStay(reservation, newCheckOutDate);
 
         boolean hasConflict = reservationRepository.findOverlapping(reservation.roomId(), newCheckOutDate, reservation.checkOutDate())
                                                     .stream()
@@ -530,14 +577,30 @@ public class ReservationService {
 
         long additionalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), newCheckOutDate)
                                   - getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+        long additionalNights = ChronoUnit.DAYS.between(reservation.checkOutDate(), newCheckOutDate);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+        BigDecimal folioTotalBefore = folio.total();
 
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
         BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
-        BigDecimal chargeAmount = folioService.estimateWithTax(rateAmount.multiply(BigDecimal.valueOf(additionalPeriods)));
+
+        for (long i = 0; i < additionalPeriods; i++) {
+            folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
+        }
+
+        for (FolioService.PerNightExtraCharge extra : folioService.distinctPerNightExtras(folio.id())) {
+            BigDecimal extraAmount = extra.unitPrice().multiply(BigDecimal.valueOf(extra.quantity()));
+            String description = extra.quantity() > 1 ? extra.extraName() + " X" + extra.quantity() : extra.extraName();
+
+            for (long i = 0; i < additionalNights; i++) {
+                folio = folioService.postCharge(folio, description.toUpperCase(), extraAmount, extra.extraId(), extra.quantity());
+            }
+        }
+
+        BigDecimal chargeAmount = folio.total().subtract(folioTotalBefore);
 
         return new ExtendStayContext(reservation, folio, chargeAmount, LocalDateTime.now());
     }
