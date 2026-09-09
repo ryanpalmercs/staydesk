@@ -60,6 +60,14 @@ export function getReservationEstimate({ rateType, guestCount, checkInDate, chec
     return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate, guestId } })
 }
 
+export function getReservationEstimateWithExtras({ rateType, guestCount, checkInDate, checkOutDate, guestId, extras }) {
+    return api.post('/reservations/estimate', { rateType, guestCount, checkInDate, checkOutDate, guestId, extras })
+}
+
+export function getExtendStayEstimate(id, newCheckOutDate) {
+    return api.get(`/reservations/${id}/extend-stay-estimate`, { params: { newCheckOutDate } })
+}
+
 export function backlogCheckIn(payload) {
     return api.post('/admin/reservations/backlog-check-in', payload)
 }
