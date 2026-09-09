@@ -300,17 +300,81 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
-        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 17))
 
         then:
-        1 * paymentService.chargeStoredCredential(folio, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }, _)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 17)
         result.reservation().checkInDate() == LocalDate.of(2026, 7, 10)
         result.amountCharged().compareTo(BigDecimal.valueOf(350)) == 0
+    }
+
+    def "extendStay also tops up an existing PER_NIGHT extra for just the added nights"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> [new FolioService.PerNightExtraCharge(2, "Pet Fee", BigDecimal.valueOf(25), 1)]
+        folioService.postCharge(_, "PET FEE", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(25)) == 0 }, 2, 1) >>
+                { Folio f, String d, BigDecimal amt, Integer extraId, Integer qty -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+
+        then:
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _)
+        result.amountCharged().compareTo(BigDecimal.valueOf(315)) == 0
+    }
+
+    def "estimateExtendStayCharge includes both the added room nights and any PER_NIGHT extras, without charging or posting anything"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.distinctPerNightExtras(9) >> [new FolioService.PerNightExtraCharge(2, "Pet Fee", BigDecimal.valueOf(25), 1)]
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateExtendStayCharge(1, LocalDate.of(2026, 7, 16))
+
+        then:
+        0 * folioService.postCharge(*_)
+        0 * paymentService.chargeStoredCredential(*_)
+        0 * reservationRepository.save(_)
+        result.total().compareTo(BigDecimal.valueOf(315)) == 0
+    }
+
+    def "estimateExtendStayCharge throws InvalidReservationException when the reservation isn't CHECKED_IN"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.estimateExtendStayCharge(1, LocalDate.of(2026, 7, 20))
+
+        then:
+        thrown(InvalidReservationException)
     }
 
     def "extendStay throws InvalidReservationException when the reservation isn't CHECKED_IN"() {
@@ -367,14 +431,16 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
-        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
 
         then:
-        1 * paymentService.chargeStoredCredential(folio, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, _)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
         result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
     }
@@ -409,6 +475,9 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> []
+        folioService.postCharge(_, "GUEST ROOM", _) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
 
         when:
         reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
@@ -433,14 +502,16 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
         providerFactory.getCardPresentProviderName() >> "elavon_cpi"
-        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), 6)
 
         then:
-        1 * paymentService.chargeCardPresent(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, "elavon_cpi", "dev-token-1", _)
+        1 * paymentService.chargeCardPresent({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, "elavon_cpi", "dev-token-1", _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
         result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
     }
@@ -471,14 +542,16 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
         providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
-        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), null)
 
         then:
-        1 * paymentService.chargeCardPresent(folio, _, "elavon_cpi_manual", "no-device-record-only", _)
+        1 * paymentService.chargeCardPresent({ it.id() == 9 }, _, "elavon_cpi_manual", "no-device-record-only", _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
         0 * posDeviceRepository.findById(_)
     }
@@ -554,5 +627,21 @@ class ReservationServiceSpec extends Specification {
         then:
         0 * guestRepository.findById(_)
         result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
+    }
+
+    def "estimateTotalWithExtras adds the priced extras to the room subtotal"() {
+        given:
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        def selections = [new FolioService.ExtraSelection(2, 1)]
+        folioService.priceExtras(selections, 2) >> BigDecimal.valueOf(50)
+
+        when:
+        def result = reservationService.estimateTotalWithExtras(Rate.RateType.NIGHTLY, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), null, selections)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(210)) == 0
+        result.total().compareTo(BigDecimal.valueOf(210)) == 0
     }
 }
