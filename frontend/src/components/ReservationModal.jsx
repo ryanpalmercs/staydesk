@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { createReservation, getReservationEstimate, updateReservation } from "../api/reservationApi"
+import { createReservation, getReservationEstimateWithExtras, updateReservation } from "../api/reservationApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
@@ -69,6 +69,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [selectedExtraId, setSelectedExtraId] = useState('')
     const [extraQuantity, setExtraQuantity] = useState(1)
     const [extraMessage, setExtraMessage] = useState(null)
+    const [stagedExtras, setStagedExtras] = useState([])
 
     const [step, setStep] = useState(isEditing ? 'form' : 'choice')
     const [guestStepOrigin, setGuestStepOrigin] = useState('choice')
@@ -108,6 +109,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
         if (canAddExtras) {
             getFolioByReservationId(reservation.id).then(res => setFolioId(res.data.id))
+        }
+
+        if (canAddExtras || !isEditing) {
             getExtras().then(res => setExtras(res.data ?? []))
         }
 
@@ -131,9 +135,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
         let cancelled = false
-        getReservationEstimate({
+        getReservationEstimateWithExtras({
             rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
-            guestId: form.guestId || undefined
+            guestId: form.guestId || undefined,
+            extras: stagedExtras.map(item => ({ extraId: item.extraId, quantity: item.quantity }))
         })
             .then(res => {
                 if (!cancelled) {
@@ -146,21 +151,44 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 }
             })
         return () => { cancelled = true }
-    }, [rateType, guestCount, form.checkInDate, form.checkOutDate, form.guestId])
+    }, [rateType, guestCount, form.checkInDate, form.checkOutDate, form.guestId, stagedExtras])
 
     async function handleAddExtra() {
-        if (!selectedExtraId || !folioId) return
+        if (!selectedExtraId) return
 
-        setExtraMessage(null)
+        if (canAddExtras) {
+            if (!folioId) return
 
-        try {
-            await addFolioItem(folioId, Number(selectedExtraId), Number(extraQuantity))
-            setExtraMessage('Added.')
-            setSelectedExtraId('')
-            setExtraQuantity(1)
-        } catch (err) {
-            setExtraMessage(err.response?.status === 409 ? 'Folio is closed.' : 'Failed to add item.')
+            setExtraMessage(null)
+
+            try {
+                await addFolioItem(folioId, Number(selectedExtraId), Number(extraQuantity))
+                setExtraMessage('Added.')
+                setSelectedExtraId('')
+                setExtraQuantity(1)
+            } catch (err) {
+                setExtraMessage(err.response?.status === 409 ? 'Folio is closed.' : 'Failed to add item.')
+            }
+            return
         }
+
+        const extra = extras.find(e => e.id === Number(selectedExtraId))
+        if (!extra) return
+
+        setStagedExtras(prev => [...prev, {
+            extraId: extra.id, name: extra.name, price: extra.price, billingType: extra.billingType,
+            quantity: Number(extraQuantity)
+        }])
+        setSelectedExtraId('')
+        setExtraQuantity(1)
+    }
+
+    function removeStagedExtra(index) {
+        setStagedExtras(prev => prev.filter((_, i) => i !== index))
+    }
+
+    function stagedExtraSelections() {
+        return stagedExtras.map(item => ({ extraId: item.extraId, quantity: item.quantity }))
     }
 
     function handleChange(e) {
@@ -263,7 +291,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             } else {
                 if (form.channel === 'WALK_IN') {
                     try {
-                        const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null })
+                        const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
                         onSaved(res.data.id)
                     } catch (err) {
                         setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
@@ -295,7 +323,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     async function handleCapture(paymentMethodId) {
         try {
-            await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId })
+            await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
             onSaved()
         } catch (err) {
             setStep('form')
@@ -547,7 +575,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
                         )}
 
-                        {canAddExtras && (
+                        {(canAddExtras || !isEditing) && (
                             <div>
                                 <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-green hover:text-black">
                                     {showExtras ? 'Hide Extras' : 'Add Extras'}
@@ -558,7 +586,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                         <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
                                             <option value="">Select an extra...</option>
                                             {extras.map(extra => (
-                                                <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
+                                                <option key={extra.id} value={extra.id}>
+                                                    {extra.name} (${extra.price.toFixed(2)}{extra.billingType === 'PER_NIGHT' ? '/night' : ''})
+                                                </option>
                                             ))}
                                         </select>
                                         <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
@@ -566,7 +596,22 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     </div>
                                 )}
 
-                                {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                                {canAddExtras && extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+
+                                {!canAddExtras && stagedExtras.length > 0 && (
+                                    <ul className="flex flex-col gap-1 mt-2">
+                                        {stagedExtras.map((item, i) => (
+                                            <li key={i} className="flex justify-between items-center text-sm text-black">
+                                                <span>
+                                                    {item.name} x{item.quantity} (${item.price.toFixed(2)}{item.billingType === 'PER_NIGHT' ? '/night' : ''})
+                                                </span>
+                                                <button type="button" onClick={() => removeStagedExtra(i)} className="text-xs text-error hover:underline">
+                                                    Remove
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
                             </div>
                         )}
 

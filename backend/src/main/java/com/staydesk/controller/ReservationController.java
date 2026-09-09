@@ -5,6 +5,7 @@ import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.DateConflictException;
+import com.staydesk.exception.ExtraNotFoundException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.NoRoomAvailableException;
@@ -24,6 +25,7 @@ import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.model.request.ExtendStayRequest;
 import com.staydesk.model.request.ExtendStayTerminalRequest;
+import com.staydesk.model.request.ReservationEstimateRequest;
 import com.staydesk.model.request.TerminalCheckInRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
@@ -85,10 +87,10 @@ public class ReservationController {
                     new Reservation(0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null),
-                    request.roomPaymentMethodId());
+                    request.roomPaymentMethodId(), request.extras());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
-        } catch (RoomTypeNotFoundException | RateNotFoundException e) {
+        } catch (RoomTypeNotFoundException | RateNotFoundException | ExtraNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (RoomTypeUnavailableException | DateConflictException e) {
             return ResponseEntity.badRequest().build();
@@ -189,6 +191,25 @@ public class ReservationController {
         }
     }
 
+    @GetMapping("{id}/check-in-estimate")
+    public ResponseEntity<ReservationEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
+        try {
+            return ResponseEntity.ok(reservationService.estimateCheckInCharge(id));
+        } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("{id}/extend-stay-estimate")
+    public ResponseEntity<ReservationEstimateResponse> getExtendStayEstimate(@PathVariable Integer id,
+                                                                              @RequestParam LocalDate newCheckOutDate) {
+        try {
+            return ResponseEntity.ok(reservationService.estimateExtendStayCharge(id, newCheckOutDate));
+        } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PostMapping("{id}/extend")
     public ResponseEntity<ExtendStayResult> extendStay(@PathVariable Integer id, @Valid @RequestBody ExtendStayRequest request) {
         LOGGER.info("Extending reservation {} to check out {}", id, request.checkOutDate());
@@ -253,6 +274,19 @@ public class ReservationController {
         try {
             return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate, guestId));
         } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/estimate")
+    public ResponseEntity<ReservationEstimateResponse> getEstimateWithExtras(@RequestBody ReservationEstimateRequest request) {
+        LOGGER.info("Estimating total with extras for rateType={} guestCount={} {} to {}",
+                request.rateType(), request.guestCount(), request.checkInDate(), request.checkOutDate());
+
+        try {
+            return ResponseEntity.ok(reservationService.estimateTotalWithExtras(request.rateType(), request.guestCount(),
+                    request.checkInDate(), request.checkOutDate(), request.guestId(), request.extras()));
+        } catch (RateNotFoundException | ExtraNotFoundException e) {
             return ResponseEntity.notFound().build();
         }
     }

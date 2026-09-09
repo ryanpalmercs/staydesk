@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { extendStay, extendStayTerminal, getReservationEstimate } from "../api/reservationApi"
+import { extendStay, extendStayTerminal, getExtendStayEstimate } from "../api/reservationApi"
 import { getPosDevices, getPosDeviceConfig, checkPosDeviceHealth } from "../api/posDeviceApi"
 import { displayPrice } from "../utils/price"
 import Modal from "./Modal"
@@ -111,8 +111,7 @@ function RecordOnlyExtendForm({ reservationId, checkOutDate, chargeAmount, onExt
 
 function ExtendStayModal({ reservation, onSaved, onClose }) {
     const [checkOutDate, setCheckOutDate] = useState(reservation.checkOutDate)
-    const [currentTotal, setCurrentTotal] = useState(null)
-    const [newTotal, setNewTotal] = useState(null)
+    const [estimatedCharge, setEstimatedCharge] = useState(null)
     const [error, setError] = useState(null)
     const [submitting, setSubmitting] = useState(false)
     const [result, setResult] = useState(null)
@@ -122,35 +121,21 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
     const [paymentMode, setPaymentMode] = useState(null)
 
     useEffect(() => {
-        getReservationEstimate({
-            rateType: reservation.rateType,
-            guestCount: reservation.guestCount,
-            checkInDate: reservation.checkInDate,
-            checkOutDate: reservation.checkOutDate,
-            guestId: reservation.guestId
-        }).then(res => setCurrentTotal(res.data.total)).catch(() => setCurrentTotal(null))
-
         getPosDevices().then(res => setPosDevices(res.data ?? []))
         getPosDeviceConfig().then(res => setCardPresentRecordOnly(res.data.recordOnly))
     }, [])
 
     useEffect(() => {
         if (checkOutDate === reservation.checkOutDate) {
-            setNewTotal(null)
+            setEstimatedCharge(null)
             return
         }
         let cancelled = false
-        getReservationEstimate({
-            rateType: reservation.rateType,
-            guestCount: reservation.guestCount,
-            checkInDate: reservation.checkInDate,
-            checkOutDate,
-            guestId: reservation.guestId
-        }).then(res => { if (!cancelled) setNewTotal(res.data.total) }).catch(() => { if (!cancelled) setNewTotal(null) })
+        getExtendStayEstimate(reservation.id, checkOutDate)
+            .then(res => { if (!cancelled) setEstimatedCharge(res.data.total) })
+            .catch(() => { if (!cancelled) setEstimatedCharge(null) })
         return () => { cancelled = true }
     }, [checkOutDate])
-
-    const estimatedCharge = currentTotal != null && newTotal != null ? newTotal - currentTotal : null
 
     async function handleSubmit(e) {
         e.preventDefault()

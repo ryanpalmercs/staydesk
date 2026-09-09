@@ -7,6 +7,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Table("extras")
-public record Extra(@Id int id, String name, BigDecimal price, boolean active,
+public record Extra(@Id int id, String name, BigDecimal price, boolean active, BillingType billingType,
                     LocalDateTime createdAt, LocalDateTime updatedAt) {
+
+    public enum BillingType {
+        FLAT, PER_NIGHT
+    }
 }
