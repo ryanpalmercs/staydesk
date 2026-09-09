@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { getPropertySetting } from "../api/settingsApi"
-import { getAvailableRoomsForCheckIn, getReservationEstimate } from "../api/reservationApi"
+import { getAvailableRoomsForCheckIn, getCheckInEstimate } from "../api/reservationApi"
 import { getPosDevices, getPosDeviceConfig, checkPosDeviceHealth } from "../api/posDeviceApi"
 import { displayPrice } from "../utils/price"
 import AcceptJsCardForm from "./AcceptJsCardForm"
@@ -243,13 +243,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
         })
 
         if (isWalkIn) {
-            getReservationEstimate({
-                rateType: reservation.rateType,
-                guestCount: reservation.guestCount,
-                checkInDate: reservation.checkInDate,
-                checkOutDate: reservation.checkOutDate,
-                guestId: reservation.guestId
-            }).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
+            getCheckInEstimate(reservationId).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
         }
 
         getPosDevices().then(res => {

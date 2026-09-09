@@ -191,6 +191,15 @@ public class ReservationController {
         }
     }
 
+    @GetMapping("{id}/check-in-estimate")
+    public ResponseEntity<ReservationEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
+        try {
+            return ResponseEntity.ok(reservationService.estimateCheckInCharge(id));
+        } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("{id}/extend-stay-estimate")
     public ResponseEntity<ReservationEstimateResponse> getExtendStayEstimate(@PathVariable Integer id,
                                                                               @RequestParam LocalDate newCheckOutDate) {

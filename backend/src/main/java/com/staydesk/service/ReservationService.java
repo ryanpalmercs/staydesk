@@ -333,12 +333,13 @@ public class ReservationService {
                                       .orElseThrow(RateNotFoundException::new);
 
             BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+            long remainingPeriods = getRemainingPeriods(reservation);
 
-            BigDecimal stayAmount = folioService.estimateWithTax(rateAmount.multiply(
-                    BigDecimal.valueOf(
-                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+            for (long i = 0; i < remainingPeriods; i++) {
+                folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
+            }
 
-            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId);
         }
 
         paymentService.createIncidentalHold(folio, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId);
@@ -396,12 +397,13 @@ public class ReservationService {
                                       .orElseThrow(RateNotFoundException::new);
 
             BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+            long remainingPeriods = getRemainingPeriods(reservation);
 
-            BigDecimal stayAmount = folioService.estimateWithTax(rateAmount.multiply(
-                    BigDecimal.valueOf(
-                            getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+            for (long i = 0; i < remainingPeriods; i++) {
+                folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
+            }
 
-            paymentService.chargeFullStay(folio, stayAmount, providerFactory.getCardPresentProviderName(), paymentMethodToken);
+            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken);
         }
 
         paymentService.createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken);
@@ -417,6 +419,25 @@ public class ReservationService {
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
+    }
+
+    public ReservationEstimateResponse estimateCheckInCharge(int id) {
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        BigDecimal total = folio.total();
+
+        if (reservation.channel().equals(Reservation.Channel.WALK_IN)) {
+            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                      .orElseThrow(RateNotFoundException::new);
+
+            BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
+            BigDecimal remainingRoom = rateAmount.multiply(BigDecimal.valueOf(getRemainingPeriods(reservation)));
+
+            total = total.add(folioService.estimateWithTax(remainingRoom));
+        }
+
+        return new ReservationEstimateResponse(total, BigDecimal.ZERO, total);
     }
 
     @Transactional
