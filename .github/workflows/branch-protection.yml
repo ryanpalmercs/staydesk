@@ -22,8 +22,8 @@ jobs:
             exit 1
           fi
 
-          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ ]]; then
-            echo "Error: PRs targeting 'beta' must come from 'develop', 'master' (sync-back), or a 'bugfix/*' hotfix branch (got '$SOURCE')"
+          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ && ! "$SOURCE" =~ ^v[0-9] ]]; then
+            echo "Error: PRs targeting 'beta' must come from 'develop', 'master' (sync-back), a 'bugfix/*' hotfix branch, or a version lane ('v*') (got '$SOURCE')"
             exit 1
           fi
 
