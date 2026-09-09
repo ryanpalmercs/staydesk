@@ -3,12 +3,15 @@ package com.staydesk.service;
 import com.staydesk.exception.ExtraNotFoundException;
 import com.staydesk.exception.FolioClosedException;
 import com.staydesk.exception.FolioNotFoundException;
+import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.model.Extra;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
+import com.staydesk.model.Reservation;
 import com.staydesk.repository.ExtraRepository;
 import com.staydesk.repository.FolioItemRepository;
 import com.staydesk.repository.FolioRepository;
+import com.staydesk.repository.ReservationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class FolioService {
@@ -25,13 +29,16 @@ public class FolioService {
     private final FolioRepository folioRepository;
     private final FolioItemRepository folioItemRepository;
     private final ExtraRepository extraRepository;
+    private final ReservationRepository reservationRepository;
     private final PropertySettingsService propertySettingsService;
 
     public FolioService(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
-                        ExtraRepository extraRepository, PropertySettingsService propertySettingsService) {
+                        ExtraRepository extraRepository, ReservationRepository reservationRepository,
+                        PropertySettingsService propertySettingsService) {
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
         this.extraRepository = extraRepository;
+        this.reservationRepository = reservationRepository;
         this.propertySettingsService = propertySettingsService;
     }
 
@@ -80,8 +87,19 @@ public class FolioService {
             throw new ExtraNotFoundException();
         }
 
-        BigDecimal amount = extra.price().multiply(BigDecimal.valueOf(quantity));
+        BigDecimal units = BigDecimal.valueOf(quantity);
         String description = quantity > 1 ? extra.name() + " x" + quantity : extra.name();
+
+        if (extra.billingType() == Extra.BillingType.PER_NIGHT) {
+            Reservation reservation = reservationRepository.findById(folio.reservationId())
+                    .orElseThrow(ReservationNotFoundException::new);
+            long nights = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate());
+
+            units = units.multiply(BigDecimal.valueOf(nights));
+            description += " x" + nights + " nights";
+        }
+
+        BigDecimal amount = extra.price().multiply(units);
 
         return postCharge(folio, description, amount);
     }

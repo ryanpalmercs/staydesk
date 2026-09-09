@@ -93,7 +93,9 @@ function FolioModal({ folioId, onClose, onPaid }) {
                     <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
                         <option value="">Add an extra...</option>
                         {extras.map(extra => (
-                            <option key={extra.id} value={extra.id}>{extra.name}(${extra.price.toFixed(2)})</option>
+                            <option key={extra.id} value={extra.id}>
+                                {extra.name} (${extra.price.toFixed(2)}{extra.billingType === 'PER_NIGHT' ? '/night' : ''})
+                            </option>
                         ))}
                     </select>
                     <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} className="filter-input w-20" />
