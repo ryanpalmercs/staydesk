@@ -49,6 +49,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -96,19 +97,6 @@ public class ReservationService {
         this.paymentCredentialService = paymentCredentialService;
         this.piiCipher = piiCipher;
         this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
-    }
-
-    private static long getRemainingPeriods(Reservation reservation) {
-        long remainingPeriods = 0;
-
-        if (reservation.rateType().equals(Rate.RateType.NIGHTLY)) {
-            remainingPeriods = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 1;
-        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_5)) {
-            remainingPeriods = (ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 5) / 5;
-        } else if (reservation.rateType().equals(Rate.RateType.WEEKLY_7)) {
-            remainingPeriods = (ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate()) - 7) / 7;
-        }
-        return remainingPeriods;
     }
 
     private static long getTotalPeriods(Rate.RateType rateType, LocalDate checkInDate, LocalDate checkOutDate) {
@@ -168,7 +156,7 @@ public class ReservationService {
 
 
     @Transactional
-    public Reservation createReservation(Reservation reservation, String roomPaymentMethodId) {
+    public Reservation createReservation(Reservation reservation, String roomPaymentMethodId, List<FolioService.ExtraSelection> extras) {
         LocalDateTime now = LocalDateTime.now();
 
         RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
@@ -205,13 +193,22 @@ public class ReservationService {
 
         BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
 
-        Folio folio = folioService.postCharge(savedFolio, "GUEST ROOM", rateAmount);
+        boolean isPhone = savedReservation.channel().equals(Reservation.Channel.PHONE);
+        long roomPeriodsToPost = isPhone
+                ? getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate())
+                : 1;
 
-        BigDecimal estimatedStayAmount = folioService.estimateWithTax(
-                rateAmount.multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+        Folio folio = savedFolio;
+        for (long i = 0; i < roomPeriodsToPost; i++) {
+            folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
+        }
 
-        if (savedReservation.channel().equals(Reservation.Channel.PHONE)) {
-            paymentService.chargeFullStay(folio, estimatedStayAmount, providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+        for (FolioService.ExtraSelection selection : Optional.ofNullable(extras).orElse(List.of())) {
+            folio = folioService.addExtra(folio.id(), selection.extraId(), selection.quantity());
+        }
+
+        if (isPhone) {
+            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId);
         }
 
         if (savedReservation.guestId() != null && savedReservation.channel() != Reservation.Channel.WALK_IN) {
@@ -333,7 +330,8 @@ public class ReservationService {
                                       .orElseThrow(RateNotFoundException::new);
 
             BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
-            long remainingPeriods = getRemainingPeriods(reservation);
+            long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+            long remainingPeriods = totalPeriods - folioService.countRoomChargesPosted(folio.id());
 
             for (long i = 0; i < remainingPeriods; i++) {
                 folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
@@ -397,7 +395,8 @@ public class ReservationService {
                                       .orElseThrow(RateNotFoundException::new);
 
             BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
-            long remainingPeriods = getRemainingPeriods(reservation);
+            long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+            long remainingPeriods = totalPeriods - folioService.countRoomChargesPosted(folio.id());
 
             for (long i = 0; i < remainingPeriods; i++) {
                 folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);
@@ -432,7 +431,9 @@ public class ReservationService {
                                       .orElseThrow(RateNotFoundException::new);
 
             BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
-            BigDecimal remainingRoom = rateAmount.multiply(BigDecimal.valueOf(getRemainingPeriods(reservation)));
+            long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+            long remainingPeriods = totalPeriods - folioService.countRoomChargesPosted(folio.id());
+            BigDecimal remainingRoom = rateAmount.multiply(BigDecimal.valueOf(remainingPeriods));
 
             total = total.add(folioService.estimateWithTax(remainingRoom));
         }
@@ -520,7 +521,8 @@ public class ReservationService {
 
         BigDecimal rateAmount = resolveRateAmount(reservation.guestId(), rate);
 
-        long remainingPeriods = getRemainingPeriods(reservation);
+        long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+        long remainingPeriods = totalPeriods - folioService.countRoomChargesPosted(folio.id());
 
         for (long i = 0; i < remainingPeriods; i++) {
             folio = folioService.postCharge(folio, "GUEST ROOM", rateAmount);

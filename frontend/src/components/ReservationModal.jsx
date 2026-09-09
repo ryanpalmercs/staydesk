@@ -187,17 +187,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         setStagedExtras(prev => prev.filter((_, i) => i !== index))
     }
 
-    async function postStagedExtras(reservationId) {
-        if (stagedExtras.length === 0) return
-
-        try {
-            const folioRes = await getFolioByReservationId(reservationId)
-            for (const item of stagedExtras) {
-                await addFolioItem(folioRes.data.id, item.extraId, item.quantity)
-            }
-        } catch (err) {
-            setError('Reservation created, but adding extras failed — add them from the folio instead.')
-        }
+    function stagedExtraSelections() {
+        return stagedExtras.map(item => ({ extraId: item.extraId, quantity: item.quantity }))
     }
 
     function handleChange(e) {
@@ -300,8 +291,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             } else {
                 if (form.channel === 'WALK_IN') {
                     try {
-                        const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null })
-                        await postStagedExtras(res.data.id)
+                        const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
                         onSaved(res.data.id)
                     } catch (err) {
                         setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
@@ -333,8 +323,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     async function handleCapture(paymentMethodId) {
         try {
-            const res = await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId })
-            await postStagedExtras(res.data.id)
+            await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
             onSaved()
         } catch (err) {
             setStep('form')

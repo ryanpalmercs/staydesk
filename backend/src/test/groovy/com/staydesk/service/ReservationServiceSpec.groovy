@@ -179,6 +179,25 @@ class ReservationServiceSpec extends Specification {
         })
     }
 
+    def "checkOut posts no additional room nights when they were already posted at check-in"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+
+        when:
+        reservationService.checkOut(1)
+
+        then:
+        0 * folioService.postCharge(*_)
+    }
+
     private static BacklogCheckInRequest backlogRequest(String email = null, String phoneNumber = null) {
         new BacklogCheckInRequest(5, "James", "Reece", email, phoneNumber,
                 LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28), null, null)
@@ -585,6 +604,7 @@ class ReservationServiceSpec extends Specification {
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
@@ -610,6 +630,7 @@ class ReservationServiceSpec extends Specification {
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
@@ -631,6 +652,7 @@ class ReservationServiceSpec extends Specification {
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 1
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
 
         when:
@@ -662,14 +684,44 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.save(_) >> { Reservation r -> r }
         folioRepository.save(_) >> savedFolio
         guestRepository.findById(7) >> Optional.of(legacyPricedGuest())
-        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
 
         when:
-        reservationService.createReservation(draft, "token-1")
+        reservationService.createReservation(draft, "token-1", [])
 
         then:
-        1 * folioService.postCharge(savedFolio, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >> savedFolio
-        1 * paymentService.chargeFullStay(savedFolio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1")
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1")
+    }
+
+    def "createReservation posts staged extras before charging, so a PHONE booking's full-stay charge includes them"() {
+        given:
+        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
+                false, LocalDateTime.now(), LocalDateTime.now(), null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.addExtra(_, _, _) >>
+                { Integer folioId, Integer extraId, Integer quantity -> new Folio(folioId, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now()) }
+
+        when:
+        reservationService.createReservation(draft, "token-1", [new FolioService.ExtraSelection(2, 1)])
+
+        then:
+        1 * folioService.addExtra(9, 2, 1) >>
+                new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now())
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(185)) == 0 }, _, "token-1")
     }
 
     def "estimateTotal uses the guest's legacy price when legacy pricing is enabled"() {
