@@ -48,6 +48,8 @@ public class SecurityConfig {
                            .requestMatchers(HttpMethod.GET, "/lock-passcodes/reservation/**").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers("/lock-passcodes/**").hasAnyRole("ADMIN", "FRONT_DESK")
                            .requestMatchers(HttpMethod.GET, "/pos-devices").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
+                           .requestMatchers(HttpMethod.GET, "/pos-devices/config").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
+                           .requestMatchers(HttpMethod.POST, "/pos-devices/*/health-check").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers(HttpMethod.POST, "/folios/*/incident-charges").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers(HttpMethod.GET, "/folios/*/incident-charges").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers(HttpMethod.GET, "/incident-charges/pending").hasAnyRole("ADMIN", "MANAGER")
