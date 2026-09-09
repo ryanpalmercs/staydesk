@@ -12,6 +12,7 @@ import com.staydesk.model.Folio
 import com.staydesk.model.Guest
 import com.staydesk.model.PosDevice
 import com.staydesk.model.Rate
+import com.staydesk.model.RateOverride
 import com.staydesk.model.Reservation
 import com.staydesk.model.ReusablePaymentCredential
 import com.staydesk.model.Room
@@ -34,6 +35,7 @@ class ReservationServiceSpec extends Specification {
     RoomTypeRepository roomTypeRepository = Mock()
     FolioRepository folioRepository = Mock()
     RateRepository rateRepository = Mock()
+    RateOverrideRepository rateOverrideRepository = Mock()
     PaymentService paymentService = Mock()
     FolioService folioService = Mock()
     GuestRepository guestRepository = Mock()
@@ -47,7 +49,7 @@ class ReservationServiceSpec extends Specification {
 
     @Subject
     ReservationService reservationService = new ReservationService(reservationRepository, roomRepository, roomTypeRepository,
-            folioRepository, rateRepository, paymentService, folioService, guestRepository, smsService,
+            folioRepository, rateRepository, rateOverrideRepository, paymentService, folioService, guestRepository, smsService,
             lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService, piiCipher,
             reusablePaymentCredentialRepository)
 
@@ -65,6 +67,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
@@ -117,6 +120,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         folioRepository.getFolioByReservationId(1) >> Optional.empty()
@@ -140,6 +144,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(rateType, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
@@ -166,6 +171,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.postCharge(_, _, _) >> folio
@@ -344,6 +350,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
@@ -370,6 +377,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.distinctPerNightExtras(9) >> [new FolioService.PerNightExtraCharge(2, "Pet Fee", BigDecimal.valueOf(25), 1)]
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
@@ -448,6 +456,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
@@ -492,6 +501,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> []
         folioService.postCharge(_, "GUEST ROOM", _) >>
@@ -519,6 +529,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         providerFactory.getCardPresentProviderName() >> "elavon_cpi"
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
@@ -559,6 +570,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
@@ -603,6 +615,7 @@ class ReservationServiceSpec extends Specification {
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
@@ -629,6 +642,7 @@ class ReservationServiceSpec extends Specification {
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
@@ -651,6 +665,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
@@ -706,6 +721,7 @@ class ReservationServiceSpec extends Specification {
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         reservationRepository.existsByConfirmationCode(_) >> false
         reservationRepository.save(_) >> { Reservation r -> r }
         folioRepository.save(_) >> savedFolio
@@ -742,6 +758,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
 
@@ -753,10 +770,48 @@ class ReservationServiceSpec extends Specification {
         result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 
+    def "estimateTotal charges an active NIGHTLY rate override for the night it covers, and the base rate for the other nights"() {
+        given:
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        // end_date is exclusive: Aug 2 -> Aug 3 covers exactly the Aug 2 night
+        def override = new RateOverride(3, "NIGHTLY", 1, LocalDate.of(2026, 8, 2), LocalDate.of(2026, 8, 3),
+                BigDecimal.valueOf(200), "One-night surge", LocalDateTime.now(), LocalDateTime.now())
+        rateOverrideRepository.findActiveOverride(_, _, _) >> { String rt, int gc, LocalDate date ->
+            date == LocalDate.of(2026, 8, 2) ? Optional.of(override) : Optional.empty()
+        }
+
+        when:
+        // Aug 1 -> Aug 3: two nights, the 2nd (Aug 2) covered by the override
+        def result = reservationService.estimateTotal(Rate.RateType.NIGHTLY, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(280)) == 0
+    }
+
+    def "estimateTotal ignores rate overrides for a legacy-priced guest"() {
+        given:
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.of(legacyPricedGuest())
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.NIGHTLY, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), 7)
+
+        then:
+        0 * rateOverrideRepository.findActiveOverride(_, _, _)
+        result.subtotal().compareTo(BigDecimal.valueOf(100)) == 0
+    }
+
     def "estimateTotalWithExtras adds the priced extras to the room subtotal"() {
         given:
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         def selections = [new FolioService.ExtraSelection(2, 1)]
