@@ -125,6 +125,13 @@ public class FolioService {
         return charges;
     }
 
+    public long countRoomChargesPosted(int folioId) {
+        return folioItemRepository.findByFolioId(folioId).stream()
+                .filter(item -> item.type() == FolioItem.FolioItemType.CHARGE)
+                .filter(item -> "GUEST ROOM".equals(item.description()))
+                .count();
+    }
+
     @Transactional
     public Folio addExtra(int folioId, int extraId, int quantity) {
         Folio folio = folioRepository.findById(folioId).orElseThrow(FolioNotFoundException::new);

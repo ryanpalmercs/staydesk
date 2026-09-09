@@ -87,10 +87,10 @@ public class ReservationController {
                     new Reservation(0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null),
-                    request.roomPaymentMethodId());
+                    request.roomPaymentMethodId(), request.extras());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
-        } catch (RoomTypeNotFoundException | RateNotFoundException e) {
+        } catch (RoomTypeNotFoundException | RateNotFoundException | ExtraNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (RoomTypeUnavailableException | DateConflictException e) {
             return ResponseEntity.badRequest().build();
@@ -188,6 +188,15 @@ public class ReservationController {
         } catch (Exception e) {
             LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("{id}/check-in-estimate")
+    public ResponseEntity<ReservationEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
+        try {
+            return ResponseEntity.ok(reservationService.estimateCheckInCharge(id));
+        } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
         }
     }
 

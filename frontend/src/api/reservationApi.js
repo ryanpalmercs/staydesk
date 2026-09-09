@@ -68,6 +68,10 @@ export function getExtendStayEstimate(id, newCheckOutDate) {
     return api.get(`/reservations/${id}/extend-stay-estimate`, { params: { newCheckOutDate } })
 }
 
+export function getCheckInEstimate(id) {
+    return api.get(`/reservations/${id}/check-in-estimate`)
+}
+
 export function backlogCheckIn(payload) {
     return api.post('/admin/reservations/backlog-check-in', payload)
 }
