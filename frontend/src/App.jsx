@@ -27,11 +27,17 @@ import BacklogCheckInPage from './pages/BacklogCheckInPage'
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
 const MARKETING_HOSTNAMES = ['www.martinhousemotel.com', 'martinhousemotel.com']
+const PRODUCTION_HOSTNAME = 'admin.martinhousemotel.com'
 
 
 export default function App() {
     const [wakingUp, setWakingUp] = useState(false)
     const isMarketingHost = MARKETING_HOSTNAMES.includes(window.location.hostname)
+    // Whitelist production by exact hostname rather than blacklist beta/dev, so this defaults to
+    // showing the warning (safer) on anything unexpected - a new preview URL, a renamed branch host.
+    // The public marketing site is also real production, just not the admin tool - excluded too.
+    const isTestSystem = import.meta.env.DEV
+        || (!isMarketingHost && window.location.hostname !== PRODUCTION_HOSTNAME)
 
     useEffect(() => {
         if (HOTJAR_ID) {
@@ -49,6 +55,15 @@ export default function App() {
 
     return (
         <>
+            {isTestSystem && (
+                <div style={{
+                    position: 'sticky', top: 0, zIndex: 9999, width: '100%', textAlign: 'center',
+                    padding: '6px 12px', fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.85rem',
+                    color: '#fff', background: '#b91c1c'
+                }}>
+                    TEST SYSTEM — for testing only, not the live property system
+                </div>
+            )}
             {wakingUp && (
                 <div className="waking-up-banner">
                     Server waking up, please wait...
