@@ -175,6 +175,8 @@ class ReservationServiceSpec extends Specification {
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.postCharge(_, _, _) >> folio
+        folioRepository.save(_) >> { Folio f -> f }
+        paymentService.requiresManualCapture(_) >> true
 
         when:
         reservationService.checkOut(1)
@@ -196,12 +198,102 @@ class ReservationServiceSpec extends Specification {
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
+        folioRepository.save(_) >> { Folio f -> f }
+        paymentService.requiresManualCapture(_) >> true
 
         when:
         reservationService.checkOut(1)
 
         then:
         0 * folioService.postCharge(*_)
+    }
+
+    def "checkOut auto-captures and marks the folio paid when manual capture isn't required"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+        folioRepository.save(_) >> { Folio f -> f }
+        paymentService.requiresManualCapture({ it.id() == 9 }) >> false
+
+        when:
+        reservationService.checkOut(1)
+
+        then:
+        1 * paymentService.capture({ it.id() == 9 })
+        1 * folioRepository.save({ Folio f -> f.paidAt() != null })
+    }
+
+    def "checkOut leaves the folio unpaid, for manual capture, when requiresManualCapture is true"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+        folioRepository.save(_) >> { Folio f -> f }
+        paymentService.requiresManualCapture({ it.id() == 9 }) >> true
+
+        when:
+        reservationService.checkOut(1)
+
+        then:
+        0 * paymentService.capture(*_)
+    }
+
+    def "checkOut auto-captures for a PHONE reservation whose room charge already covers the total"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
+        // PHONE bookings post every room period upfront at creation (#292/#266), so nothing is left to post at checkout
+        folioService.countRoomChargesPosted(9) >> 3
+        folioRepository.save(_) >> { Folio f -> f }
+        paymentService.requiresManualCapture({ it.id() == 9 }) >> false
+
+        when:
+        reservationService.checkOut(1)
+
+        then:
+        0 * folioService.postCharge(*_)
+        1 * paymentService.capture({ it.id() == 9 })
+        1 * folioRepository.save({ Folio f -> f.paidAt() != null })
+    }
+
+    def "checkOut still requires manual capture for a PHONE reservation with real money owed beyond the room charge"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(265), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+        folioRepository.save(_) >> { Folio f -> f }
+        paymentService.requiresManualCapture({ it.id() == 9 }) >> true
+
+        when:
+        reservationService.checkOut(1)
+
+        then:
+        0 * paymentService.capture(*_)
     }
 
     private static BacklogCheckInRequest backlogRequest(String email = null, String phoneNumber = null) {

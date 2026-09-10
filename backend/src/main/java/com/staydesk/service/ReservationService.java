@@ -633,7 +633,14 @@ public class ReservationService {
             folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
         }
 
-        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
+        Folio closedFolio = folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED,
+                folio.total(), folio.paidAt(), folio.createdAt(), now));
+
+        if (!paymentService.requiresManualCapture(closedFolio)) {
+            paymentService.capture(closedFolio);
+            folioRepository.save(new Folio(closedFolio.id(), closedFolio.reservationId(), closedFolio.status(),
+                    closedFolio.total(), LocalDateTime.now(), closedFolio.createdAt(), LocalDateTime.now()));
+        }
 
         paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
 

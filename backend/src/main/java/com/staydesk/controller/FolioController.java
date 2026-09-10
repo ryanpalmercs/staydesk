@@ -6,6 +6,8 @@ import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.model.FolioPayment;
 import com.staydesk.model.request.AddFolioItemRequest;
+import com.staydesk.model.request.ChargeExtraRequest;
+import com.staydesk.model.request.ChargeExtraTerminalRequest;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
 import com.staydesk.repository.FolioItemRepository;
@@ -13,6 +15,7 @@ import com.staydesk.repository.FolioPaymentRepository;
 import com.staydesk.repository.FolioRepository;
 import com.staydesk.service.FolioService;
 import com.staydesk.service.PaymentService;
+import com.staydesk.service.ReservationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -37,15 +40,17 @@ public class FolioController {
     private final FolioPaymentRepository folioPaymentRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
+    private final ReservationService reservationService;
 
     public FolioController(FolioRepository folioRepository, FolioItemRepository folioItemRepository,
                            FolioPaymentRepository folioPaymentRepository,
-                           PaymentService paymentService, FolioService folioService) {
+                           PaymentService paymentService, FolioService folioService, ReservationService reservationService) {
         this.folioRepository = folioRepository;
         this.folioItemRepository = folioItemRepository;
         this.folioPaymentRepository = folioPaymentRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
+        this.reservationService = reservationService;
     }
 
     @GetMapping("{id}")
@@ -91,6 +96,39 @@ public class FolioController {
         } catch (FolioClosedException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
+    }
+
+    @GetMapping("{id}/capture-preview")
+    public ResponseEntity<PaymentService.CapturePreview> capturePreview(@PathVariable Integer id) {
+        try {
+            Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+            return ResponseEntity.ok(paymentService.previewCapture(folio));
+        } catch (FolioNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("{id}/items/charge")
+    public ResponseEntity<FolioPayment> chargeExtra(@PathVariable Integer id, @RequestBody ChargeExtraRequest request) {
+        LOGGER.info("Charging extra of {} to card on file for folio {}", request.amount(), id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+        String customerEmail = reservationService.resolveGuestEmailForReservation(folio.reservationId());
+
+        FolioPayment payment = paymentService.chargeExtraToCardOnFile(folio, request.amount(), request.description(), customerEmail);
+        return ResponseEntity.ok(payment);
+    }
+
+    @PostMapping("{id}/items/charge/terminal")
+    public ResponseEntity<FolioPayment> chargeExtraTerminal(@PathVariable Integer id, @RequestBody ChargeExtraTerminalRequest request) {
+        LOGGER.info("Charging extra of {} via terminal for folio {}", request.amount(), id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+        String customerEmail = reservationService.resolveGuestEmailForReservation(folio.reservationId());
+
+        FolioPayment payment = paymentService.chargeExtraTerminal(folio, request.amount(), request.description(),
+                request.posDeviceId(), customerEmail);
+        return ResponseEntity.ok(payment);
     }
 
     @PostMapping("{id}/pay")
