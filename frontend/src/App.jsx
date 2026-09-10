@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { TriangleAlert } from 'lucide-react'
 import { AuthProvider } from './contexts/AuthContext'
 import Hotjar from '@hotjar/browser'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -27,11 +28,17 @@ import BacklogCheckInPage from './pages/BacklogCheckInPage'
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
 const MARKETING_HOSTNAMES = ['www.martinhousemotel.com', 'martinhousemotel.com']
+const PRODUCTION_HOSTNAME = 'admin.martinhousemotel.com'
 
 
 export default function App() {
     const [wakingUp, setWakingUp] = useState(false)
     const isMarketingHost = MARKETING_HOSTNAMES.includes(window.location.hostname)
+    // Whitelist production by exact hostname rather than blacklist beta/dev, so this defaults to
+    // showing the warning (safer) on anything unexpected - a new preview URL, a renamed branch host.
+    // The public marketing site is also real production, just not the admin tool - excluded too.
+    const isTestSystem = import.meta.env.DEV
+        || (!isMarketingHost && window.location.hostname !== PRODUCTION_HOSTNAME)
 
     useEffect(() => {
         if (HOTJAR_ID) {
@@ -48,58 +55,75 @@ export default function App() {
     }, [])
 
     return (
-        <>
+        // height:100vh here + flex:1/minHeight:0 below (rather than letting the routed page claim
+        // its own 100vh) is what keeps the banner from pushing page content taller than the actual
+        // viewport - Layout's sidebar (and its sign-out button) would otherwise overflow off screen.
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+            {isTestSystem && (
+                <div style={{
+                    position: 'sticky', top: 0, zIndex: 9999, width: '100%', textAlign: 'center',
+                    padding: '6px 12px', fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.85rem',
+                    color: '#fff', background: '#b91c1c', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: '0.5rem', flexShrink: 0,
+                    animation: 'test-system-flash 1.4s ease-in-out infinite'
+                }}>
+                    <style>{'@keyframes test-system-flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'}</style>
+                    <TriangleAlert size={24} /> TEST SYSTEM — NOT THE LIVE PROPERTY SYSTEM <TriangleAlert size={24} />
+                </div>
+            )}
             {wakingUp && (
                 <div className="waking-up-banner">
                     Server waking up, please wait...
                 </div>
             )}
-            <BrowserRouter>
-                <AuthProvider>
-                    <Routes>
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                        <Route path="/sms-terms" element={<SmsTermsPage />} />
-                        <Route path="/welcome" element={<WelcomePage />} />
-                        {isMarketingHost ? (
-                            <Route path="/" element={<WelcomePage />} />
-                        ) : (
-                            <>
-                                <Route element={<ProtectedRoute />}>
-                                    <Route element={<Layout />}>
-                                        <Route path="/" element={<DashboardPage />} />
-                                        <Route path="/rooms" element={<RoomsPage />} />
-                                        <Route path="/reservations" element={<ReservationsPage />} />
-                                        <Route path="/timesheet/:id" element={<TimesheetPage />} />
-                                        <Route path="/guest/:id" element={<GuestProfilePage />} />
-                                        <Route path="/guests" element={<GuestsPage />} />
+            <div style={{ flex: 1, minHeight: 0 }}>
+                <BrowserRouter>
+                    <AuthProvider>
+                        <Routes>
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                            <Route path="/sms-terms" element={<SmsTermsPage />} />
+                            <Route path="/welcome" element={<WelcomePage />} />
+                            {isMarketingHost ? (
+                                <Route path="/" element={<WelcomePage />} />
+                            ) : (
+                                <>
+                                    <Route element={<ProtectedRoute />}>
+                                        <Route element={<Layout />}>
+                                            <Route path="/" element={<DashboardPage />} />
+                                            <Route path="/rooms" element={<RoomsPage />} />
+                                            <Route path="/reservations" element={<ReservationsPage />} />
+                                            <Route path="/timesheet/:id" element={<TimesheetPage />} />
+                                            <Route path="/guest/:id" element={<GuestProfilePage />} />
+                                            <Route path="/guests" element={<GuestsPage />} />
+                                        </Route>
                                     </Route>
-                                </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
-                                    <Route element={<Layout />}>
-                                        <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                                    <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
+                                        <Route element={<Layout />}>
+                                            <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                                        </Route>
                                     </Route>
-                                </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                                    <Route element={<Layout />}>
-                                        <Route path="/employees" element={<EmployeesPage />} />
-                                        <Route path="/payroll" element={<PayrollPage />} />
-                                        <Route path="/settings" element={<SettingsPage />} />
-                                        <Route path="/reports" element={<ReportsPage />} />
-                                        <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
-                                        <Route path="/backlog-check-in" element={<BacklogCheckInPage />} />
+                                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                                        <Route element={<Layout />}>
+                                            <Route path="/employees" element={<EmployeesPage />} />
+                                            <Route path="/payroll" element={<PayrollPage />} />
+                                            <Route path="/settings" element={<SettingsPage />} />
+                                            <Route path="/reports" element={<ReportsPage />} />
+                                            <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
+                                            <Route path="/backlog-check-in" element={<BacklogCheckInPage />} />
+                                        </Route>
                                     </Route>
-                                </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
-                                    <Route element={<Layout />}>
-                                        <Route path="/incident-charges" element={<PendingIncidentChargesPage />} />
+                                    <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
+                                        <Route element={<Layout />}>
+                                            <Route path="/incident-charges" element={<PendingIncidentChargesPage />} />
+                                        </Route>
                                     </Route>
-                                </Route>
-                            </>
-                        )}
-                    </Routes>
-                </AuthProvider>
-            </BrowserRouter>
-        </>
+                                </>
+                            )}
+                        </Routes>
+                    </AuthProvider>
+                </BrowserRouter>
+            </div>
+        </div>
     )
 }

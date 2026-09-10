@@ -345,7 +345,6 @@ public class ReservationService {
                                   .orElseThrow(NoRoomAvailableException::new);
 
         reservationRepository.assignRoom(id, room.id());
-        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
@@ -412,7 +411,6 @@ public class ReservationService {
                                   .orElseThrow(NoRoomAvailableException::new);
 
         reservationRepository.assignRoom(id, room.id());
-        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
@@ -479,7 +477,13 @@ public class ReservationService {
 
         Room room = roomRepository.findById(request.roomId()).orElseThrow(RoomNotFoundException::new);
 
-        if (room.status() == Room.RoomStatus.OCCUPIED) {
+        if (room.status() == Room.RoomStatus.MAINTENANCE) {
+            throw new RoomUnavailableException();
+        }
+
+        boolean hasConflict = !reservationRepository.findOverlapping(room.id(), request.checkOutDate(), request.checkInDate()).isEmpty();
+
+        if (hasConflict) {
             throw new RoomUnavailableException();
         }
 
@@ -498,8 +502,6 @@ public class ReservationService {
                 Reservation.Channel.WALK_IN, false, now, now, confirmationCode));
 
         folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
-
-        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
 
         return savedReservation;
     }
@@ -538,8 +540,6 @@ public class ReservationService {
         }
 
         reservationRepository.updateReservationStatusToCheckedOut(id);
-
-        roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
 
         lockPasscodeService.revokePasscodes(id);
 
