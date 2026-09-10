@@ -28,6 +28,7 @@ import com.staydesk.model.RoomType;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
+import com.staydesk.model.dto.SyncFoliosResult;
 import com.staydesk.model.request.BacklogCheckInRequest;
 import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.FolioRepository;
@@ -48,6 +49,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -504,6 +506,55 @@ public class ReservationService {
         folioRepository.save(new Folio(0, savedReservation.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
 
         return savedReservation;
+    }
+
+    /**
+     * backlogCheckIn (and any other CHECKED_IN reservation that's fallen behind) leaves its folio
+     * missing room charges - no payment is ever touched here, only the folio ledger, since backlog
+     * entries already got paid some other way the system doesn't know about. Reuses the exact same
+     * remaining-periods reconciliation checkIn/checkInTerminal/checkOut already do, so a reservation
+     * that's already fully posted is a no-op.
+     */
+    @Transactional
+    public SyncFoliosResult syncBacklogFolios() {
+        List<String> synced = new ArrayList<>();
+
+        List<Reservation> checkedIn = reservationRepository.findAll().stream()
+                                                            .filter(r -> r.status() == Reservation.ReservationStatus.CHECKED_IN)
+                                                            .toList();
+
+        for (Reservation reservation : checkedIn) {
+            Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElse(null);
+
+            if (folio == null) {
+                continue;
+            }
+
+            Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                      .orElse(null);
+
+            if (rate == null) {
+                continue;
+            }
+
+            long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+            long alreadyPosted = folioService.countRoomChargesPosted(folio.id());
+            long remainingPeriods = totalPeriods - alreadyPosted;
+
+            if (remainingPeriods <= 0) {
+                continue;
+            }
+
+            for (long i = 0; i < remainingPeriods; i++) {
+                BigDecimal periodAmount = resolveNightlyRateAmount(reservation.guestId(), rate,
+                        reservation.checkInDate().plusDays(alreadyPosted + i));
+                folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
+            }
+
+            synced.add(reservation.confirmationCode());
+        }
+
+        return new SyncFoliosResult(synced.size(), synced);
     }
 
     private Guest findOrCreateBacklogGuest(BacklogCheckInRequest request) {
