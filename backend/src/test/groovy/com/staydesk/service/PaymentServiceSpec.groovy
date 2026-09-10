@@ -101,11 +101,11 @@ class PaymentServiceSpec extends Specification {
         def provider = Mock(PaymentProvider)
 
         providerFactory.getProvider("authorizenet") >> provider
-        provider.chargeStoredCredential(BigDecimal.valueOf(150), "cust-1", "profile-1", "Incident: broken TV") >>
+        provider.chargeStoredCredential(BigDecimal.valueOf(150), "cust-1", "profile-1", "Incident: broken TV", "guest@example.com") >>
                 new AuthResult(true, "txn-99", null, "4242")
 
         when:
-        def result = paymentService.chargeStoredCredential(folio, credential, BigDecimal.valueOf(150), "Incident: broken TV")
+        def result = paymentService.chargeStoredCredential(folio, credential, BigDecimal.valueOf(150), "Incident: broken TV", "guest@example.com")
 
         then:
         1 * folioPaymentRepository.save({ FolioPayment saved ->
@@ -127,7 +127,7 @@ class PaymentServiceSpec extends Specification {
         provider.chargeStoredCredential(*_) >> new AuthResult(false, null, "declined", null)
 
         when:
-        paymentService.chargeStoredCredential(folio, credential, BigDecimal.valueOf(150), "Incident: broken TV")
+        paymentService.chargeStoredCredential(folio, credential, BigDecimal.valueOf(150), "Incident: broken TV", null)
 
         then:
         thrown(RuntimeException)

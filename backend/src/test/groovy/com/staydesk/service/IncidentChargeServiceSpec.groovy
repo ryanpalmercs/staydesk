@@ -23,9 +23,10 @@ class IncidentChargeServiceSpec extends Specification {
     FolioRepository folioRepository = Mock()
     PaymentService paymentService = Mock()
     FolioService folioService = Mock()
+    ReservationService reservationService = Mock()
 
     IncidentChargeService service = new IncidentChargeService(incidentChargeRequestRepository,
-            reusablePaymentCredentialRepository, folioRepository, paymentService, folioService)
+            reusablePaymentCredentialRepository, folioRepository, paymentService, folioService, reservationService)
 
     def staffId = UUID.randomUUID()
 
@@ -121,13 +122,15 @@ class IncidentChargeServiceSpec extends Specification {
 
         def savedPayment = new FolioPayment(9, 1, PaymentKind.INCIDENT_CHARGE, "authorizenet", "txn-1", "4242",
                 PaymentStatus.CAPTURED, BigDecimal.valueOf(150), BigDecimal.valueOf(150), "", LocalDateTime.now(), LocalDateTime.now())
-        paymentService.chargeStoredCredential(_, _, _, _) >> savedPayment
+        reservationService.resolveGuestEmailForReservation(10) >> "guest@example.com"
+        paymentService.chargeStoredCredential(_, _, _, _, _) >> savedPayment
         incidentChargeRequestRepository.save(_) >> { IncidentChargeRequest r -> r }
 
         when:
         def result = service.approve(1, staffId)
 
         then:
+        1 * paymentService.chargeStoredCredential(_, _, _, _, "guest@example.com") >> savedPayment
         1 * folioService.postIncidentCharge(_, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(150)) == 0 })
         result.status() == IncidentChargeStatus.CHARGED
         result.folioPaymentId() == 9
@@ -140,7 +143,7 @@ class IncidentChargeServiceSpec extends Specification {
         reusablePaymentCredentialRepository.findById(1) >> Optional.of(activeCredential())
         folioRepository.findById(1) >> Optional.of(closedFolio())
 
-        paymentService.chargeStoredCredential(_, _, _, _) >> { throw new RuntimeException("declined") }
+        paymentService.chargeStoredCredential(_, _, _, _, _) >> { throw new RuntimeException("declined") }
         incidentChargeRequestRepository.save(_) >> { IncidentChargeRequest r -> r }
 
         when:

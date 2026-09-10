@@ -6,6 +6,7 @@ import net.authorize.api.contract.v1.CreateCustomerProfileResponse;
 import net.authorize.api.contract.v1.CreateTransactionRequest;
 import net.authorize.api.contract.v1.CreateTransactionResponse;
 import net.authorize.api.contract.v1.CreditCardType;
+import net.authorize.api.contract.v1.CustomerDataType;
 import net.authorize.api.contract.v1.CustomerProfileBaseType;
 import net.authorize.api.contract.v1.CustomerProfilePaymentType;
 import net.authorize.api.contract.v1.DeleteCustomerProfileRequest;
@@ -38,7 +39,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
         PaymentType paymentType = new PaymentType();
         paymentType.setOpaqueData(decodeOpaqueData(token));
 
@@ -46,6 +47,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
         transactionRequest.setTransactionType(TransactionTypeEnum.AUTH_ONLY_TRANSACTION.value());
         transactionRequest.setAmount(amount);
         transactionRequest.setPayment(paymentType);
+        setCustomerEmail(transactionRequest, customerEmail);
 
         OrderType order = new OrderType();
         order.setDescription(description);
@@ -62,7 +64,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
         PaymentType paymentType = new PaymentType();
         paymentType.setOpaqueData(decodeOpaqueData(token));
 
@@ -70,6 +72,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
         transactionRequest.setTransactionType(TransactionTypeEnum.AUTH_CAPTURE_TRANSACTION.value());
         transactionRequest.setAmount(amount);
         transactionRequest.setPayment(paymentType);
+        setCustomerEmail(transactionRequest, customerEmail);
 
         OrderType order = new OrderType();
         order.setDescription(description);
@@ -165,7 +168,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
-                                             String description) {
+                                             String description, String customerEmail) {
         PaymentProfile paymentProfile = new PaymentProfile();
         paymentProfile.setPaymentProfileId(providerToken);
 
@@ -177,6 +180,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
         transactionRequest.setTransactionType(TransactionTypeEnum.AUTH_CAPTURE_TRANSACTION.value());
         transactionRequest.setAmount(amount);
         transactionRequest.setProfile(customerProfilePayment);
+        setCustomerEmail(transactionRequest, customerEmail);
 
         OrderType order = new OrderType();
         order.setDescription(description);
@@ -200,6 +204,16 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
 
         DeleteCustomerProfileController controller = new DeleteCustomerProfileController(request);
         controller.execute();
+    }
+
+    private void setCustomerEmail(TransactionRequestType transactionRequest, String customerEmail) {
+        if (customerEmail == null || customerEmail.isBlank()) {
+            return;
+        }
+
+        CustomerDataType customer = new CustomerDataType();
+        customer.setEmail(customerEmail);
+        transactionRequest.setCustomer(customer);
     }
 
     private CreateTransactionResponse execute(TransactionRequestType transactionRequest) {

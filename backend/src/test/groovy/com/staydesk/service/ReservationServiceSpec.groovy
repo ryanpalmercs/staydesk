@@ -412,7 +412,7 @@ class ReservationServiceSpec extends Specification {
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 17))
 
         then:
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }, _)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }, _, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 17)
         result.reservation().checkInDate() == LocalDate.of(2026, 7, 10)
         result.amountCharged().compareTo(BigDecimal.valueOf(350)) == 0
@@ -442,7 +442,7 @@ class ReservationServiceSpec extends Specification {
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
 
         then:
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, _)
         result.amountCharged().compareTo(BigDecimal.valueOf(315)) == 0
     }
 
@@ -546,7 +546,7 @@ class ReservationServiceSpec extends Specification {
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
 
         then:
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, _)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, _, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
         result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
     }
@@ -619,7 +619,7 @@ class ReservationServiceSpec extends Specification {
         def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), 6)
 
         then:
-        1 * paymentService.chargeCardPresent({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, "elavon_cpi", "dev-token-1", _)
+        1 * paymentService.chargeCardPresent({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, "elavon_cpi", "dev-token-1", _, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
         result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
     }
@@ -660,7 +660,7 @@ class ReservationServiceSpec extends Specification {
         def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), null)
 
         then:
-        1 * paymentService.chargeCardPresent({ it.id() == 9 }, _, "elavon_cpi_manual", "no-device-record-only", _)
+        1 * paymentService.chargeCardPresent({ it.id() == 9 }, _, "elavon_cpi_manual", "no-device-record-only", _, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
         0 * posDeviceRepository.findById(_)
     }
@@ -704,7 +704,7 @@ class ReservationServiceSpec extends Specification {
         reservationService.checkIn(1, 5, "cred-1", "token-1")
 
         then:
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, "token-1")
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, "token-1", _)
     }
 
     def "checkInTerminal charges the folio's real total, including any already-posted extras, for a WALK_IN reservation"() {
@@ -731,7 +731,7 @@ class ReservationServiceSpec extends Specification {
         reservationService.checkInTerminal(1, 5, 6)
 
         then:
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, "dev-token-1")
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, "dev-token-1", _)
     }
 
     def "estimateCheckInCharge combines the folio's current total with the remaining room nights for a WALK_IN reservation"() {
@@ -784,7 +784,35 @@ class ReservationServiceSpec extends Specification {
         reservationService.createReservation(draft, "token-1", [])
 
         then:
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1")
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1",
+                "james@example.com")
+    }
+
+    def "createReservation passes null customerEmail when the guest has none on file"() {
+        given:
+        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
+                false, LocalDateTime.now(), LocalDateTime.now(), null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+
+        when:
+        reservationService.createReservation(draft, "token-1", [])
+
+        then:
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, _, _, "token-1", null)
     }
 
     def "createReservation posts staged extras before charging, so a PHONE booking's full-stay charge includes them"() {
@@ -815,7 +843,7 @@ class ReservationServiceSpec extends Specification {
         then:
         1 * folioService.addExtra(9, 2, 1) >>
                 new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now())
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(185)) == 0 }, _, "token-1")
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(185)) == 0 }, _, "token-1", _)
     }
 
     def "estimateTotal uses the guest's legacy price when legacy pricing is enabled"() {

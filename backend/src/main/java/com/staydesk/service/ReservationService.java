@@ -157,6 +157,24 @@ public class ReservationService {
         return total;
     }
 
+    private String resolveGuestEmail(Integer guestId) {
+        if (guestId == null) {
+            return null;
+        }
+
+        return guestRepository.findById(guestId)
+                              .map(Guest::email)
+                              .map(EncryptedString::value)
+                              .orElse(null);
+    }
+
+    public String resolveGuestEmailForReservation(int reservationId) {
+        return reservationRepository.findById(reservationId)
+                                    .map(Reservation::guestId)
+                                    .map(this::resolveGuestEmail)
+                                    .orElse(null);
+    }
+
     private String generateUniqueConfirmationCode() {
         String code;
 
@@ -235,7 +253,8 @@ public class ReservationService {
         }
 
         if (isPhone) {
-            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
+                    resolveGuestEmail(savedReservation.guestId()));
         }
 
         if (savedReservation.guestId() != null && savedReservation.channel() != Reservation.Channel.WALK_IN) {
@@ -365,10 +384,12 @@ public class ReservationService {
                 folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
             }
 
-            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId);
+            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
+                    resolveGuestEmail(reservation.guestId()));
         }
 
-        paymentService.createIncidentalHold(folio, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId);
+        paymentService.createIncidentalHold(folio, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId,
+                resolveGuestEmail(reservation.guestId()));
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
@@ -431,10 +452,12 @@ public class ReservationService {
                 folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
             }
 
-            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken);
+            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken,
+                    resolveGuestEmail(reservation.guestId()));
         }
 
-        paymentService.createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken);
+        paymentService.createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken,
+                resolveGuestEmail(reservation.guestId()));
 
         Reservation checkedIn = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
@@ -729,7 +752,8 @@ public class ReservationService {
                 .findFirst()
                 .orElseThrow(NoReusableCredentialException::new);
 
-        paymentService.chargeStoredCredential(ctx.folio(), credential, ctx.chargeAmount(), "Stay extension to " + newCheckOutDate);
+        paymentService.chargeStoredCredential(ctx.folio(), credential, ctx.chargeAmount(), "Stay extension to " + newCheckOutDate,
+                resolveGuestEmail(ctx.reservation().guestId()));
 
         Reservation saved = saveExtendedReservation(ctx, newCheckOutDate);
 
@@ -753,7 +777,7 @@ public class ReservationService {
         ExtendStayContext ctx = prepareExtendStay(id, newCheckOutDate);
 
         paymentService.chargeCardPresent(ctx.folio(), ctx.chargeAmount(), providerFactory.getCardPresentProviderName(),
-                paymentMethodToken, "Stay extension to " + newCheckOutDate);
+                paymentMethodToken, "Stay extension to " + newCheckOutDate, resolveGuestEmail(ctx.reservation().guestId()));
 
         Reservation saved = saveExtendedReservation(ctx, newCheckOutDate);
 

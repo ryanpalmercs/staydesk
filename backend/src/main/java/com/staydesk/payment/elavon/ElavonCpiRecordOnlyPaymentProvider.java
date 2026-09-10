@@ -24,14 +24,14 @@ public class ElavonCpiRecordOnlyPaymentProvider implements PaymentProvider {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElavonCpiRecordOnlyPaymentProvider.class);
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
         String recordId = recordId();
         LOGGER.info("Recording card-present hold without charging (Elavon terminal unavailable): {} for {}", recordId, description);
         return new AuthResult(true, recordId, null, null);
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
         String recordId = recordId();
         LOGGER.info("Recording card-present sale without charging (Elavon terminal unavailable): {} for {}", recordId, description);
         return new AuthResult(true, recordId, null, null);
@@ -58,7 +58,7 @@ public class ElavonCpiRecordOnlyPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description) {
+    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description, String customerEmail) {
         String recordId = recordId();
         LOGGER.info("Recording stored-credential charge without charging (Elavon terminal unavailable): {} for {}", recordId, description);
         return new AuthResult(true, recordId, null, null);
