@@ -223,6 +223,7 @@ class ReservationServiceSpec extends Specification {
         piiCipher.hash(_) >> "hashed-placeholder-email"
         guestRepository.findByEmailHash("hashed-placeholder-email") >> Optional.empty()
         reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.findOverlapping(5, _, _) >> []
 
         when:
         def result = reservationService.backlogCheckIn(backlogRequest())
@@ -241,7 +242,6 @@ class ReservationServiceSpec extends Specification {
         1 * folioRepository.save({ Folio f ->
             f.reservationId() == 11 && f.status() == Folio.FolioStatus.OPEN && f.total().compareTo(BigDecimal.ZERO) == 0
         })
-        1 * roomRepository.updateRoomStatus(5, Room.RoomStatus.OCCUPIED)
         0 * paymentService._
         result.status() == Reservation.ReservationStatus.CHECKED_IN
     }
@@ -257,6 +257,7 @@ class ReservationServiceSpec extends Specification {
         piiCipher.hash("james@example.com") >> "hashed-real-email"
         guestRepository.findByEmailHash("hashed-real-email") >> Optional.of(existingGuest)
         reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.findOverlapping(5, _, _) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
         folioRepository.save(_) >> { Folio f -> f }
 
@@ -281,10 +282,28 @@ class ReservationServiceSpec extends Specification {
         0 * reservationRepository.save(_)
     }
 
-    def "backlogCheckIn throws RoomUnavailableException when the room is already OCCUPIED"() {
+    def "backlogCheckIn throws RoomUnavailableException when the room is in MAINTENANCE"() {
         given:
-        def room = new Room(5, 26, 2, Room.RoomStatus.OCCUPIED, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def room = new Room(5, 26, 2, Room.RoomStatus.MAINTENANCE, null, null, LocalDateTime.now(), LocalDateTime.now())
         roomRepository.findById(5) >> Optional.of(room)
+
+        when:
+        reservationService.backlogCheckIn(backlogRequest())
+
+        then:
+        thrown(RoomUnavailableException)
+        0 * guestRepository.save(_)
+        0 * reservationRepository.save(_)
+    }
+
+    def "backlogCheckIn throws RoomUnavailableException when the room has an overlapping reservation for those dates"() {
+        given:
+        def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def conflicting = new Reservation(9, 3, 5, 2, LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 25),
+                Reservation.ReservationStatus.CHECKED_IN, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN,
+                false, LocalDateTime.now(), LocalDateTime.now(), "111222")
+        roomRepository.findById(5) >> Optional.of(room)
+        reservationRepository.findOverlapping(5, LocalDate.of(2026, 8, 28), LocalDate.of(2026, 8, 21)) >> [conflicting]
 
         when:
         reservationService.backlogCheckIn(backlogRequest())
