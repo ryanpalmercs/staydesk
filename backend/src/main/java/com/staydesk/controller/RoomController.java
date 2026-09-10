@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @RestController
@@ -26,6 +28,7 @@ import java.util.List;
 public class RoomController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RoomController.class);
+    private static final ZoneId PROPERTY_ZONE = ZoneId.of("America/Chicago");
 
     private final RoomRepository roomRepository;
     private final RoomTypeRepository roomTypeRepository;
@@ -41,14 +44,14 @@ public class RoomController {
     @GetMapping
     public List<Room> getRooms() {
         LOGGER.info("Finding all rooms");
-        return roomRepository.findAll();
+        return roomRepository.findAllWithComputedStatus(LocalDate.now(PROPERTY_ZONE));
     }
 
     @GetMapping("{id}")
     public ResponseEntity<Room> getRoom(@PathVariable Integer id) {
         LOGGER.info("Finding room by id {}", id);
 
-        return roomRepository.findById(id)
+        return roomRepository.findByIdWithComputedStatus(id, LocalDate.now(PROPERTY_ZONE))
                              .map(ResponseEntity::ok)
                              .orElse(ResponseEntity.notFound().build());
     }

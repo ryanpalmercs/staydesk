@@ -345,7 +345,6 @@ public class ReservationService {
                                   .orElseThrow(NoRoomAvailableException::new);
 
         reservationRepository.assignRoom(id, room.id());
-        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
@@ -412,7 +411,6 @@ public class ReservationService {
                                   .orElseThrow(NoRoomAvailableException::new);
 
         reservationRepository.assignRoom(id, room.id());
-        roomRepository.updateRoomStatus(room.id(), Room.RoomStatus.OCCUPIED);
         reservationRepository.updateReservationStatusToCheckedIn(id);
 
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
@@ -538,8 +536,6 @@ public class ReservationService {
         }
 
         reservationRepository.updateReservationStatusToCheckedOut(id);
-
-        roomRepository.updateRoomStatus(reservation.roomId(), Room.RoomStatus.AVAILABLE);
 
         lockPasscodeService.revokePasscodes(id);
 
