@@ -75,3 +75,7 @@ export function getCheckInEstimate(id) {
 export function backlogCheckIn(payload) {
     return api.post('/admin/reservations/backlog-check-in', payload)
 }
+
+export function syncBacklogFolios() {
+    return api.post('/admin/reservations/sync-folios')
+}

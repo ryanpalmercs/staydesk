@@ -1,6 +1,7 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.Reservation;
+import com.staydesk.model.dto.SyncFoliosResult;
 import com.staydesk.model.request.BacklogCheckInRequest;
 import com.staydesk.service.ReservationService;
 import jakarta.validation.Valid;
@@ -33,5 +34,15 @@ public class AdminReservationController {
     @PostMapping("/backlog-check-in")
     public ResponseEntity<Reservation> backlogCheckIn(@Valid @RequestBody BacklogCheckInRequest request) {
         return ResponseEntity.ok(reservationService.backlogCheckIn(request));
+    }
+
+    /**
+     * Posts any missing GUEST ROOM folio charges for CHECKED_IN reservations - in practice, this
+     * only ever does anything for backlog-check-in reservations, since the normal check-in/
+     * check-out flow always posts its own remaining charges. Never touches payment.
+     */
+    @PostMapping("/sync-folios")
+    public ResponseEntity<SyncFoliosResult> syncFolios() {
+        return ResponseEntity.ok(reservationService.syncBacklogFolios());
     }
 }

@@ -8,6 +8,7 @@ import { getRateOverrides, createRateOverride, deleteRateOverride } from "../api
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
+import { syncBacklogFolios } from "../api/reservationApi"
 import { useAuth } from "../contexts/AuthContext"
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
@@ -120,6 +121,8 @@ function SettingsPage() {
     const [pairForm, setPairForm] = useState({ pairingCode: '', friendlyName: '', location: '' })
     const [pairing, setPairing] = useState(false)
     const [pairError, setPairError] = useState(null)
+    const [folioSyncing, setFolioSyncing] = useState(false)
+    const [folioSyncResult, setFolioSyncResult] = useState(null)
     const { isSystemAdmin, role } = useAuth()
     const isAdmin = role === 'ADMIN'
     const [lockRooms, setLockRooms] = useState([])
@@ -283,6 +286,18 @@ function SettingsPage() {
     async function handleUnpairDevice(id) {
         await unpairPosDevice(id)
         setPosDevices(prev => prev.filter(d => d.id !== id))
+    }
+
+    async function handleSyncFolios() {
+        setFolioSyncing(true)
+        setFolioSyncResult(null)
+        try {
+            const res = await syncBacklogFolios()
+            setFolioSyncResult(res.data)
+        } catch (err) {
+            setFolioSyncResult({ error: true })
+        }
+        setFolioSyncing(false)
     }
 
     const sortedLockRooms = [...lockRooms].sort((a, b) => a.roomNumber - b.roomNumber)
@@ -568,6 +583,25 @@ function SettingsPage() {
                     <button className="btn-primary mt-4" onClick={handleSaveRoomTypes} disabled={!roomTypesDirty || roomTypesSaving}>
                         {roomTypesSaving ? 'Saving...' : 'Save'}
                     </button>
+                </div>
+
+                <div className="feat-card">
+                    <h3>Backlog Folio Sync</h3>
+                    <p>Backlog check-ins are recorded without a folio charge, since staff already collected payment some other way. This posts the missing room charge to each one's folio (no payment is ever touched) — safe to run any time, reservations already caught up are left alone.</p>
+                    <button className="btn-primary mt-4" onClick={handleSyncFolios} disabled={folioSyncing}>
+                        {folioSyncing ? 'Syncing...' : 'Sync Folios'}
+                    </button>
+                    {folioSyncResult && (
+                        folioSyncResult.error ? (
+                            <p className="text-sm text-error mt-2">Sync failed. Try again.</p>
+                        ) : (
+                            <p className="text-sm text-muted mt-2">
+                                {folioSyncResult.syncedCount === 0
+                                    ? 'All folios are already in sync.'
+                                    : `Synced ${folioSyncResult.syncedCount} folio${folioSyncResult.syncedCount === 1 ? '' : 's'}: ${folioSyncResult.confirmationCodes.join(', ')}`}
+                            </p>
+                        )
+                    )}
                 </div>
 
                 <div className="feat-card">

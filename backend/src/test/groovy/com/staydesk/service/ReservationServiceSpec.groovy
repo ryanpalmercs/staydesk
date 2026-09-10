@@ -327,6 +327,65 @@ class ReservationServiceSpec extends Specification {
         0 * roomRepository.findById(_)
     }
 
+    def "syncBacklogFolios posts the missing GUEST ROOM charges for a CHECKED_IN reservation with an empty folio"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findAll() >> [res]
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 0
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+
+        when:
+        def result = reservationService.syncBacklogFolios()
+
+        then:
+        // reservation() spans 2026-07-10 -> 2026-07-13: 3 nights
+        3 * folioService.postCharge(_, "GUEST ROOM", _)
+        0 * paymentService._
+        result.syncedCount() == 1
+        result.confirmationCodes() == ["123456"]
+    }
+
+    def "syncBacklogFolios skips a reservation whose folio is already fully posted"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findAll() >> [res]
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioService.countRoomChargesPosted(9) >> 3
+
+        when:
+        def result = reservationService.syncBacklogFolios()
+
+        then:
+        0 * folioService.postCharge(*_)
+        result.syncedCount() == 0
+        result.confirmationCodes() == []
+    }
+
+    def "syncBacklogFolios ignores reservations that aren't CHECKED_IN"() {
+        given:
+        reservationRepository.findAll() >> [reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE)]
+
+        when:
+        def result = reservationService.syncBacklogFolios()
+
+        then:
+        0 * folioRepository.getFolioByReservationId(_)
+        0 * folioService.postCharge(*_)
+        result.syncedCount() == 0
+    }
+
     private static ReusablePaymentCredential credential(LocalDateTime expiresAt = null) {
         new ReusablePaymentCredential(4, 9, 1, "authorizenet", "cust-1", "tok-1", "4242",
                 false, null, expiresAt, LocalDateTime.now(), LocalDateTime.now())
