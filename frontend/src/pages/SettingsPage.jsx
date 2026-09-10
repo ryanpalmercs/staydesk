@@ -173,7 +173,7 @@ function SettingsPage() {
         const dirty = lockRooms.filter(r =>
             r.sifelyLockId !== originalLockRooms.current.find(o => o.id === r.id)?.sifelyLockId)
 
-        const responses = await Promise.all(dirty.map(r => updateRoom(r.id, r)))
+        const responses = await Promise.all(dirty.map(r => updateRoom(r.id, { sifelyLockId: r.sifelyLockId })))
         const updated = responses.map(r => r.data)
         setLockRooms(prev => prev.map(r => updated.find(u => u.id === r.id) ?? r))
         originalLockRooms.current = originalLockRooms.current.map(o => updated.find(u => u.id === o.id) ?? o)
