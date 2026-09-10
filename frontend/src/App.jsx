@@ -68,7 +68,7 @@ export default function App() {
                     animation: 'test-system-flash 1.4s ease-in-out infinite'
                 }}>
                     <style>{'@keyframes test-system-flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'}</style>
-                    <TriangleAlert size={16} /> TEST SYSTEM — for testing only, not the live property system
+                    <TriangleAlert size={16} /> TEST SYSTEM — not the live property system <TriangleAlert size={16} />
                 </div>
             )}
             {wakingUp && (
