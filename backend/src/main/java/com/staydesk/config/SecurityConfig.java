@@ -59,6 +59,8 @@ public class SecurityConfig {
                            .requestMatchers(HttpMethod.POST, "/rate-overrides").hasRole("ADMIN")
                            .requestMatchers(HttpMethod.PUT, "/rate-overrides/*").hasRole("ADMIN")
                            .requestMatchers(HttpMethod.DELETE, "/rate-overrides/*").hasRole("ADMIN")
+                           .requestMatchers(HttpMethod.GET, "/admin/settings/property/payment_provider").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
+                           .requestMatchers(HttpMethod.GET, "/admin/settings/property/incidentals_hold_amount").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers("/admin/**", "/reports/**")
                            .hasRole("ADMIN")
                            .anyRequest().authenticated())
