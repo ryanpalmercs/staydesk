@@ -33,16 +33,18 @@ public class IncidentChargeService {
     private final FolioRepository folioRepository;
     private final PaymentService paymentService;
     private final FolioService folioService;
+    private final ReservationService reservationService;
 
     public IncidentChargeService(IncidentChargeRequestRepository incidentChargeRequestRepository,
                                  ReusablePaymentCredentialRepository reusablePaymentCredentialRepository,
                                  FolioRepository folioRepository, PaymentService paymentService,
-                                 FolioService folioService) {
+                                 FolioService folioService, ReservationService reservationService) {
         this.incidentChargeRequestRepository = incidentChargeRequestRepository;
         this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
         this.folioRepository = folioRepository;
         this.paymentService = paymentService;
         this.folioService = folioService;
+        this.reservationService = reservationService;
     }
 
     @Transactional
@@ -82,7 +84,8 @@ public class IncidentChargeService {
         String description = "Incident: " + request.reason();
 
         try {
-            FolioPayment payment = paymentService.chargeStoredCredential(folio, credential, request.amount(), description);
+            String customerEmail = reservationService.resolveGuestEmailForReservation(folio.reservationId());
+            FolioPayment payment = paymentService.chargeStoredCredential(folio, credential, request.amount(), description, customerEmail);
             folioService.postIncidentCharge(folio, description, request.amount());
 
             return incidentChargeRequestRepository.save(new IncidentChargeRequest(request.id(), request.folioId(),

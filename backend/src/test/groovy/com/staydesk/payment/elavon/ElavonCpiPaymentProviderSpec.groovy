@@ -18,7 +18,7 @@ class ElavonCpiPaymentProviderSpec extends Specification {
         client.referenceNumber() >> "ref-1"
 
         when:
-        provider.authorize(BigDecimal.valueOf(75), "device-1", "Incidentals hold")
+        provider.authorize(BigDecimal.valueOf(75), "device-1", "Incidentals hold", null)
 
         then:
         1 * client.sendDeviceMessage("device-1", { CpiTransaction req -> req.cardTransIdentifierIndicator() == "F101" }) >>
@@ -32,7 +32,7 @@ class ElavonCpiPaymentProviderSpec extends Specification {
         client.referenceNumber() >> "ref-2"
 
         when:
-        def result = provider.chargeStoredCredential(BigDecimal.valueOf(150), null, "stored-token-1", "Incident: broken TV")
+        def result = provider.chargeStoredCredential(BigDecimal.valueOf(150), null, "stored-token-1", "Incident: broken TV", null)
 
         then:
         1 * client.sendGatewayMessage({ CpiTransaction req ->
@@ -54,7 +54,7 @@ class ElavonCpiPaymentProviderSpec extends Specification {
                 null, null, new CpiResponseFields(null, "0100", "DECLINED", null, null, null), null)
 
         when:
-        def result = provider.chargeStoredCredential(BigDecimal.valueOf(150), null, "stored-token-1", "Incident")
+        def result = provider.chargeStoredCredential(BigDecimal.valueOf(150), null, "stored-token-1", "Incident", null)
 
         then:
         !result.success()
