@@ -41,7 +41,7 @@ public class PaymentService {
         this.paymentCredentialService = paymentCredentialService;
     }
 
-    public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId) {
+    public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId, String customerEmail) {
         LocalDateTime now = LocalDateTime.now();
 
         String holdAmountString = propertySettingsService.getProperty("incidentals_hold_amount").value();
@@ -53,7 +53,7 @@ public class PaymentService {
             LOGGER.error("Could not parse hold amount", e);
         }
 
-        createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now);
+        createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now, customerEmail);
     }
 
     public void cancelOpenHolds(Folio folio) {
@@ -89,9 +89,9 @@ public class PaymentService {
     }
 
     private void createHold(Folio folio, PaymentKind kind, String providerName, BigDecimal amount,
-                            String paymentMethodId, LocalDateTime now) {
+                            String paymentMethodId, LocalDateTime now, String customerEmail) {
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id());
+                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id(), customerEmail);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
@@ -186,11 +186,11 @@ public class PaymentService {
         }
     }
 
-    public void chargeFullStay(Folio folio, BigDecimal amount, String providerName, String paymentMethodId) {
+    public void chargeFullStay(Folio folio, BigDecimal amount, String providerName, String paymentMethodId, String customerEmail) {
         LocalDateTime now = LocalDateTime.now();
 
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id());
+                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
@@ -230,8 +230,8 @@ public class PaymentService {
     }
 
     public FolioPayment chargeCardPresent(Folio folio, BigDecimal amount, String providerName, String paymentMethodId,
-                                          String description) {
-        AuthResult result = providerFactory.getProvider(providerName).sale(amount, paymentMethodId, description);
+                                          String description, String customerEmail) {
+        AuthResult result = providerFactory.getProvider(providerName).sale(amount, paymentMethodId, description, customerEmail);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to charge card-present for folio " + folio.id() + ": " + result.message());
@@ -243,9 +243,10 @@ public class PaymentService {
     }
 
     public FolioPayment chargeStoredCredential(Folio folio, ReusablePaymentCredential credential, BigDecimal amount,
-                                               String description) {
+                                               String description, String customerEmail) {
         AuthResult result = providerFactory.getProvider(credential.provider())
-                                           .chargeStoredCredential(amount, credential.providerCustomerId(), credential.providerToken(), description);
+                                           .chargeStoredCredential(amount, credential.providerCustomerId(), credential.providerToken(),
+                                                   description, customerEmail);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to charge stored credential for folio " + folio.id() + ": " + result.message());
