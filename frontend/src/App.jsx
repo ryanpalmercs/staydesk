@@ -58,12 +58,19 @@ export default function App() {
             {isTestSystem && (
                 <div style={{
                     position: 'sticky', top: 0, zIndex: 9999, width: '100%', textAlign: 'center',
-                    padding: '6px 12px', fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.85rem',
-                    color: '#fff', background: '#b91c1c',
-                    animation: 'test-system-flash 1.4s ease-in-out infinite'
+                    padding: '8px 12px', fontWeight: 800, letterSpacing: '0.08em', fontSize: '0.95rem',
+                    textTransform: 'uppercase',
+                    animation: 'test-system-flash 0.6s steps(1, end) infinite'
                 }}>
-                    <style>{'@keyframes test-system-flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'}</style>
-                    TEST SYSTEM — for testing only, not the live property system
+                    {/* hard alternating red/yellow at ~1.7Hz - obnoxious on purpose, kept under the
+                        ~3Hz photosensitive-seizure threshold */}
+                    <style>{`
+                        @keyframes test-system-flash {
+                            0%, 49% { background: #dc2626; color: #fff; }
+                            50%, 100% { background: #facc15; color: #000; }
+                        }
+                    `}</style>
+                    ⚠ TEST SYSTEM — not the live property system ⚠
                 </div>
             )}
             {wakingUp && (
