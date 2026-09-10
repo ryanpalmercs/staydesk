@@ -40,13 +40,28 @@ function RoomModal({ room, onSaved, onClose }) {
         setForm({ ...form, [e.target.name]: e.target.value })
     }
 
+    function coerce(fields) {
+        return {
+            ...fields,
+            roomNumber: Number(fields.roomNumber),
+            roomTypeId: Number(fields.roomTypeId),
+            sifelyLockId: fields.sifelyLockId === '' ? null : Number(fields.sifelyLockId)
+        }
+    }
+
     async function handleSubmit(e) {
         e.preventDefault()
         try {
-            const payload = { ...form, sifelyLockId: form.sifelyLockId === '' ? null : Number(form.sifelyLockId) }
+            const payload = coerce(form)
             let result
             if (isEditing) {
-                result = await updateRoom(room.id, { ...room, ...payload })
+                // only send fields that actually changed - a field the form merely echoed back
+                // unedited (e.g. a live-computed status) should never overwrite anything
+                const original = coerce(initialFormRef.current)
+                const changed = Object.fromEntries(
+                    Object.keys(payload).filter(key => payload[key] !== original[key]).map(key => [key, payload[key]])
+                )
+                result = await updateRoom(room.id, changed)
             } else {
                 result = await createRoom(payload)
             }
@@ -96,12 +111,18 @@ function RoomModal({ room, onSaved, onClose }) {
 
                 {isEditing && (
                     <div>
-                        <label className="block text-sm text-muted mb-1">Status</label>
-                        <select name="status" value={form.status} onChange={handleChange} className="filter-input">
-                            <option value="AVAILABLE">Available</option>
-                            <option value="OCCUPIED">Occupied</option>
-                            <option value="MAINTENANCE">Maintenance</option>
-                        </select>
+                        <label className="flex items-center gap-2 text-sm text-black">
+                            <input
+                                type="checkbox"
+                                checked={form.status === 'MAINTENANCE'}
+                                disabled={room.status === 'OCCUPIED'}
+                                onChange={e => setForm({ ...form, status: e.target.checked ? 'MAINTENANCE' : 'AVAILABLE' })}
+                            />
+                            Under maintenance
+                        </label>
+                        {room.status === 'OCCUPIED' && (
+                            <p className="text-xs text-muted mt-1">This room is currently occupied and can't be marked for maintenance.</p>
+                        )}
                     </div>
                 )}
 
