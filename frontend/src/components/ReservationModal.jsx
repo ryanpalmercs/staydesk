@@ -19,12 +19,12 @@ function Stepper({ label, value, min, max, onChange }) {
         <div flex items-center justify-center>
             <label className="block text-sm text-muted mb-1">{label}</label>
             <div className="flex items-center justify-center gap-3">
-                <button type="button stepper" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
+                <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Decrease ${label}`}>
                     <CircleMinus size={18} />
                 </button>
                 <span className="w-6 text-center">{value}</span>
-                <button type="button stepper" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
+                <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Increase ${label}`}>
                     <CirclePlus size={18} />
                 </button>
