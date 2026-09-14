@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { createReservation, getReservationEstimateWithExtras, updateReservation } from "../api/reservationApi"
+import { createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
+import PaymentMethodStep from "./PaymentMethodStep"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
@@ -18,12 +19,12 @@ function Stepper({ label, value, min, max, onChange }) {
         <div flex items-center justify-center>
             <label className="block text-sm text-muted mb-1">{label}</label>
             <div className="flex items-center justify-center gap-3">
-                <button type="button stepper" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
+                <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Decrease ${label}`}>
                     <CircleMinus size={18} />
                 </button>
                 <span className="w-6 text-center">{value}</span>
-                <button type="button stepper" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
+                <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Increase ${label}`}>
                     <CirclePlus size={18} />
                 </button>
@@ -78,6 +79,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [pendingForm, setPendingForm] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet'
+    const [payTimingChoice, setPayTimingChoice] = useState(null)
+    const [payNowReservationId, setPayNowReservationId] = useState(null)
+    const [payNowAmount, setPayNowAmount] = useState(null)
+
+    const isFutureWalkIn = form.channel === 'WALK_IN' && form.checkInDate
+        ? differenceInCalendarDays(parseISO(form.checkInDate), new Date()) > 0
+        : false
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
     const flaggedMatch = selectedGuest?.flagged ? selectedGuest : null
@@ -95,8 +103,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
         : 0
 
-    const rateType = totalNights > 0 && totalNights % 7 === 0 ? 'WEEKLY_7'
-        : totalNights > 0 && totalNights % 5 === 0 ? 'WEEKLY_5'
+    const rateType = totalNights >= 7 ? 'WEEKLY_7'
+        : totalNights >= 5 ? 'WEEKLY_5'
             : 'NIGHTLY'
     const maxGuestCount = 4
     const guestCount = form.adults + form.children
@@ -289,7 +297,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             if (isEditing) {
                 await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
-                if (form.channel === 'WALK_IN') {
+                if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
                     try {
                         const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
                         onSaved(res.data.id)
@@ -300,12 +308,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                     return
                 }
 
-                if (!paymentReady) {
-                    setError('Payment provider is not connected. Check Settings.')
-                    return
-                }
+                // A future-dated walk-in or any phone booking needs an explicit pay-now-or-later
+                // choice, presented as its own step so it can't be missed inline in a long form.
                 setPendingForm(submittedForm)
-                setStep('payment')
+                setPayTimingChoice(null)
+                setStep('pay-timing')
                 return
             }
 
@@ -336,11 +343,50 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     }
 
+    async function handlePayNowChosen() {
+        if (form.channel === 'WALK_IN') {
+            try {
+                const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                setPayNowReservationId(res.data.id)
+                const estimateRes = await getCheckInEstimate(res.data.id)
+                setPayNowAmount(estimateRes.data.total)
+                setStep('pay-now')
+            } catch (err) {
+                setStep('form')
+                setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+            }
+            return
+        }
+
+        // PHONE: paying now still means collecting a card-not-present token before creating,
+        // same as every phone booking did before this choice existed.
+        if (!paymentReady) {
+            setStep('form')
+            setError('Payment provider is not connected. Check Settings.')
+            return
+        }
+        setStep('payment')
+    }
+
+    async function handlePayLaterChosen() {
+        try {
+            // No charge now; the room total is collected via the card-present terminal once the
+            // guest actually arrives and checks in.
+            await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+            onSaved()
+        } catch (err) {
+            setStep('form')
+            setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+        }
+    }
+
     return (
         <Modal onClose={onClose} size="reservation" scrollable padded={false} isDirty={isDirty}>
             <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
                 {step === 'payment' ? 'Card Details'
-                    : step === 'choice' ? 'New or Returning Guest?'
+                    : step === 'pay-now' ? 'Charge for Stay'
+                        : step === 'pay-timing' ? 'How Should This Stay Be Paid?'
+                        : step === 'choice' ? 'New or Returning Guest?'
                         : step === 'guestList' ? 'Select Guest'
                             : step === 'newGuest' ? 'New Guest'
                                 : step === 'confirmGuest' ? 'Confirm Guest Information'
@@ -636,7 +682,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     Cancel
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
-                                    {isEditing ? 'Save' : 'Create'}
+                                    {isEditing ? 'Save' : 'Continue'}
                                 </button>
                             </div>
                         </div>
@@ -644,9 +690,79 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 </form>
             )}
 
+            {step === 'pay-timing' && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6 gap-4">
+                    <p className="text-sm text-muted">
+                        {isFutureWalkIn
+                            ? `Check-in is ${differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — there's no guest here yet to charge.`
+                            : "The guest isn't present to hand over a card right now."}
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setPayTimingChoice(payTimingChoice === 'now' ? null : 'now')}
+                            className={`bg-warm-white rounded flex-1 flex flex-col gap-1 p-4 text-left ${payTimingChoice === 'now' ? 'border-2 border-black' : 'border-2 border-tan'}`}
+                        >
+                            <span className="font-semibold text-black">Pay Now</span>
+                            <p className="text-sm text-muted">
+                                {isFutureWalkIn
+                                    ? "Charge the full stay today. Room assignment and the door code still happen when the guest actually arrives."
+                                    : "Collect the guest's card over the phone now and charge the full stay today."}
+                            </p>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPayTimingChoice(payTimingChoice === 'later' ? null : 'later')}
+                            className={`bg-warm-white rounded flex-1 flex flex-col gap-1 p-4 text-left ${payTimingChoice === 'later' ? 'border-2 border-black' : 'border-2 border-tan'}`}
+                        >
+                            <span className="font-semibold text-black">{isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}</span>
+                            <p className="text-sm text-muted">
+                                No charge now. The full stay will be charged via the card-present terminal when the guest actually arrives and checks in.
+                            </p>
+                        </button>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                        <button type="button" onClick={() => setStep('form')} className="btn btn-secondary">
+                            Back
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => payTimingChoice === 'now' ? handlePayNowChosen() : handlePayLaterChosen()}
+                            className="btn btn-primary"
+                            disabled={payTimingChoice == null}
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {step === 'payment' && (
                 <div className="px-6 pb-6 overflow-y-auto">
-                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
+                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('pay-timing')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
+                </div>
+            )}
+
+            {step === 'pay-now' && (
+                <div className="px-6 pb-6 overflow-y-auto">
+                    <PaymentMethodStep
+                        amount={payNowAmount}
+                        amountLabel="Total Charge"
+                        description="Charge the full stay for this booking now. Room assignment and the door code still happen when the guest actually arrives."
+                        dual={false}
+                        submitLabel="Charge"
+                        onSubmitToken={async (roomToken) => {
+                            await payFullStayNow(payNowReservationId, roomToken)
+                            onSaved()
+                        }}
+                        onSubmitTerminal={async (deviceId) => {
+                            await payFullStayNowTerminal(payNowReservationId, deviceId)
+                            onSaved()
+                        }}
+                        onCancel={() => onSaved()}
+                        terminalErrorMessage="Failed to charge card. It may have been declined on the terminal."
+                        recordOnlyErrorMessage="Failed to charge card."
+                    />
                 </div>
             )}
 

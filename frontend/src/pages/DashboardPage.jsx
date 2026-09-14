@@ -120,6 +120,7 @@ function DashboardPage() {
                 guestId: r.guestId,
                 roomId: r.roomId,
                 roomTypeId: r.roomTypeId,
+                roomNumber: roomsMap[r.roomId]?.roomNumber ?? Infinity,
                 checkInDate: r.checkInDate,
                 checkOutDate: r.checkOutDate
             }
@@ -192,6 +193,7 @@ function DashboardPage() {
                         right: 'dayGridMonth,timeGridWeek'
                     }}
                     events={events}
+                    eventOrder="roomNumber"
                     eventContent={arg => (
                         <div
                             onClick={() => setSelectedEvent(arg.event.extendedProps)}

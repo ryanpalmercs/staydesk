@@ -98,6 +98,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
 
+    @ExceptionHandler(RateNotFoundException.class)
+    public ResponseEntity<String> handleRateNotFoundException(RateNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
     @ExceptionHandler(RateOverrideNotFoundException.class)
     public ResponseEntity<String> handleRateOverrideNotFoundException(RateOverrideNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
