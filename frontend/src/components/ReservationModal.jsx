@@ -79,7 +79,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [pendingForm, setPendingForm] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet'
-    const [payNowChoice, setPayNowChoice] = useState('later')
     const [payNowReservationId, setPayNowReservationId] = useState(null)
     const [payNowAmount, setPayNowAmount] = useState(null)
 
@@ -297,22 +296,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             if (isEditing) {
                 await updateReservation(reservation.id, { ...reservation, ...submittedForm })
             } else {
-                if (form.channel === 'WALK_IN') {
+                if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
                     try {
                         const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
-
-                        if (isFutureWalkIn && payNowChoice === 'now') {
-                            setPayNowReservationId(res.data.id)
-                            const estimateRes = await getCheckInEstimate(res.data.id)
-                            setPayNowAmount(estimateRes.data.total)
-                            setStep('pay-now')
-                            return
-                        }
-
-                        // A future-dated walk-in paying at check-in has no "guest is here now" moment
-                        // to collect payment during, so it's left CONFIRMED and unpaid until the guest
-                        // actually arrives — same-day walk-ins still auto-open check-in as before.
-                        onSaved(isFutureWalkIn ? undefined : res.data.id)
+                        onSaved(res.data.id)
                     } catch (err) {
                         setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
                     }
@@ -320,25 +307,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                     return
                 }
 
-                if (payNowChoice === 'later') {
-                    try {
-                        // Same idea as a future walk-in paying at check-in: no charge now, the room
-                        // total is collected via the card-present terminal when the guest arrives.
-                        await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
-                        onSaved()
-                    } catch (err) {
-                        setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
-                    }
-
-                    return
-                }
-
-                if (!paymentReady) {
-                    setError('Payment provider is not connected. Check Settings.')
-                    return
-                }
+                // A future-dated walk-in or any phone booking needs an explicit pay-now-or-later
+                // choice, presented as its own step so it can't be missed inline in a long form.
                 setPendingForm(submittedForm)
-                setStep('payment')
+                setStep('pay-timing')
                 return
             }
 
@@ -369,11 +341,49 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     }
 
+    async function handlePayNowChosen() {
+        if (form.channel === 'WALK_IN') {
+            try {
+                const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                setPayNowReservationId(res.data.id)
+                const estimateRes = await getCheckInEstimate(res.data.id)
+                setPayNowAmount(estimateRes.data.total)
+                setStep('pay-now')
+            } catch (err) {
+                setStep('form')
+                setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+            }
+            return
+        }
+
+        // PHONE: paying now still means collecting a card-not-present token before creating,
+        // same as every phone booking did before this choice existed.
+        if (!paymentReady) {
+            setStep('form')
+            setError('Payment provider is not connected. Check Settings.')
+            return
+        }
+        setStep('payment')
+    }
+
+    async function handlePayLaterChosen() {
+        try {
+            // No charge now; the room total is collected via the card-present terminal once the
+            // guest actually arrives and checks in.
+            await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+            onSaved()
+        } catch (err) {
+            setStep('form')
+            setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+        }
+    }
+
     return (
         <Modal onClose={onClose} size="reservation" scrollable padded={false} isDirty={isDirty}>
             <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
                 {step === 'payment' ? 'Card Details'
                     : step === 'pay-now' ? 'Charge for Stay'
+                        : step === 'pay-timing' ? 'How Should This Stay Be Paid?'
                         : step === 'choice' ? 'New or Returning Guest?'
                         : step === 'guestList' ? 'Select Guest'
                             : step === 'newGuest' ? 'New Guest'
@@ -555,8 +565,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <div>
                                 <label className="block text-sm text-muted mb-1">How is this being booked?</label>
                                 <div className="flex justify-left gap-2">
-                                    <button type="button" onClick={() => { setForm(f => ({ ...f, channel: 'PHONE' })); setPayNowChoice('now') }} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
-                                    <button type="button" onClick={() => { setForm(f => ({ ...f, channel: 'WALK_IN' })); setPayNowChoice('later') }} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -596,24 +606,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 excludeReservationId={reservation?.id}
                             />
                         </div>
-
-                        {!isEditing && (isFutureWalkIn || form.channel === 'PHONE') && (
-                            <div>
-                                <label className="block text-sm text-muted mb-1">
-                                    {isFutureWalkIn
-                                        ? `Check-in is ${differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — how should this stay be paid?`
-                                        : 'How should this stay be paid?'}
-                                </label>
-                                <div className="flex justify-left gap-2">
-                                    <button type="button" onClick={() => setPayNowChoice('now')} className={`filter-btn${payNowChoice === 'now' ? ' active' : ''}`}>
-                                        Pay Now
-                                    </button>
-                                    <button type="button" onClick={() => setPayNowChoice('later')} className={`filter-btn${payNowChoice === 'later' ? ' active' : ''}`}>
-                                        {isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
 
                         {isEditing && (
                             <div>
@@ -694,6 +686,29 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </div>
                     </div>
                 </form>
+            )}
+
+            {step === 'pay-timing' && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6 gap-4">
+                    <p className="text-sm text-muted">
+                        {isFutureWalkIn
+                            ? `Check-in is ${differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — there's no guest here yet to charge.`
+                            : "The guest isn't present to hand over a card right now."}
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button type="button" onClick={handlePayNowChosen} className="btn btn-primary flex-1 py-4">
+                            Pay Now
+                        </button>
+                        <button type="button" onClick={handlePayLaterChosen} className="btn btn-secondary flex-1 py-4">
+                            {isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}
+                        </button>
+                    </div>
+                    <div className="flex justify-start mt-2">
+                        <button type="button" onClick={() => setStep('form')} className="text-sm font-medium text-green hover:text-black">
+                            Back
+                        </button>
+                    </div>
+                </div>
             )}
 
             {step === 'payment' && (
