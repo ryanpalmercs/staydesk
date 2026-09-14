@@ -77,7 +77,8 @@ public class GuestController {
 
         Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
-                request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(), now, now);
+                request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(),
+                request.regularGuest(), now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -100,7 +101,8 @@ public class GuestController {
         Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
-                existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(), existing.createdAt(), LocalDateTime.now());
+                existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(), request.regularGuest(),
+                existing.createdAt(), LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
     }
