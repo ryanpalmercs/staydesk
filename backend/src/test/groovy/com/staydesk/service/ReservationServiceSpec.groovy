@@ -707,6 +707,30 @@ class ReservationServiceSpec extends Specification {
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, "token-1", _)
     }
 
+    def "checkIn does not re-charge the full stay when the folio was already charged in full before check-in"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def room = availableRoom()
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+        lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
+
+        when:
+        reservationService.checkIn(1, 5, "cred-1", "token-1")
+
+        then:
+        0 * folioService.postCharge(_, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _)
+    }
+
     def "checkInTerminal charges the folio's real total, including any already-posted extras, for a WALK_IN reservation"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
@@ -732,6 +756,32 @@ class ReservationServiceSpec extends Specification {
 
         then:
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, "dev-token-1", _)
+    }
+
+    def "checkInTerminal does not re-charge the full stay when the folio was already charged in full before check-in"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def room = availableRoom()
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
+
+        posDeviceRepository.findById(6) >> Optional.of(device)
+        reservationRepository.findById(1) >> Optional.of(res)
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+        lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
+
+        when:
+        reservationService.checkInTerminal(1, 5, 6)
+
+        then:
+        0 * folioService.postCharge(_, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _)
     }
 
     def "estimateCheckInCharge combines the folio's current total with the remaining room nights for a WALK_IN reservation"() {

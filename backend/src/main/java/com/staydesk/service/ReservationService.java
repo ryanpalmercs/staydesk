@@ -384,8 +384,10 @@ public class ReservationService {
                 folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
             }
 
-            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
-                    resolveGuestEmail(reservation.guestId()));
+            if (remainingPeriods > 0) {
+                paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
+                        resolveGuestEmail(reservation.guestId()));
+            }
         }
 
         paymentService.createIncidentalHold(folio, providerFactory.getPaymentProviderName(), incidentalsPaymentMethodId,
@@ -452,8 +454,10 @@ public class ReservationService {
                 folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
             }
 
-            paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken,
-                    resolveGuestEmail(reservation.guestId()));
+            if (remainingPeriods > 0) {
+                paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken,
+                        resolveGuestEmail(reservation.guestId()));
+            }
         }
 
         paymentService.createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken,
