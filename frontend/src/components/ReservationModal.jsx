@@ -284,6 +284,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
         const { adults, children, ...rest } = form
         const submittedForm = { ...rest, rateType, guestCount }
+        const isFutureWalkIn = form.channel === 'WALK_IN' && differenceInCalendarDays(parseISO(form.checkInDate), new Date()) > 0
 
         try {
             if (isEditing) {
@@ -292,7 +293,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 if (form.channel === 'WALK_IN') {
                     try {
                         const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
-                        onSaved(res.data.id)
+                        // A future-dated walk-in has no "guest is here now" moment to collect payment
+                        // during, so it's left CONFIRMED and unpaid until the guest actually arrives —
+                        // same-day walk-ins still auto-open check-in as before.
+                        onSaved(isFutureWalkIn ? undefined : res.data.id)
                     } catch (err) {
                         setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
                     }
