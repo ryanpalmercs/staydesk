@@ -320,6 +320,19 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                     return
                 }
 
+                if (payNowChoice === 'later') {
+                    try {
+                        // Same idea as a future walk-in paying at check-in: no charge now, the room
+                        // total is collected via the card-present terminal when the guest arrives.
+                        await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                        onSaved()
+                    } catch (err) {
+                        setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+                    }
+
+                    return
+                }
+
                 if (!paymentReady) {
                     setError('Payment provider is not connected. Check Settings.')
                     return
@@ -542,8 +555,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <div>
                                 <label className="block text-sm text-muted mb-1">How is this being booked?</label>
                                 <div className="flex justify-left gap-2">
-                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
-                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
+                                    <button type="button" onClick={() => { setForm(f => ({ ...f, channel: 'PHONE' })); setPayNowChoice('now') }} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
+                                    <button type="button" onClick={() => { setForm(f => ({ ...f, channel: 'WALK_IN' })); setPayNowChoice('later') }} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -584,17 +597,19 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             />
                         </div>
 
-                        {!isEditing && isFutureWalkIn && (
+                        {!isEditing && (isFutureWalkIn || form.channel === 'PHONE') && (
                             <div>
                                 <label className="block text-sm text-muted mb-1">
-                                    Check-in is {differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — how should this stay be paid?
+                                    {isFutureWalkIn
+                                        ? `Check-in is ${differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — how should this stay be paid?`
+                                        : 'How should this stay be paid?'}
                                 </label>
                                 <div className="flex justify-left gap-2">
-                                    <button type="button" onClick={() => setPayNowChoice('later')} className={`filter-btn${payNowChoice === 'later' ? ' active' : ''}`}>
-                                        Pay at Check-In
-                                    </button>
                                     <button type="button" onClick={() => setPayNowChoice('now')} className={`filter-btn${payNowChoice === 'now' ? ' active' : ''}`}>
                                         Pay Now
+                                    </button>
+                                    <button type="button" onClick={() => setPayNowChoice('later')} className={`filter-btn${payNowChoice === 'later' ? ' active' : ''}`}>
+                                        {isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}
                                     </button>
                                 </div>
                             </div>
