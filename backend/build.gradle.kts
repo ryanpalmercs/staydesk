@@ -1,8 +1,18 @@
+buildscript {
+    dependencies {
+        // Flyway Gradle plugin needs the JDBC driver and the Postgres database plugin on its own
+        // classpath, separate from the project's runtime dependencies below.
+        classpath("org.postgresql:postgresql:42.7.5")
+        classpath("org.flywaydb:flyway-database-postgresql:13.6.0")
+    }
+}
+
 plugins {
     java
     groovy
     id("org.springframework.boot") version "3.5.0"
     id("io.spring.dependency-management") version "1.1.7"
+    id("org.flywaydb.flyway") version "13.6.0"
 }
 
 group = "com.staydesk"
@@ -50,4 +60,14 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Lets local dev apply/inspect migrations directly (./gradlew flywayMigrate, flywayInfo, etc.)
+// without booting the whole app. Defaults match docker-compose.yml's local Postgres container;
+// override via DATABASE_URL/DATABASE_USERNAME/DATABASE_PASSWORD to point at something else.
+flyway {
+    url = System.getenv("DATABASE_URL") ?: "jdbc:postgresql://localhost:5433/staydesk_dev"
+    user = System.getenv("DATABASE_USERNAME") ?: "postgres"
+    password = System.getenv("DATABASE_PASSWORD") ?: "local_password"
+    locations = arrayOf("filesystem:src/main/resources/db/migration")
 }
