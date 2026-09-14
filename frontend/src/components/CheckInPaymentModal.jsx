@@ -122,6 +122,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     const [selectedRoomId, setSelectedRoomId] = useState(null)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
     const [stayTotal, setStayTotal] = useState(null)
+    const [roomChargeDue, setRoomChargeDue] = useState(false)
     const [confirmingCancel, setConfirmingCancel] = useState(false)
 
     useEffect(() => {
@@ -129,15 +130,16 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
             setIncidentalsHoldAmount(res.data.value)
         })
 
-        if (isWalkIn) {
-            getCheckInEstimate(reservationId).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
-        }
+        getCheckInEstimate(reservationId).then(res => {
+            setStayTotal(res.data.total)
+            setRoomChargeDue(res.data.roomChargeDue)
+        }).catch(() => setStayTotal(null))
     }, [])
 
-    const chargeAmount = isWalkIn
+    const chargeAmount = roomChargeDue
         ? (stayTotal != null && incidentalsHoldAmount != null ? stayTotal + parseFloat(incidentalsHoldAmount) : null)
         : incidentalsHoldAmount
-    const chargeLabel = isWalkIn ? 'Total Charge' : 'Incidentals Hold'
+    const chargeLabel = roomChargeDue ? 'Total Charge' : 'Incidentals Hold'
 
     function handleRoomChosen(roomId) {
         setSelectedRoomId(roomId)
@@ -182,7 +184,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                 <FutureCheckInWarning
                     checkInDate={reservation.checkInDate}
                     daysOut={daysOut}
-                    showChargeWarning={isWalkIn}
+                    showChargeWarning={roomChargeDue}
                     onCancel={handleCancelClick}
                     onConfirm={handleFutureWarningConfirmed}
                 />
@@ -196,10 +198,10 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                 <PaymentMethodStep
                     amount={chargeAmount}
                     amountLabel={chargeLabel}
-                    description={reservationChannel === 'WALK_IN'
+                    description={roomChargeDue
                         ? "We'll charge the full stay now, then place a small hold for incidentals."
                         : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
-                    dual={isWalkIn}
+                    dual={roomChargeDue}
                     submitLabel="Check In"
                     onSubmitToken={async (incidentalsToken, roomToken) => {
                         const doorAccessStatus = await onConfirm(selectedRoomId, incidentalsToken, roomToken)
