@@ -79,6 +79,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [pendingForm, setPendingForm] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet'
+    const [payTimingChoice, setPayTimingChoice] = useState(null)
     const [payNowReservationId, setPayNowReservationId] = useState(null)
     const [payNowAmount, setPayNowAmount] = useState(null)
 
@@ -310,6 +311,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 // A future-dated walk-in or any phone booking needs an explicit pay-now-or-later
                 // choice, presented as its own step so it can't be missed inline in a long form.
                 setPendingForm(submittedForm)
+                setPayTimingChoice(null)
                 setStep('pay-timing')
                 return
             }
@@ -680,7 +682,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     Cancel
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
-                                    {isEditing ? 'Save' : 'Create'}
+                                    {isEditing ? 'Save' : 'Continue'}
                                 </button>
                             </div>
                         </div>
@@ -696,16 +698,40 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             : "The guest isn't present to hand over a card right now."}
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3">
-                        <button type="button" onClick={handlePayNowChosen} className="btn btn-primary flex-1 py-4">
-                            Pay Now
+                        <button
+                            type="button"
+                            onClick={() => setPayTimingChoice(payTimingChoice === 'now' ? null : 'now')}
+                            className={`bg-warm-white rounded flex-1 flex flex-col gap-1 p-4 text-left ${payTimingChoice === 'now' ? 'border-2 border-black' : 'border-2 border-tan'}`}
+                        >
+                            <span className="font-semibold text-black">Pay Now</span>
+                            <p className="text-sm text-muted">
+                                {isFutureWalkIn
+                                    ? "Charge the full stay today. Room assignment and the door code still happen when the guest actually arrives."
+                                    : "Collect the guest's card over the phone now and charge the full stay today."}
+                            </p>
                         </button>
-                        <button type="button" onClick={handlePayLaterChosen} className="btn btn-secondary flex-1 py-4">
-                            {isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}
+                        <button
+                            type="button"
+                            onClick={() => setPayTimingChoice(payTimingChoice === 'later' ? null : 'later')}
+                            className={`bg-warm-white rounded flex-1 flex flex-col gap-1 p-4 text-left ${payTimingChoice === 'later' ? 'border-2 border-black' : 'border-2 border-tan'}`}
+                        >
+                            <span className="font-semibold text-black">{isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}</span>
+                            <p className="text-sm text-muted">
+                                No charge now. The full stay will be charged via the card-present terminal when the guest actually arrives and checks in.
+                            </p>
                         </button>
                     </div>
-                    <div className="flex justify-start mt-2">
-                        <button type="button" onClick={() => setStep('form')} className="text-sm font-medium text-green hover:text-black">
+                    <div className="flex justify-between mt-2">
+                        <button type="button" onClick={() => setStep('form')} className="btn btn-secondary">
                             Back
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => payTimingChoice === 'now' ? handlePayNowChosen() : handlePayLaterChosen()}
+                            className="btn btn-primary"
+                            disabled={payTimingChoice == null}
+                        >
+                            OK
                         </button>
                     </div>
                 </div>
@@ -713,7 +739,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
             {step === 'payment' && (
                 <div className="px-6 pb-6 overflow-y-auto">
-                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
+                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('pay-timing')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
                 </div>
             )}
 
