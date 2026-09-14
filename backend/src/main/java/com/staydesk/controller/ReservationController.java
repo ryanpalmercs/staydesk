@@ -18,6 +18,7 @@ import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.dto.CheckInEstimateResponse;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
@@ -206,7 +207,7 @@ public class ReservationController {
     }
 
     @GetMapping("{id}/check-in-estimate")
-    public ResponseEntity<ReservationEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
+    public ResponseEntity<CheckInEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
         try {
             return ResponseEntity.ok(reservationService.estimateCheckInCharge(id));
         } catch (RateNotFoundException e) {
