@@ -74,6 +74,38 @@ function RoomPicker({ reservationId, onRoomChosen, onClose }) {
     )
 }
 
+function formatDate(str) {
+    return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function daysUntil(dateString) {
+    const now = new Date()
+    const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const diffMs = new Date(dateString + 'T00:00:00') - new Date(todayString + 'T00:00:00')
+    return Math.round(diffMs / 86400000)
+}
+
+function FutureCheckInWarning({ checkInDate, daysOut, showChargeWarning, onCancel, onConfirm }) {
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="rounded-md border border-error/40 bg-error/5 p-4">
+                <p className="text-sm font-semibold text-error mb-2">
+                    This reservation isn't due to check in until {formatDate(checkInDate)} ({daysOut} day{daysOut === 1 ? '' : 's'} from now).
+                </p>
+                <p className="text-sm text-error mb-2">Checking in now will immediately:</p>
+                <ul className="text-sm text-error list-disc list-inside space-y-1">
+                    <li>Assign a room to this guest</li>
+                    {showChargeWarning && <li>Charge the full stay to their card</li>}
+                </ul>
+            </div>
+            <div className="flex justify-end gap-3 mt-2">
+                <button type="button" onClick={onCancel} className="btn btn-secondary">Cancel</button>
+                <button type="button" onClick={onConfirm} className="btn btn-primary">Check In Anyway</button>
+            </div>
+        </div>
+    )
+}
+
 function DoorAccessFailedNotice({ onClose }) {
     return (
         <div className="flex flex-col gap-4">
@@ -220,8 +252,10 @@ function RecordOnlyCheckInForm({ roomId, onConfirmTerminal, onCancel, onCheckedI
 function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
     const reservationChannel = reservation.channel
     const isWalkIn = reservationChannel === 'WALK_IN'
+    const daysOut = daysUntil(reservation.checkInDate)
+    const isFutureCheckIn = daysOut > 0
 
-    const [step, setStep] = useState('room')
+    const [step, setStep] = useState(isFutureCheckIn ? 'future-warning' : 'room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
     const [provider, setProvider] = useState(null)
     const [error, setError] = useState(null)
@@ -294,6 +328,10 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
         onClose()
     }
 
+    function handleFutureWarningConfirmed() {
+        setStep('room')
+    }
+
     async function confirmCancelReservation() {
         setConfirmingCancel(false)
         await onCancelReservation()
@@ -306,8 +344,18 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     return (
         <Modal onClose={onClose} size="md">
             <h2 className="text-lg text-black font-semibold mb-4">
-                {step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
+                {step === 'future-warning' ? 'Confirm Early Check-In' : step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
             </h2>
+
+            {step === 'future-warning' && (
+                <FutureCheckInWarning
+                    checkInDate={reservation.checkInDate}
+                    daysOut={daysOut}
+                    showChargeWarning={isWalkIn}
+                    onCancel={handleCancelClick}
+                    onConfirm={handleFutureWarningConfirmed}
+                />
+            )}
 
             {step === 'room' && (
                 <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
