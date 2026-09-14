@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { createReservation, getReservationEstimateWithExtras, updateReservation } from "../api/reservationApi"
+import { createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
+import PaymentMethodStep from "./PaymentMethodStep"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
@@ -78,6 +79,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [pendingForm, setPendingForm] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet'
+    const [payNowChoice, setPayNowChoice] = useState('later')
+    const [payNowReservationId, setPayNowReservationId] = useState(null)
+    const [payNowAmount, setPayNowAmount] = useState(null)
+
+    const isFutureWalkIn = form.channel === 'WALK_IN' && form.checkInDate
+        ? differenceInCalendarDays(parseISO(form.checkInDate), new Date()) > 0
+        : false
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
     const flaggedMatch = selectedGuest?.flagged ? selectedGuest : null
@@ -284,7 +292,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
         const { adults, children, ...rest } = form
         const submittedForm = { ...rest, rateType, guestCount }
-        const isFutureWalkIn = form.channel === 'WALK_IN' && differenceInCalendarDays(parseISO(form.checkInDate), new Date()) > 0
 
         try {
             if (isEditing) {
@@ -293,9 +300,18 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 if (form.channel === 'WALK_IN') {
                     try {
                         const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
-                        // A future-dated walk-in has no "guest is here now" moment to collect payment
-                        // during, so it's left CONFIRMED and unpaid until the guest actually arrives —
-                        // same-day walk-ins still auto-open check-in as before.
+
+                        if (isFutureWalkIn && payNowChoice === 'now') {
+                            setPayNowReservationId(res.data.id)
+                            const estimateRes = await getCheckInEstimate(res.data.id)
+                            setPayNowAmount(estimateRes.data.total)
+                            setStep('pay-now')
+                            return
+                        }
+
+                        // A future-dated walk-in paying at check-in has no "guest is here now" moment
+                        // to collect payment during, so it's left CONFIRMED and unpaid until the guest
+                        // actually arrives — same-day walk-ins still auto-open check-in as before.
                         onSaved(isFutureWalkIn ? undefined : res.data.id)
                     } catch (err) {
                         setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
@@ -344,7 +360,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         <Modal onClose={onClose} size="reservation" scrollable padded={false} isDirty={isDirty}>
             <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
                 {step === 'payment' ? 'Card Details'
-                    : step === 'choice' ? 'New or Returning Guest?'
+                    : step === 'pay-now' ? 'Charge for Stay'
+                        : step === 'choice' ? 'New or Returning Guest?'
                         : step === 'guestList' ? 'Select Guest'
                             : step === 'newGuest' ? 'New Guest'
                                 : step === 'confirmGuest' ? 'Confirm Guest Information'
@@ -567,6 +584,22 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             />
                         </div>
 
+                        {!isEditing && isFutureWalkIn && (
+                            <div>
+                                <label className="block text-sm text-muted mb-1">
+                                    Check-in is {differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — how should this stay be paid?
+                                </label>
+                                <div className="flex justify-left gap-2">
+                                    <button type="button" onClick={() => setPayNowChoice('later')} className={`filter-btn${payNowChoice === 'later' ? ' active' : ''}`}>
+                                        Pay at Check-In
+                                    </button>
+                                    <button type="button" onClick={() => setPayNowChoice('now')} className={`filter-btn${payNowChoice === 'now' ? ' active' : ''}`}>
+                                        Pay Now
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {isEditing && (
                             <div>
                                 <label className="block text-sm text-muted mb-1">Status</label>
@@ -651,6 +684,29 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             {step === 'payment' && (
                 <div className="px-6 pb-6 overflow-y-auto">
                     <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
+                </div>
+            )}
+
+            {step === 'pay-now' && (
+                <div className="px-6 pb-6 overflow-y-auto">
+                    <PaymentMethodStep
+                        amount={payNowAmount}
+                        amountLabel="Total Charge"
+                        description="Charge the full stay for this booking now. Room assignment and the door code still happen when the guest actually arrives."
+                        dual={false}
+                        submitLabel="Charge"
+                        onSubmitToken={async (roomToken) => {
+                            await payFullStayNow(payNowReservationId, roomToken)
+                            onSaved()
+                        }}
+                        onSubmitTerminal={async (deviceId) => {
+                            await payFullStayNowTerminal(payNowReservationId, deviceId)
+                            onSaved()
+                        }}
+                        onCancel={() => onSaved()}
+                        terminalErrorMessage="Failed to charge card. It may have been declined on the terminal."
+                        recordOnlyErrorMessage="Failed to charge card."
+                    />
                 </div>
             )}
 
