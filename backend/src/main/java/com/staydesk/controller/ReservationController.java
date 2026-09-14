@@ -18,6 +18,7 @@ import com.staydesk.exception.RoomTypeUnavailableException;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.dto.CheckInEstimateResponse;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
@@ -25,8 +26,10 @@ import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.model.request.ExtendStayRequest;
 import com.staydesk.model.request.ExtendStayTerminalRequest;
+import com.staydesk.model.request.PayFullStayRequest;
 import com.staydesk.model.request.ReservationEstimateRequest;
 import com.staydesk.model.request.TerminalCheckInRequest;
+import com.staydesk.model.request.TerminalPayFullStayRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
 import jakarta.validation.Valid;
@@ -172,6 +175,18 @@ public class ReservationController {
         }
     }
 
+    @PostMapping("{id}/pay-full-stay")
+    public ResponseEntity<Reservation> payFullStayNow(@PathVariable int id, @RequestBody PayFullStayRequest request) {
+        LOGGER.info("Charging full stay now for reservation with id {}", id);
+        return ResponseEntity.ok(reservationService.payFullStayNow(id, request.roomPaymentMethodId()));
+    }
+
+    @PostMapping("{id}/pay-full-stay/terminal")
+    public ResponseEntity<Reservation> payFullStayNowTerminal(@PathVariable int id, @RequestBody TerminalPayFullStayRequest request) {
+        LOGGER.info("Charging full stay now via terminal for reservation with id {}", id);
+        return ResponseEntity.ok(reservationService.payFullStayNowTerminal(id, request.posDeviceId()));
+    }
+
     @PostMapping("{id}/check-out")
     public ResponseEntity<Reservation> checkOut(@PathVariable Integer id) {
         LOGGER.info("Checking reservation out with id {}", id);
@@ -192,7 +207,7 @@ public class ReservationController {
     }
 
     @GetMapping("{id}/check-in-estimate")
-    public ResponseEntity<ReservationEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
+    public ResponseEntity<CheckInEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
         try {
             return ResponseEntity.ok(reservationService.estimateCheckInCharge(id));
         } catch (RateNotFoundException e) {

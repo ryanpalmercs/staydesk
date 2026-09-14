@@ -36,6 +36,14 @@ export function checkOut(id) {
     return api.post(`/reservations/${id}/check-out`)
 }
 
+export function payFullStayNow(id, roomPaymentMethodId) {
+    return api.post(`/reservations/${id}/pay-full-stay`, { roomPaymentMethodId })
+}
+
+export function payFullStayNowTerminal(id, posDeviceId = null) {
+    return api.post(`/reservations/${id}/pay-full-stay/terminal`, { posDeviceId })
+}
+
 export function extendStay(id, checkOutDate) {
     return api.post(`/reservations/${id}/extend`, { checkOutDate })
 }
