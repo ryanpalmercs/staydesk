@@ -476,6 +476,86 @@ public class ReservationService {
         return new CheckInResult(checkedIn, passcodeResult.outcome());
     }
 
+    @Transactional
+    public Reservation payFullStayNow(int id, String roomPaymentMethodId) {
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        if (!reservation.channel().equals(Reservation.Channel.WALK_IN)
+                || !reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
+            throw new InvalidReservationException();
+        }
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+        long alreadyPosted = folioService.countRoomChargesPosted(folio.id());
+        long remainingPeriods = totalPeriods - alreadyPosted;
+
+        if (remainingPeriods <= 0) {
+            throw new InvalidReservationException();
+        }
+
+        for (long i = 0; i < remainingPeriods; i++) {
+            BigDecimal periodAmount = resolveNightlyRateAmount(reservation.guestId(), rate,
+                    reservation.checkInDate().plusDays(alreadyPosted + i));
+            folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
+        }
+
+        paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
+                resolveGuestEmail(reservation.guestId()));
+
+        return reservation;
+    }
+
+    @Transactional
+    public Reservation payFullStayNowTerminal(int id, Integer posDeviceId) {
+        String paymentMethodToken;
+
+        if (posDeviceId != null) {
+            paymentMethodToken = posDeviceRepository.findById(posDeviceId)
+                                                    .orElseThrow(PosDeviceNotFoundException::new)
+                                                    .deviceId();
+        } else if (providerFactory.isCardPresentRecordOnly()) {
+            paymentMethodToken = "no-device-record-only";
+        } else {
+            throw new CardPresentRecordOnlyDisabledException();
+        }
+
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        if (!reservation.channel().equals(Reservation.Channel.WALK_IN)
+                || !reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
+            throw new InvalidReservationException();
+        }
+
+        Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
+                                  .orElseThrow(RateNotFoundException::new);
+
+        long totalPeriods = getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate());
+        long alreadyPosted = folioService.countRoomChargesPosted(folio.id());
+        long remainingPeriods = totalPeriods - alreadyPosted;
+
+        if (remainingPeriods <= 0) {
+            throw new InvalidReservationException();
+        }
+
+        for (long i = 0; i < remainingPeriods; i++) {
+            BigDecimal periodAmount = resolveNightlyRateAmount(reservation.guestId(), rate,
+                    reservation.checkInDate().plusDays(alreadyPosted + i));
+            folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
+        }
+
+        paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken,
+                resolveGuestEmail(reservation.guestId()));
+
+        return reservation;
+    }
+
     public ReservationEstimateResponse estimateCheckInCharge(int id) {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
         Folio folio = folioRepository.getFolioByReservationId(reservation.id()).orElseThrow(FolioNotFoundException::new);
