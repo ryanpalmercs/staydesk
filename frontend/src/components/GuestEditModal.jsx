@@ -13,7 +13,8 @@ function GuestEditModal({ guest, onSaved, onClose }) {
         phoneNumber: guest.phoneNumber,
         smsConsent: guest.smsConsent,
         legacyPricing: guest.legacyPricing ?? false,
-        legacyPricingAmount: guest.legacyPricingAmount ?? ''
+        legacyPricingAmount: guest.legacyPricingAmount ?? '',
+        regularGuest: guest.regularGuest ?? false
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -120,6 +121,16 @@ function GuestEditModal({ guest, onSaved, onClose }) {
                         />
                     </div>
                 )}
+
+                <label className="flex items-start gap-2 text-sm text-muted">
+                    <input
+                        type="checkbox"
+                        checked={form.regularGuest}
+                        onChange={e => setForm({ ...form, regularGuest: e.target.checked })}
+                        className="mt-1"
+                    />
+                    <span>Regular Guest — exempt this guest from seasonal rate overrides; they always pay the standard tiered rate.</span>
+                </label>
 
                 {error && <p className="text-sm text-error">{error}</p>}
 

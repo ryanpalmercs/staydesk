@@ -214,7 +214,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def savedGuest = new Guest(9, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
-                false, false, null, null, null, false, false, null, LocalDateTime.now(), LocalDateTime.now())
+                false, false, null, null, null, false, false, null, false, LocalDateTime.now(), LocalDateTime.now())
         def savedReservation = new Reservation(11, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
                 Reservation.ReservationStatus.CHECKED_IN, LocalDate.of(2026, 8, 21).atTime(15, 0), null,
                 Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
@@ -251,7 +251,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def existingGuest = new Guest(3, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("james@example.com"), "hashed-real-email", new EncryptedString("5551234567"),
-                true, false, null, null, null, false, false, null, LocalDateTime.now(), LocalDateTime.now())
+                true, false, null, null, null, false, false, null, false, LocalDateTime.now(), LocalDateTime.now())
 
         roomRepository.findById(5) >> Optional.of(room)
         piiCipher.hash("james@example.com") >> "hashed-real-email"
@@ -1036,7 +1036,13 @@ class ReservationServiceSpec extends Specification {
     private static Guest legacyPricedGuest(BigDecimal legacyAmount = BigDecimal.valueOf(50)) {
         new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
-                true, legacyAmount, LocalDateTime.now(), LocalDateTime.now())
+                true, legacyAmount, false, LocalDateTime.now(), LocalDateTime.now())
+    }
+
+    private static Guest regularGuest() {
+        new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
+                "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
+                false, null, true, LocalDateTime.now(), LocalDateTime.now())
     }
 
     def "createReservation charges the guest's legacy price instead of the standard rate"() {
@@ -1265,6 +1271,25 @@ class ReservationServiceSpec extends Specification {
         then:
         0 * rateOverrideRepository.findActiveOverride(_, _, _)
         result.subtotal().compareTo(BigDecimal.valueOf(100)) == 0
+    }
+
+    def "estimateTotal ignores an active seasonal rate override for a Regular Guest, charging the tier's base rate instead"() {
+        given:
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.of(regularGuest())
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        // would otherwise apply to both nights if the guest weren't a Regular Guest
+        def override = new RateOverride(3, "NIGHTLY", 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                BigDecimal.valueOf(200), "Surge weekend", LocalDateTime.now(), LocalDateTime.now())
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.of(override)
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.NIGHTLY, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), 7)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 
     def "estimateTotalWithExtras adds the priced extras to the room subtotal"() {

@@ -9,5 +9,6 @@ import java.math.BigDecimal;
 public record UpdateGuestRequest(@NotBlank String firstName, @NotBlank String lastName,
                                  @Email String email,
                                  @NotBlank @Pattern(regexp = "^[0-9]{10}$", message = "phoneNumber must be exactly 10 digits") String phoneNumber,
-                                 boolean smsConsent, boolean legacyPricing, BigDecimal legacyPricingAmount) {
+                                 boolean smsConsent, boolean legacyPricing, BigDecimal legacyPricingAmount,
+                                 boolean regularGuest) {
 }
