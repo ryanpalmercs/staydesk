@@ -103,8 +103,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
         : 0
 
-    const rateType = totalNights > 0 && totalNights % 7 === 0 ? 'WEEKLY_7'
-        : totalNights > 0 && totalNights % 5 === 0 ? 'WEEKLY_5'
+    const rateType = totalNights >= 7 ? 'WEEKLY_7'
+        : totalNights >= 5 ? 'WEEKLY_5'
             : 'NIGHTLY'
     const maxGuestCount = 4
     const guestCount = form.adults + form.children
