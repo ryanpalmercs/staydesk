@@ -391,7 +391,7 @@ class ReservationServiceSpec extends Specification {
                 false, null, expiresAt, LocalDateTime.now(), LocalDateTime.now())
     }
 
-    def "extendStay charges the stored credential for the added periods and updates checkOutDate"() {
+    def "extendStay charges the stored credential per added night, priced at the same tier, and updates checkOutDate"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
         def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
@@ -401,9 +401,10 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 17), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
-        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }) >>
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
@@ -412,10 +413,12 @@ class ReservationServiceSpec extends Specification {
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 17))
 
         then:
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(350)) == 0 }, _, _)
+        // 4 added nights at the WEEKLY_7 tier's per-night rate (350 / 7 = 50)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, { it.id() == 4 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(200)) == 0 }, _, _)
         result.reservation().checkOutDate() == LocalDate.of(2026, 7, 17)
         result.reservation().checkInDate() == LocalDate.of(2026, 7, 10)
-        result.amountCharged().compareTo(BigDecimal.valueOf(350)) == 0
+        result.reservation().rateType() == Rate.RateType.WEEKLY_7
+        result.amountCharged().compareTo(BigDecimal.valueOf(200)) == 0
     }
 
     def "extendStay also tops up an existing PER_NIGHT extra for just the added nights"() {
@@ -425,7 +428,7 @@ class ReservationServiceSpec extends Specification {
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
-        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -439,11 +442,12 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
-        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
 
         then:
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(315)) == 0 }, _, _)
-        result.amountCharged().compareTo(BigDecimal.valueOf(315)) == 0
+        // 1 added night: 80 room + 25 pet fee
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(105)) == 0 }, _, _)
+        result.amountCharged().compareTo(BigDecimal.valueOf(105)) == 0
     }
 
     def "estimateExtendStayCharge includes both the added room nights and any PER_NIGHT extras, without charging or posting anything"() {
@@ -461,13 +465,14 @@ class ReservationServiceSpec extends Specification {
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
 
         when:
-        def result = reservationService.estimateExtendStayCharge(1, LocalDate.of(2026, 7, 16))
+        def result = reservationService.estimateExtendStayCharge(1, LocalDate.of(2026, 7, 14))
 
         then:
+        // 1 added night: 80 room + 25 pet fee
         0 * folioService.postCharge(*_)
         0 * paymentService.chargeStoredCredential(*_)
         0 * reservationRepository.save(_)
-        result.total().compareTo(BigDecimal.valueOf(315)) == 0
+        result.total().compareTo(BigDecimal.valueOf(105)) == 0
     }
 
     def "estimateExtendStayCharge throws InvalidReservationException when the reservation isn't CHECKED_IN"() {
@@ -510,28 +515,44 @@ class ReservationServiceSpec extends Specification {
         0 * paymentService.chargeStoredCredential(*_)
     }
 
-    def "extendStay throws InvalidReservationException when the extended length doesn't land on a WEEKLY_7 boundary"() {
+    def "extendStay re-tiers only the newly added nights when the extension crosses into a longer-stay tier"() {
         given:
-        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def weekly5Rate = new Rate(2, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
+
         reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        // original 3 nights were already posted at NIGHTLY - only the 3 added nights (total stay = 6)
+        // should price at the WEEKLY_5 tier, not the reservation's original NIGHTLY rate type
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(weekly5Rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
+        reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
-        reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
 
         then:
-        thrown(InvalidReservationException)
-        0 * reservationRepository.save(_)
-        0 * paymentService.chargeStoredCredential(*_)
+        // 3 added nights at the WEEKLY_5 tier's per-night rate (325 / 5 = 65)
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(195)) == 0 }, _, _)
+        result.reservation().rateType() == Rate.RateType.WEEKLY_5
+        result.amountCharged().compareTo(BigDecimal.valueOf(195)) == 0
     }
 
-    def "extendStay allows any extension length for NIGHTLY reservations and charges per added night"() {
+    def "extendStay charges per added night when the extension stays within the reservation's current tier"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
-        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -543,12 +564,13 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
-        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
 
         then:
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, _, _)
-        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
-        result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }, _, _)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 14)
+        result.reservation().rateType() == Rate.RateType.NIGHTLY
+        result.amountCharged().compareTo(BigDecimal.valueOf(80)) == 0
     }
 
     def "extendStay throws DateConflictException when another reservation occupies the room during the extension window"() {
@@ -576,7 +598,7 @@ class ReservationServiceSpec extends Specification {
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
-        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -587,7 +609,7 @@ class ReservationServiceSpec extends Specification {
         folioService.distinctPerNightExtras(9) >> []
 
         when:
-        reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
 
         then:
         thrown(NoReusableCredentialException)
@@ -604,7 +626,7 @@ class ReservationServiceSpec extends Specification {
 
         posDeviceRepository.findById(6) >> Optional.of(device)
         reservationRepository.findById(1) >> Optional.of(res)
-        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -616,12 +638,12 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
-        def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), 6)
+        def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 14), 6)
 
         then:
-        1 * paymentService.chargeCardPresent({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, "elavon_cpi", "dev-token-1", _, _)
-        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
-        result.amountCharged().compareTo(BigDecimal.valueOf(240)) == 0
+        1 * paymentService.chargeCardPresent({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }, "elavon_cpi", "dev-token-1", _, _)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 14)
+        result.amountCharged().compareTo(BigDecimal.valueOf(80)) == 0
     }
 
     def "extendStayTerminal throws PosDeviceNotFoundException when the given device doesn't resolve"() {
@@ -645,7 +667,7 @@ class ReservationServiceSpec extends Specification {
 
         providerFactory.isCardPresentRecordOnly() >> true
         reservationRepository.findById(1) >> Optional.of(res)
-        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -657,11 +679,11 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
-        def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 16), null)
+        def result = reservationService.extendStayTerminal(1, LocalDate.of(2026, 7, 14), null)
 
         then:
         1 * paymentService.chargeCardPresent({ it.id() == 9 }, _, "elavon_cpi_manual", "no-device-record-only", _, _)
-        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 16)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 14)
         0 * posDeviceRepository.findById(_)
     }
 
@@ -1127,6 +1149,55 @@ class ReservationServiceSpec extends Specification {
         1 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
         0 * paymentService.chargeFullStay(_, _, _, _, _)
+    }
+
+    def "createReservation throws InvalidReservationException when the requested rate type doesn't match the tier for the stay length"() {
+        given:
+        // 3 nights is the NIGHTLY tier (1-4 nights), not WEEKLY_5
+        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 4),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_5, 1, Reservation.Channel.PHONE,
+                false, LocalDateTime.now(), LocalDateTime.now(), null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(rate)
+
+        when:
+        reservationService.createReservation(draft, "token-1", [])
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.save(_)
+    }
+
+    def "createReservation accepts a 6-night stay at the WEEKLY_5 tier, priced per night"() {
+        given:
+        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_5, 1, Reservation.Channel.PHONE,
+                false, LocalDateTime.now(), LocalDateTime.now(), null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.empty()
+
+        when:
+        reservationService.createReservation(draft, "token-1", [])
+
+        then:
+        // 6 nights at 325 / 5 = 65.00 per night
+        6 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(390)) == 0 }, _, "token-1", null)
     }
 
     def "estimateTotal uses the guest's legacy price when legacy pricing is enabled"() {
