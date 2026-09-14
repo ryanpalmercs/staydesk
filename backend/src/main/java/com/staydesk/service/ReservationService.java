@@ -129,20 +129,20 @@ public class ReservationService {
      * A guest with legacy pricing enabled has their flat override amount substituted for the
      * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
      * any date-range rate_overrides row (legacy guests are grandfathered off seasonal pricing
-     * entirely). Otherwise, an active rate_overrides row covering this date wins over the tier's
-     * base per-night amount - surge/seasonal pricing overrides the long-stay discount, not the
-     * other way around.
+     * entirely). Otherwise, a Regular Guest always pays the tier's base per-night amount, skipping
+     * seasonal pricing entirely. For everyone else, an active rate_overrides row covering this date
+     * wins over the tier's base per-night amount - surge/seasonal pricing overrides the long-stay
+     * discount, not the other way around.
      */
     private BigDecimal resolveNightlyRateAmount(Integer guestId, Rate rate, LocalDate nightDate) {
-        if (guestId != null) {
-            Optional<BigDecimal> legacyAmount = guestRepository.findById(guestId)
-                                                                .filter(Guest::legacyPricing)
-                                                                .map(Guest::legacyPricingAmount)
-                                                                .filter(Objects::nonNull);
+        Optional<Guest> guest = guestId == null ? Optional.empty() : guestRepository.findById(guestId);
 
-            if (legacyAmount.isPresent()) {
-                return legacyAmount.get();
-            }
+        Optional<BigDecimal> legacyAmount = guest.filter(Guest::legacyPricing)
+                                                  .map(Guest::legacyPricingAmount)
+                                                  .filter(Objects::nonNull);
+
+        if (legacyAmount.isPresent()) {
+            return legacyAmount.get();
         }
 
         BigDecimal tieredAmount = switch (Rate.RateType.valueOf(rate.rateType())) {
@@ -150,6 +150,10 @@ public class ReservationService {
             case WEEKLY_5 -> rate.amount().divide(BigDecimal.valueOf(5), 2, RoundingMode.HALF_UP);
             case WEEKLY_7 -> rate.amount().divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
         };
+
+        if (guest.map(Guest::regularGuest).orElse(false)) {
+            return tieredAmount;
+        }
 
         return rateOverrideRepository.findActiveOverride(Rate.RateType.NIGHTLY.name(), rate.guestCount(), nightDate)
                                      .map(RateOverride::amount)
@@ -678,7 +682,7 @@ public class ReservationService {
 
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                     new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
-                    false, null, null, null, false, false, null, createdAt, createdAt));
+                    false, null, null, null, false, false, null, false, createdAt, createdAt));
         });
     }
 
