@@ -6,11 +6,15 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface RoomTypeRepository extends ListCrudRepository<RoomType, Integer> {
 
     Optional<RoomType> findByName(String name);
+
+    @Query("SELECT rt.* FROM room_types rt WHERE EXISTS (SELECT 1 FROM rooms r WHERE r.room_type_id = rt.id)")
+    List<RoomType> findAllWithAtLeastOneRoom();
 
     @Modifying
     @Query("UPDATE room_types SET available_count = available_count + 1 WHERE id = :id")

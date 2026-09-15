@@ -134,7 +134,7 @@ function SettingsPage() {
     useEffect(() => {
         getSifelySettings()
         loadPropertySettings()
-        getRoomTypes().then(res => {
+        getRoomTypes(true).then(res => {
             const data = res.data ?? []
             setRoomTypes(data)
             originalRoomTypes.current = data
