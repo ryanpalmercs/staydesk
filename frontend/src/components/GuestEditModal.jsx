@@ -65,19 +65,19 @@ function GuestEditModal({ guest = null, onSaved, onClose }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {form.guestType === 'BUSINESS' ? (
-                        <div className="sm:col-span-2">
+                        <div className="min-w-0 sm:col-span-2">
                             <label className="block text-sm text-muted mb-1">Business Name</label>
-                            <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input" required />
+                            <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input w-full" required />
                         </div>
                     ) : (
                         <>
-                            <div>
+                            <div className="min-w-0">
                                 <label className="block text-sm text-muted mb-1">First Name</label>
-                                <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input" required />
+                                <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input w-full" required />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                                 <label className="block text-sm text-muted mb-1">Last Name</label>
-                                <input name="lastName" value={form.lastName} onChange={handleChange} className="filter-input" required />
+                                <input name="lastName" value={form.lastName} onChange={handleChange} className="filter-input w-full" required />
                             </div>
                         </>
                     )}
@@ -85,7 +85,7 @@ function GuestEditModal({ guest = null, onSaved, onClose }) {
 
                 <div>
                     <label className="block text-sm text-muted mb-1">Email <span className="text-muted">(optional)</span></label>
-                    <input type="email" name="email" value={form.email} onChange={handleChange} className="filter-input" />
+                    <input type="email" name="email" value={form.email} onChange={handleChange} className="filter-input w-full" />
                 </div>
 
                 <div>
@@ -96,7 +96,7 @@ function GuestEditModal({ guest = null, onSaved, onClose }) {
                         mask="_"
                         value={form.phoneNumber}
                         onValueChange={values => setForm({ ...form, phoneNumber: values.value })}
-                        className="filter-input"
+                        className="filter-input w-full"
                         placeholder="(###) ###-####"
                         required
                     />

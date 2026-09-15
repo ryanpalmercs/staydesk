@@ -463,15 +463,15 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {guestForm.guestType === 'BUSINESS' ? (
-                                <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input sm:col-span-2" required />
+                                <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0 sm:col-span-2" required />
                             ) : (
                                 <>
-                                    <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
-                                    <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                    <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
+                                    <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
                                 </>
                             )}
-                            <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" />
-                            <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
+                            <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" />
+                            <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
                         </div>
 
                         <label className="flex items-start gap-2 text-sm text-muted">
@@ -543,15 +543,15 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {guestForm.guestType === 'BUSINESS' ? (
-                                    <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input sm:col-span-2" required />
+                                    <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0 sm:col-span-2" required />
                                 ) : (
                                     <>
-                                        <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
-                                        <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
+                                        <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
                                     </>
                                 )}
-                                <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" />
-                                <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
+                                <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" />
+                                <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
                             </div>
 
                             <label className="flex items-start gap-2 text-sm text-muted">
