@@ -13,6 +13,10 @@ import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus } from "lucide-react"
 import Modal from "./Modal"
 
+function guestName(guest) {
+    return guest?.lastName ? `${guest.firstName} ${guest.lastName}` : guest?.firstName ?? ''
+}
+
 
 function Stepper({ label, value, min, max, onChange }) {
     return (
@@ -57,7 +61,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         lastName: '',
         email: '',
         phoneNumber: '',
-        smsConsent: false
+        smsConsent: false,
+        guestType: 'INDIVIDUAL'
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -96,8 +101,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     ))
 
     const visibleGuests = [...guests]
-        .filter(g => `${g.firstName} ${g.lastName}`.toLowerCase().includes(guestSearchQuery.toLowerCase()))
-        .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+        .filter(g => guestName(g).toLowerCase().includes(guestSearchQuery.toLowerCase()))
+        .sort((a, b) => guestName(a).localeCompare(guestName(b)))
 
     const totalNights = form.checkInDate && form.checkOutDate
         ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
@@ -217,11 +222,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             const guestsRes = await getGuests()
             setGuests(guestsRes.data)
             setForm(f => ({ ...f, guestId: res.data.id }))
-            setGuestForm({ firstName: '', lastName: '', email: '', phoneNumber: '', smsConsent: false })
+            setGuestForm({ firstName: '', lastName: '', email: '', phoneNumber: '', smsConsent: false, guestType: 'INDIVIDUAL' })
             setStep('form')
         } catch (err) {
             if (err.response?.status === 400) {
-                setGuestFormError('Phone number must be 10 digits.')
+                setGuestFormError('Please check the fields — phone must be 10 digits, and last name is required for individuals.')
             } else if (err.response?.status === 409) {
                 setGuestFormError('A guest with that email already exists.')
             } else {
@@ -238,7 +243,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             lastName: selectedGuest.lastName,
             email: selectedGuest.email ?? '',
             phoneNumber: selectedGuest.phoneNumber,
-            smsConsent: selectedGuest.smsConsent
+            smsConsent: selectedGuest.smsConsent,
+            guestType: selectedGuest.guestType ?? 'INDIVIDUAL'
         })
         setGuestFormError(null)
         setEditingGuestInfo(true)
@@ -390,7 +396,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         : step === 'guestList' ? 'Select Guest'
                             : step === 'newGuest' ? 'New Guest'
                                 : step === 'confirmGuest' ? 'Confirm Guest Information'
-                                    : isEditing ? `Edit Reservation for ${selectedGuest ? `${selectedGuest.firstName} ${selectedGuest.lastName}` : ''}` : `New Reservation for ${selectedGuest ? `${selectedGuest.firstName} ${selectedGuest.lastName}` : ''}`}
+                                    : isEditing ? `Edit Reservation for ${guestName(selectedGuest)}` : `New Reservation for ${guestName(selectedGuest)}`}
             </h2>
 
             {step === 'choice' && (
@@ -432,7 +438,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 onClick={() => { setForm(f => ({ ...f, guestId: g.id })); setStep('confirmGuest') }}
                                 className="filter-input flex justify-between items-center text-left hover:border-green"
                             >
-                                <span>{g.firstName} {g.lastName}</span>
+                                <span>{guestName(g)}</span>
                                 {g.flagged && <span className="text-xs text-error font-medium">Flagged</span>}
                             </button>
                         ))}
@@ -451,9 +457,19 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             {step === 'newGuest' && (
                 <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">
                     <form onSubmit={handleCreateGuest} className="flex flex-col gap-4">
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'INDIVIDUAL' })} className={`filter-btn${guestForm.guestType === 'INDIVIDUAL' ? ' active' : ''}`}>Individual</button>
+                            <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'BUSINESS', lastName: '' })} className={`filter-btn${guestForm.guestType === 'BUSINESS' ? ' active' : ''}`}>Business Entity</button>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
-                            <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                            {guestForm.guestType === 'BUSINESS' ? (
+                                <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input sm:col-span-2" required />
+                            ) : (
+                                <>
+                                    <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                    <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                </>
+                            )}
                             <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" />
                             <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
                         </div>
@@ -498,7 +514,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         <div className="flex flex-col gap-4">
                             <div>
                                 <label className="block text-sm text-muted mb-1">Name</label>
-                                <p className="text-sm text-black">{selectedGuest.firstName} {selectedGuest.lastName}</p>
+                                <p className="text-sm text-black">{guestName(selectedGuest)}</p>
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Email</label>
@@ -521,9 +537,19 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </div>
                     ) : (
                         <form onSubmit={handleUpdateGuestInfo} className="flex flex-col gap-4">
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'INDIVIDUAL' })} className={`filter-btn${guestForm.guestType === 'INDIVIDUAL' ? ' active' : ''}`}>Individual</button>
+                                <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'BUSINESS', lastName: '' })} className={`filter-btn${guestForm.guestType === 'BUSINESS' ? ' active' : ''}`}>Business Entity</button>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
-                                <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                {guestForm.guestType === 'BUSINESS' ? (
+                                    <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input sm:col-span-2" required />
+                                ) : (
+                                    <>
+                                        <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                        <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
+                                    </>
+                                )}
                                 <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" />
                                 <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
                             </div>
