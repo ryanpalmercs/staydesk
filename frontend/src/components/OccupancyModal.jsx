@@ -5,7 +5,7 @@ import Modal from "./Modal"
 import StatusBadge from "./StatusBadge"
 
 function todayStr() {
-    return new Date().toISOString().split('T')[0]
+    return format(new Date(), 'yyyy-MM-dd')
 }
 
 function formatDateLabel(dateStr) {
