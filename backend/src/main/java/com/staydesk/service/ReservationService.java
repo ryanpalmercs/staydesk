@@ -835,6 +835,7 @@ public class ReservationService {
         ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(ctx.folio().id())
                 .stream()
                 .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(ctx.now()))
+                .filter(c -> !ProviderFactory.CARD_PRESENT_RECORD_ONLY_PROVIDER.equals(c.provider()))
                 .findFirst()
                 .orElseThrow(NoReusableCredentialException::new);
 

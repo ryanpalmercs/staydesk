@@ -709,6 +709,34 @@ class ReservationServiceSpec extends Specification {
         0 * paymentService.chargeStoredCredential(*_)
     }
 
+    def "extendStay throws NoReusableCredentialException when the only credential on file is the record-only stand-in"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def recordOnlyCredential = new ReusablePaymentCredential(4, 9, 1, "elavon_cpi_manual", "cust-1", "tok-1", "4242",
+                false, null, null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [recordOnlyCredential]
+        folioService.postCharge(_, "GUEST ROOM", _) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
+
+        then:
+        thrown(NoReusableCredentialException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
+    }
+
     def "extendStayTerminal charges the paired POS device for the added periods and updates checkOutDate"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
