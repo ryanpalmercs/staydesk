@@ -1,18 +1,53 @@
 import { useState } from "react"
+import { addDays, format } from "date-fns"
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react"
 import Modal from "./Modal"
 
+function todayStr() {
+    return new Date().toISOString().split('T')[0]
+}
+
+function formatDateLabel(dateStr) {
+    const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+    return dateStr === todayStr() ? `${label} (Today)` : label
+}
+
 function CheckingInTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckIn }) {
+    const [viewDate, setViewDate] = useState(todayStr)
     const [selectedId, setSelectedId] = useState(null)
+
+    function shiftDate(deltaDays) {
+        setViewDate(d => format(addDays(new Date(d + 'T12:00:00'), deltaDays), 'yyyy-MM-dd'))
+        setSelectedId(null)
+    }
+
+    const dayReservations = reservations.filter(r => r.checkInDate === viewDate && r.status === 'CONFIRMED')
 
     return (
         <Modal onClose={onClose} size="lg">
-            <h2 className="text-lg text-black font-semibold mb-4">Checking In Today</h2>
+            <h2 className="text-lg text-black font-semibold mb-2">Checking In</h2>
 
-            {reservations.length === 0 ? (
-                <p className="text-sm text-muted">No guests are checking in today.</p>
+            <div className="flex items-center justify-between mb-4">
+                <button
+                    type="button"
+                    onClick={() => shiftDate(-1)}
+                    disabled={viewDate <= todayStr()}
+                    className="text-muted hover:text-green disabled:opacity-30 disabled:hover:text-muted"
+                    aria-label="Previous day"
+                >
+                    <ArrowLeftIcon size={20} />
+                </button>
+                <span className="text-sm font-medium text-black">{formatDateLabel(viewDate)}</span>
+                <button type="button" onClick={() => shiftDate(1)} className="text-muted hover:text-green" aria-label="Next day">
+                    <ArrowRightIcon size={20} />
+                </button>
+            </div>
+
+            {dayReservations.length === 0 ? (
+                <p className="text-sm text-muted">No guests are checking in this day.</p>
             ) : (
                 <ul className="flex flex-col gap-3 max-h-96 overflow-y-auto">
-                    {reservations.map(r => {
+                    {dayReservations.map(r => {
                         const guest = guestsMap[r.guestId]
                         const selected = selectedId === r.id
 

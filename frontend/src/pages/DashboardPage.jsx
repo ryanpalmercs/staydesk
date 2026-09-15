@@ -126,9 +126,6 @@ function DashboardPage() {
     const availableCount = rooms.filter(r => r.status === 'AVAILABLE').length
     const todayCheckIns = reservations.filter(r => r.checkInDate === today && r.status === 'CONFIRMED')
     const todayCheckOuts = reservations.filter(r => r.checkOutDate === today && r.status === 'CHECKED_IN')
-    const reservationByRoomId = Object.fromEntries(
-        reservations.filter(r => r.status === 'CHECKED_IN' && r.roomId != null).map(r => [r.roomId, r])
-    )
     const events = reservations
         .filter(r => r.status !== 'CANCELLED' && visibleStatuses.has(r.status))
         .map(r => ({
@@ -269,7 +266,7 @@ function DashboardPage() {
 
             {showCheckingInModal && (
                 <CheckingInTodayModal
-                    reservations={todayCheckIns}
+                    reservations={reservations}
                     guestsMap={guestsMap}
                     roomLabel={roomLabel}
                     onClose={() => setShowCheckingInModal(false)}
@@ -282,7 +279,7 @@ function DashboardPage() {
 
             {showCheckingOutModal && (
                 <CheckingOutTodayModal
-                    reservations={todayCheckOuts}
+                    reservations={reservations}
                     guestsMap={guestsMap}
                     roomLabel={roomLabel}
                     onClose={() => setShowCheckingOutModal(false)}
@@ -295,7 +292,7 @@ function DashboardPage() {
                     rooms={rooms}
                     roomTypesMap={roomTypesMap}
                     guestsMap={guestsMap}
-                    reservationByRoomId={reservationByRoomId}
+                    reservations={reservations}
                     onClose={() => setShowOccupancyModal(false)}
                     onSelectRoom={r => {
                         setShowOccupancyModal(false)
