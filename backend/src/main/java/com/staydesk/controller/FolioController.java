@@ -5,6 +5,8 @@ import com.staydesk.exception.FolioClosedException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.model.FolioPayment;
+import com.staydesk.model.request.AddCardOnFileRequest;
+import com.staydesk.model.request.AddCardOnFileTerminalRequest;
 import com.staydesk.model.request.AddFolioItemRequest;
 import com.staydesk.model.request.ChargeExtraRequest;
 import com.staydesk.model.request.ChargeExtraTerminalRequest;
@@ -129,6 +131,36 @@ public class FolioController {
         FolioPayment payment = paymentService.chargeExtraTerminal(folio, request.amount(), request.description(),
                 request.posDeviceId(), customerEmail);
         return ResponseEntity.ok(payment);
+    }
+
+    @PostMapping("{id}/card-on-file")
+    public ResponseEntity<Void> addCardOnFile(@PathVariable Integer id, @RequestBody AddCardOnFileRequest request) {
+        LOGGER.info("Adding card on file for folio {}", id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+
+        if (folio.status() != Folio.FolioStatus.OPEN) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+
+        String customerEmail = reservationService.resolveGuestEmailForReservation(folio.reservationId());
+        paymentService.addCardOnFile(folio, request.paymentMethodId(), customerEmail);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("{id}/card-on-file/terminal")
+    public ResponseEntity<Void> addCardOnFileTerminal(@PathVariable Integer id, @RequestBody AddCardOnFileTerminalRequest request) {
+        LOGGER.info("Adding card on file via terminal for folio {}", id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+
+        if (folio.status() != Folio.FolioStatus.OPEN) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+
+        String customerEmail = reservationService.resolveGuestEmailForReservation(folio.reservationId());
+        paymentService.addCardOnFileTerminal(folio, request.posDeviceId(), customerEmail);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("{id}/pay")

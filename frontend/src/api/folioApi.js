@@ -43,3 +43,11 @@ export function chargeExtra(folioId, amount, description) {
 export function chargeExtraTerminal(folioId, amount, description, posDeviceId = null) {
     return api.post(`/folios/${folioId}/items/charge/terminal`, { amount, description, posDeviceId })
 }
+
+export function addCardOnFile(folioId, paymentMethodId) {
+    return api.post(`/folios/${folioId}/card-on-file`, { paymentMethodId })
+}
+
+export function addCardOnFileTerminal(folioId, posDeviceId = null) {
+    return api.post(`/folios/${folioId}/card-on-file/terminal`, { posDeviceId })
+}
