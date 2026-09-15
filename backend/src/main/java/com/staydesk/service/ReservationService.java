@@ -198,6 +198,34 @@ public class ReservationService {
         return code;
     }
 
+    /**
+     * Room types unavailable for the given date range, so the frontend can disable them in the
+     * room-type dropdown and surface a capacity conflict before committing to a booking - instead
+     * of only at the final createReservation call, which can be deferred behind a pay-timing step
+     * for future-dated/phone bookings.
+     */
+    public List<Integer> getUnavailableRoomTypeIds(LocalDate checkInDate, LocalDate checkOutDate, Integer excludingReservationId) {
+        return roomTypeRepository.findAll().stream()
+                                  .filter(roomType -> !isRoomTypeAvailable(roomType, checkInDate, checkOutDate, excludingReservationId))
+                                  .map(RoomType::id)
+                                  .toList();
+    }
+
+    private boolean isRoomTypeAvailable(RoomType roomType, LocalDate checkInDate, LocalDate checkOutDate, Integer excludingReservationId) {
+        int overlapping = excludingReservationId != null
+                ? reservationRepository.countOverlappingByRoomTypeExcludingReservation(
+                        roomType.id(), checkOutDate, checkInDate, excludingReservationId)
+                : reservationRepository.countOverlappingByRoomType(roomType.id(), checkOutDate, checkInDate);
+
+        return overlapping < roomType.availableCount();
+    }
+
+    private void checkRoomTypeAvailability(RoomType roomType, LocalDate checkInDate, LocalDate checkOutDate) {
+        if (!isRoomTypeAvailable(roomType, checkInDate, checkOutDate, null)) {
+            throw new RoomTypeUnavailableException();
+        }
+    }
+
     private BigDecimal computeFirstNightAmount(Reservation reservation) {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
@@ -219,12 +247,7 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        int overlapping = reservationRepository.countOverlappingByRoomType(
-                roomType.id(), reservation.checkOutDate(), reservation.checkInDate());
-
-        if (overlapping >= roomType.availableCount()) {
-            throw new RoomTypeUnavailableException();
-        }
+        checkRoomTypeAvailability(roomType, reservation.checkInDate(), reservation.checkOutDate());
 
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
@@ -786,6 +809,28 @@ public class ReservationService {
 
         if (hasConflict) {
             throw new DateConflictException();
+        }
+
+        boolean isRegularGuest = reservation.guestId() != null && guestRepository.findById(reservation.guestId())
+                                                                                  .map(Guest::regularGuest)
+                                                                                  .orElse(false);
+
+        // findOverlapping above only catches a conflict against a room already assigned to another
+        // reservation. A not-yet-checked-in reservation for the same room type has room_id = NULL
+        // (deferred room assignment) until its own check-in, so it's invisible to that check -
+        // extending into its dates would otherwise go through with nothing stopping it. Regular
+        // Guests are exempted: a long-term guest already in the room takes priority over a newer,
+        // not-yet-arrived reservation for the same room type.
+        if (!isRegularGuest) {
+            RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
+                                                  .orElseThrow(RoomTypeNotFoundException::new);
+
+            int overlappingByType = reservationRepository.countOverlappingByRoomTypeExcludingReservation(
+                    roomType.id(), newCheckOutDate, reservation.checkOutDate(), id);
+
+            if (overlappingByType >= roomType.availableCount()) {
+                throw new RoomTypeUnavailableException();
+            }
         }
 
         long additionalNights = ChronoUnit.DAYS.between(reservation.checkOutDate(), newCheckOutDate);

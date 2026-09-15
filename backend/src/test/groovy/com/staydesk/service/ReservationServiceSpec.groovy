@@ -6,6 +6,7 @@ import com.staydesk.exception.InvalidReservationException
 import com.staydesk.exception.NoReusableCredentialException
 import com.staydesk.exception.PosDeviceNotFoundException
 import com.staydesk.exception.RoomNotFoundException
+import com.staydesk.exception.RoomTypeUnavailableException
 import com.staydesk.exception.RoomUnavailableException
 import com.staydesk.model.EncryptedString
 import com.staydesk.model.Folio
@@ -491,6 +492,8 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 17), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -521,6 +524,8 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -615,6 +620,8 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         // original 3 nights were already posted at NIGHTLY - only the 3 added nights (total stay = 6)
         // should price at the WEEKLY_5 tier, not the reservation's original NIGHTLY rate type
@@ -645,6 +652,8 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -683,6 +692,54 @@ class ReservationServiceSpec extends Specification {
         0 * paymentService.chargeStoredCredential(*_)
     }
 
+    def "extendStay throws RoomTypeUnavailableException when a not-yet-checked-in reservation for the same room type would be double-booked"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        guestRepository.findById(7) >> Optional.empty()
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 1, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13), 1) >> 1
+
+        when:
+        reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
+
+        then:
+        thrown(RoomTypeUnavailableException)
+        0 * reservationRepository.save(_)
+        0 * paymentService.chargeStoredCredential(*_)
+    }
+
+    def "extendStay lets a Regular Guest extend past room-type capacity, taking priority over a not-yet-checked-in reservation"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.of(regularGuest())
+        reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.distinctPerNightExtras(9) >> []
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
+
+        then:
+        // room-type capacity is never even checked for a Regular Guest
+        0 * roomTypeRepository.findById(_)
+        0 * reservationRepository.countOverlappingByRoomTypeExcludingReservation(*_)
+        result.reservation().checkOutDate() == LocalDate.of(2026, 7, 14)
+        result.amountCharged().compareTo(BigDecimal.valueOf(80)) == 0
+    }
+
     def "extendStay throws NoReusableCredentialException when there's no active credential on file"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
@@ -691,6 +748,8 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -719,6 +778,8 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -747,6 +808,8 @@ class ReservationServiceSpec extends Specification {
         posDeviceRepository.findById(6) >> Optional.of(device)
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -788,6 +851,8 @@ class ReservationServiceSpec extends Specification {
         providerFactory.isCardPresentRecordOnly() >> true
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()

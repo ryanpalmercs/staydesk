@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
-import { getRoomTypes } from "../api/roomTypeApi"
+import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
@@ -42,6 +42,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
 
     const [roomTypes, setRoomTypes] = useState([])
+    const [unavailableRoomTypeIds, setUnavailableRoomTypeIds] = useState([])
     const [guests, setGuests] = useState([])
     const [guestFormError, setGuestFormError] = useState(null)
     const [creatingGuest, setCreatingGuest] = useState(false)
@@ -53,7 +54,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED',
-        channel: null
+        channel: reservation?.channel ?? null
     })
 
     const [guestForm, setGuestForm] = useState({
@@ -165,6 +166,18 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             })
         return () => { cancelled = true }
     }, [rateType, guestCount, form.checkInDate, form.checkOutDate, form.guestId, stagedExtras])
+
+    useEffect(() => {
+        if (!form.checkInDate || !form.checkOutDate) {
+            setUnavailableRoomTypeIds([])
+            return
+        }
+        let cancelled = false
+        getUnavailableRoomTypeIds(form.checkInDate, form.checkOutDate, reservation?.id)
+            .then(res => { if (!cancelled) setUnavailableRoomTypeIds(res.data ?? []) })
+            .catch(() => { if (!cancelled) setUnavailableRoomTypeIds([]) })
+        return () => { cancelled = true }
+    }, [form.checkInDate, form.checkOutDate])
 
     async function handleAddExtra() {
         if (!selectedExtraId) return
@@ -283,6 +296,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
         if (!form.roomTypeId) {
             setError('Please select a room type.')
+            return
+        }
+
+        if (unavailableRoomTypeIds.includes(Number(form.roomTypeId))) {
+            setError('No room of this type is available for the selected dates.')
             return
         }
 
@@ -619,7 +637,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
                                     <option value="">Select a room type...</option>
                                     {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
-                                        <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                                        <option key={rt.id} value={rt.id} disabled={unavailableRoomTypeIds.includes(rt.id)}>
+                                            {rt.name.replace('_', ' ')}{unavailableRoomTypeIds.includes(rt.id) ? ' (Unavailable)' : ''}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
