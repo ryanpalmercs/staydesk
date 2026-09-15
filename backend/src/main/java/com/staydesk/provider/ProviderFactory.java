@@ -11,6 +11,13 @@ import java.util.Map;
 @Service
 public class ProviderFactory {
 
+    /**
+     * Bean name of the record-only card-present stand-in (see payment.card-present.record-only).
+     * A FolioPayment whose provider equals this never resulted in a real charge or hold, so
+     * checkout can safely settle it automatically instead of prompting staff to capture it.
+     */
+    public static final String CARD_PRESENT_RECORD_ONLY_PROVIDER = "elavon_cpi_manual";
+
     private final Map<String, PaymentProvider> paymentProviders;
     private final Map<String, LockProvider> lockProviders;
     private final PropertySettingsService propertySettingsService;
@@ -43,7 +50,7 @@ public class ProviderFactory {
      * see payment.card-present.record-only.
      */
     public String getCardPresentProviderName() {
-        return cardPresentRecordOnly ? "elavon_cpi_manual" : "elavon_cpi";
+        return cardPresentRecordOnly ? CARD_PRESENT_RECORD_ONLY_PROVIDER : "elavon_cpi";
     }
 
     public boolean isCardPresentRecordOnly() {

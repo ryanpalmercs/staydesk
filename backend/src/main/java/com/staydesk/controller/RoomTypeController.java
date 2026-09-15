@@ -4,6 +4,7 @@ import com.staydesk.model.RoomType;
 import com.staydesk.model.request.UpdateRoomTypeRequest;
 import com.staydesk.repository.RoomTypeAvailabilityRepository;
 import com.staydesk.repository.RoomTypeRepository;
+import com.staydesk.service.ReservationService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,22 +30,35 @@ public class RoomTypeController {
 
     private final RoomTypeRepository roomTypeRepository;
     private final RoomTypeAvailabilityRepository roomTypeAvailabilityRepository;
+    private final ReservationService reservationService;
 
-    public RoomTypeController(RoomTypeRepository roomTypeRepository, RoomTypeAvailabilityRepository roomTypeAvailabilityRepository) {
+    public RoomTypeController(RoomTypeRepository roomTypeRepository, RoomTypeAvailabilityRepository roomTypeAvailabilityRepository,
+                              ReservationService reservationService) {
         this.roomTypeRepository = roomTypeRepository;
         this.roomTypeAvailabilityRepository = roomTypeAvailabilityRepository;
+        this.reservationService = reservationService;
     }
 
     @GetMapping
-    public List<RoomType> getRoomTypes() {
+    public List<RoomType> getRoomTypes(@RequestParam(defaultValue = "false") boolean includeEmpty) {
         LOGGER.info("Getting all room types");
-        return roomTypeRepository.findAll();
+        // A room type with no rooms assigned yet (e.g. staff pre-created it ahead of converting an
+        // existing room to it) isn't a real booking option - hide it everywhere except the screens
+        // staff actually need it for: Settings (managing room types) and the Room form (assigning a
+        // room to it in the first place).
+        return includeEmpty ? roomTypeRepository.findAll() : roomTypeRepository.findAllWithAtLeastOneRoom();
     }
 
     @GetMapping("{id}/occupied-dates")
     public List<LocalDate> getFullyBookedDates(@PathVariable int id,
                                                @RequestParam(required = false) Integer excludeReservationId) {
         return roomTypeAvailabilityRepository.getFullyBookedDates(id, excludeReservationId);
+    }
+
+    @GetMapping("availability")
+    public List<Integer> getUnavailableRoomTypeIds(@RequestParam LocalDate checkIn, @RequestParam LocalDate checkOut,
+                                                    @RequestParam(required = false) Integer excludeReservationId) {
+        return reservationService.getUnavailableRoomTypeIds(checkIn, checkOut, excludeReservationId);
     }
 
     @PutMapping("{id}")

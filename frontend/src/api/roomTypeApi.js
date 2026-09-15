@@ -1,11 +1,15 @@
 import api from './baseApi.js'
 
-export function getRoomTypes() {
-    return api.get('/room-types')
+export function getRoomTypes(includeEmpty = false) {
+    return api.get('/room-types', { params: { includeEmpty } })
 }
 
 export function getRoomTypeOccupiedDates(roomTypeId, excludeReservationId) {
     return api.get(`/room-types/${roomTypeId}/occupied-dates`, { params: { excludeReservationId } })
+}
+
+export function getUnavailableRoomTypeIds(checkIn, checkOut, excludeReservationId) {
+    return api.get('/room-types/availability', { params: { checkIn, checkOut, excludeReservationId } })
 }
 
 export function updateRoomType(id, roomType) {
