@@ -3,6 +3,7 @@ import { TriangleAlert } from 'lucide-react'
 import { AuthProvider } from './contexts/AuthContext'
 import Hotjar from '@hotjar/browser'
 import ProtectedRoute from './components/ProtectedRoute'
+import IdleTimeoutGuard from './components/IdleTimeoutGuard'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import RoomsPage from './pages/RoomsPage'
@@ -79,48 +80,50 @@ export default function App() {
             <div style={{ flex: 1, minHeight: 0 }}>
                 <BrowserRouter>
                     <AuthProvider>
-                        <Routes>
-                            <Route path="/login" element={<LoginPage />} />
-                            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                            <Route path="/sms-terms" element={<SmsTermsPage />} />
-                            <Route path="/welcome" element={<WelcomePage />} />
-                            {isMarketingHost ? (
-                                <Route path="/" element={<WelcomePage />} />
-                            ) : (
-                                <>
-                                    <Route element={<ProtectedRoute />}>
-                                        <Route element={<Layout />}>
-                                            <Route path="/" element={<DashboardPage />} />
-                                            <Route path="/rooms" element={<RoomsPage />} />
-                                            <Route path="/reservations" element={<ReservationsPage />} />
-                                            <Route path="/timesheet/:id" element={<TimesheetPage />} />
-                                            <Route path="/guest/:id" element={<GuestProfilePage />} />
-                                            <Route path="/guests" element={<GuestsPage />} />
+                        <IdleTimeoutGuard>
+                            <Routes>
+                                <Route path="/login" element={<LoginPage />} />
+                                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                                <Route path="/sms-terms" element={<SmsTermsPage />} />
+                                <Route path="/welcome" element={<WelcomePage />} />
+                                {isMarketingHost ? (
+                                    <Route path="/" element={<WelcomePage />} />
+                                ) : (
+                                    <>
+                                        <Route element={<ProtectedRoute />}>
+                                            <Route element={<Layout />}>
+                                                <Route path="/" element={<DashboardPage />} />
+                                                <Route path="/rooms" element={<RoomsPage />} />
+                                                <Route path="/reservations" element={<ReservationsPage />} />
+                                                <Route path="/timesheet/:id" element={<TimesheetPage />} />
+                                                <Route path="/guest/:id" element={<GuestProfilePage />} />
+                                                <Route path="/guests" element={<GuestsPage />} />
+                                            </Route>
                                         </Route>
-                                    </Route>
-                                    <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
-                                        <Route element={<Layout />}>
-                                            <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                                        <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
+                                            <Route element={<Layout />}>
+                                                <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                                            </Route>
                                         </Route>
-                                    </Route>
-                                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                                        <Route element={<Layout />}>
-                                            <Route path="/employees" element={<EmployeesPage />} />
-                                            <Route path="/payroll" element={<PayrollPage />} />
-                                            <Route path="/settings" element={<SettingsPage />} />
-                                            <Route path="/reports" element={<ReportsPage />} />
-                                            <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
-                                            <Route path="/backlog-check-in" element={<BacklogCheckInPage />} />
+                                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                                            <Route element={<Layout />}>
+                                                <Route path="/employees" element={<EmployeesPage />} />
+                                                <Route path="/payroll" element={<PayrollPage />} />
+                                                <Route path="/settings" element={<SettingsPage />} />
+                                                <Route path="/reports" element={<ReportsPage />} />
+                                                <Route path="/rooms/:id/access-log" element={<RoomAccessLogPage />} />
+                                                <Route path="/backlog-check-in" element={<BacklogCheckInPage />} />
+                                            </Route>
                                         </Route>
-                                    </Route>
-                                    <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
-                                        <Route element={<Layout />}>
-                                            <Route path="/incident-charges" element={<PendingIncidentChargesPage />} />
+                                        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
+                                            <Route element={<Layout />}>
+                                                <Route path="/incident-charges" element={<PendingIncidentChargesPage />} />
+                                            </Route>
                                         </Route>
-                                    </Route>
-                                </>
-                            )}
-                        </Routes>
+                                    </>
+                                )}
+                            </Routes>
+                        </IdleTimeoutGuard>
                     </AuthProvider>
                 </BrowserRouter>
             </div>
