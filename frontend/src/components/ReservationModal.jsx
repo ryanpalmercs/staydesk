@@ -53,7 +53,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED',
-        channel: null
+        channel: reservation?.channel ?? null
     })
 
     const [guestForm, setGuestForm] = useState({
