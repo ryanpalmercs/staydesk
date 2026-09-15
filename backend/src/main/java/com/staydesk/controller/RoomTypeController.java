@@ -40,9 +40,13 @@ public class RoomTypeController {
     }
 
     @GetMapping
-    public List<RoomType> getRoomTypes() {
+    public List<RoomType> getRoomTypes(@RequestParam(defaultValue = "false") boolean includeEmpty) {
         LOGGER.info("Getting all room types");
-        return roomTypeRepository.findAll();
+        // A room type with no rooms assigned yet (e.g. staff pre-created it ahead of converting an
+        // existing room to it) isn't a real booking option - hide it everywhere except the screens
+        // staff actually need it for: Settings (managing room types) and the Room form (assigning a
+        // room to it in the first place).
+        return includeEmpty ? roomTypeRepository.findAll() : roomTypeRepository.findAllWithAtLeastOneRoom();
     }
 
     @GetMapping("{id}/occupied-dates")
