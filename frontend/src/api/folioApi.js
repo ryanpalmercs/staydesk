@@ -31,3 +31,15 @@ export function requestIncidentCharge(folioId, amount, reason) {
 export function getFolioIncidentCharges(folioId) {
     return api.get(`/folios/${folioId}/incident-charges`)
 }
+
+export function getCapturePreview(folioId) {
+    return api.get(`/folios/${folioId}/capture-preview`)
+}
+
+export function chargeExtra(folioId, amount, description) {
+    return api.post(`/folios/${folioId}/items/charge`, { amount, description })
+}
+
+export function chargeExtraTerminal(folioId, amount, description, posDeviceId = null) {
+    return api.post(`/folios/${folioId}/items/charge/terminal`, { amount, description, posDeviceId })
+}

@@ -719,7 +719,14 @@ public class ReservationService {
             folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
         }
 
-        folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED, folio.total(), folio.paidAt(), folio.createdAt(), now));
+        Folio closedFolio = folioRepository.save(new Folio(folio.id(), folio.reservationId(), Folio.FolioStatus.CLOSED,
+                folio.total(), folio.paidAt(), folio.createdAt(), now));
+
+        if (!paymentService.requiresManualCapture(closedFolio)) {
+            paymentService.capture(closedFolio);
+            folioRepository.save(new Folio(closedFolio.id(), closedFolio.reservationId(), closedFolio.status(),
+                    closedFolio.total(), LocalDateTime.now(), closedFolio.createdAt(), LocalDateTime.now()));
+        }
 
         paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
 
@@ -828,6 +835,7 @@ public class ReservationService {
         ReusablePaymentCredential credential = reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(ctx.folio().id())
                 .stream()
                 .filter(c -> c.expiresAt() == null || c.expiresAt().isAfter(ctx.now()))
+                .filter(c -> !ProviderFactory.CARD_PRESENT_RECORD_ONLY_PROVIDER.equals(c.provider()))
                 .findFirst()
                 .orElseThrow(NoReusableCredentialException::new);
 
