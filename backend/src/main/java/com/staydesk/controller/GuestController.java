@@ -68,6 +68,10 @@ public class GuestController {
             return ResponseEntity.badRequest().build();
         }
 
+        if (!isGuestNameValid(request.guestType(), request.lastName())) {
+            return ResponseEntity.badRequest().build();
+        }
+
         String emailHash = hashEmail(request.email());
         if (emailHash != null && guestRepository.findByEmailHash(emailHash).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
@@ -75,10 +79,10 @@ public class GuestController {
 
         LocalDateTime now = LocalDateTime.now();
 
-        Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+        Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(),
-                request.regularGuest(), now, now);
+                request.regularGuest(), request.guestType(), now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -92,17 +96,21 @@ public class GuestController {
             return ResponseEntity.badRequest().build();
         }
 
+        if (!isGuestNameValid(request.guestType(), request.lastName())) {
+            return ResponseEntity.badRequest().build();
+        }
+
         Guest existing = guestRepository.findById(id).orElse(null);
         if (existing == null) {
             return ResponseEntity.notFound().build();
         }
 
         String emailHash = hashEmail(request.email());
-        Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
+        Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
                 existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(), request.regularGuest(),
-                existing.createdAt(), LocalDateTime.now());
+                request.guestType(), existing.createdAt(), LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
     }
@@ -113,6 +121,18 @@ public class GuestController {
 
     private boolean isLegacyPricingValid(boolean legacyPricing, BigDecimal legacyPricingAmount) {
         return !legacyPricing || (legacyPricingAmount != null && legacyPricingAmount.compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    /**
+     * A BUSINESS guest only needs a name in firstName (the organization name) - lastName is
+     * optional. An INDIVIDUAL guest still needs both, matching the original first/last requirement.
+     */
+    private boolean isGuestNameValid(Guest.GuestType guestType, String lastName) {
+        return guestType == Guest.GuestType.BUSINESS || (lastName != null && !lastName.isBlank());
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     @PostMapping("{id}/flag")

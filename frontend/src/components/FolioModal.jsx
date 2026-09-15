@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react"
-import { getFolio, getFolioItems, addFolioItem, payFolio, getFolioIncidentCharges, getFolioPayments } from "../api/folioApi"
+import {
+    getFolio, getFolioItems, addFolioItem, payFolio, getFolioIncidentCharges, getFolioPayments,
+    chargeExtra, chargeExtraTerminal
+} from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import Modal from "./Modal"
 import StatusBadge from "./StatusBadge"
 import IncidentChargeRequestModal from "./IncidentChargeRequestModal"
+import TerminalOrRecordOnlyStep from "./TerminalOrRecordOnlyPayment"
 
 function FolioModal({ folioId, onClose, onPaid }) {
     const [folio, setFolio] = useState(null)
@@ -16,6 +20,8 @@ function FolioModal({ folioId, onClose, onPaid }) {
     const [paying, setPaying] = useState(false)
     const [error, setError] = useState(null)
     const [showIncidentChargeModal, setShowIncidentChargeModal] = useState(false)
+    const [chargePrompt, setChargePrompt] = useState(null)
+    const [chargingExtra, setChargingExtra] = useState(false)
     const failedPayments = payments.filter(p => p.status === 'FAILED')
 
     useEffect(() => {
@@ -33,19 +39,51 @@ function FolioModal({ folioId, onClose, onPaid }) {
             const chargesRes = await getFolioIncidentCharges(folioId)
             setIncidentCharges(chargesRes.data ?? [])
         }
+
+        return folioRes.data
     }
 
     async function handleAddExtra() {
         if (!selectedExtraId) return
 
+        setError(null)
+        const extra = extras.find(e => e.id === Number(selectedExtraId))
+        const totalBefore = folio.total
+
+        setChargingExtra(true)
         try {
             await addFolioItem(folioId, Number(selectedExtraId), Number(quantity))
             setSelectedExtraId('')
             setQuantity(1)
-            await loadFolio()
+            const updated = await loadFolio()
+            const chargeAmount = Math.round((updated.total - totalBefore) * 100) / 100
+
+            if (chargeAmount > 0) {
+                await attemptChargeExtra(chargeAmount, extra?.name ?? 'Extra')
+            }
         } catch (err) {
             setError(err.response?.status === 409 ? 'Folio is closed.' : 'Failed to add item.')
         }
+        setChargingExtra(false)
+    }
+
+    async function attemptChargeExtra(amount, description) {
+        try {
+            await chargeExtra(folioId, amount, description)
+            await loadFolio()
+        } catch (err) {
+            if (err.response?.status === 409) {
+                setChargePrompt({ amount, description })
+            } else {
+                setError(`Failed to charge ${description}.`)
+            }
+        }
+    }
+
+    async function handleChargeExtraTerminal(posDeviceId) {
+        await chargeExtraTerminal(folioId, chargePrompt.amount, chargePrompt.description, posDeviceId)
+        setChargePrompt(null)
+        await loadFolio()
     }
 
     async function handlePay() {
@@ -99,7 +137,24 @@ function FolioModal({ folioId, onClose, onPaid }) {
                         ))}
                     </select>
                     <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} className="filter-input w-20" />
-                    <button onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                    <button onClick={handleAddExtra} className="btn btn-secondary" disabled={chargingExtra}>Add</button>
+                </div>
+            )}
+
+            {chargePrompt && (
+                <div className="mb-4 p-3 rounded border border-tan">
+                    <p className="text-sm text-muted mb-2">
+                        No card on file for this amount — collect it now so the folio stays accurate.
+                    </p>
+                    <TerminalOrRecordOnlyStep
+                        amount={chargePrompt.amount}
+                        amountLabel={`Charge ${chargePrompt.description} on terminal`}
+                        onSubmitTerminal={handleChargeExtraTerminal}
+                        onCancel={() => setChargePrompt(null)}
+                        cancelLabel="Skip"
+                        terminalErrorMessage={`Failed to charge ${chargePrompt.description}.`}
+                        recordOnlyErrorMessage={`Failed to record ${chargePrompt.description}.`}
+                    />
                 </div>
             )}
 

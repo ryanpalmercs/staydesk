@@ -10,12 +10,15 @@ import './DashboardPage.css'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import interactionPlugin from '@fullcalendar/interaction'
 import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
 import ExtendStayModal from '../components/ExtendStayModal'
+import CheckingInTodayModal from '../components/CheckingInTodayModal'
+import CheckingOutTodayModal from '../components/CheckingOutTodayModal'
+import OccupancyModal from '../components/OccupancyModal'
 
 const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
@@ -37,6 +40,9 @@ function DashboardPage() {
     const [folioId, setFolioId] = useState(null)
     const [extendTarget, setExtendTarget] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
+    const [showCheckingInModal, setShowCheckingInModal] = useState(false)
+    const [showCheckingOutModal, setShowCheckingOutModal] = useState(false)
+    const [showOccupancyModal, setShowOccupancyModal] = useState(false)
 
     function fetchData() {
         Promise.all([getRooms(), getRoomTypes(), getReservations(), getGuests()])
@@ -74,13 +80,27 @@ function DashboardPage() {
         }
     }
 
+    async function checkOutReservation(reservationId) {
+        const res = await checkOut(reservationId)
+        const folioRes = await getFolioByReservationId(reservationId)
+        setFolioId(folioRes.data.id)
+        fetchData()
+        return res
+    }
+
     async function handleCheckOut() {
         try {
-            await checkOut(selectedEvent.reservationId)
-            const res = await getFolioByReservationId(selectedEvent.reservationId)
-            setFolioId(res.data.id)
+            await checkOutReservation(selectedEvent.reservationId)
             setSelectedEvent(null)
-            fetchData()
+        } catch (err) {
+            console.error('Check-out failed:', err)
+        }
+    }
+
+    async function handleCheckOutFromModal(reservationId) {
+        try {
+            await checkOutReservation(reservationId)
+            setShowCheckingOutModal(false)
         } catch (err) {
             console.error('Check-out failed:', err)
         }
@@ -94,7 +114,7 @@ function DashboardPage() {
         })
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = format(new Date(), 'yyyy-MM-dd')
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
     const roomsMap = Object.fromEntries(rooms.map(r => [r.id, r]))
     const roomTypesMap = Object.fromEntries(roomTypes.map(rt => [rt.id, rt]))
@@ -131,14 +151,14 @@ function DashboardPage() {
             <h1 className="section-title">Dashboard</h1>
 
             <div className="dashboard-stats">
-                <Link to="/rooms" className="stat-card">
+                <button type="button" onClick={() => setShowOccupancyModal(true)} className="stat-card text-left">
                     <div>
                         <div className="stat-label">Occupancy</div>
                         <div className="stat-value">{occupiedCount} / {rooms.length}</div>
                         <div className="stat-sub">{availableCount} available</div>
                     </div>
-                </Link>
-                <Link to="/reservations" className="stat-card">
+                </button>
+                <button type="button" onClick={() => setShowCheckingInModal(true)} className="stat-card text-left">
                     <div>
                         <div className="stat-label">Checking In Today</div>
                         <div className="stat-value">{todayCheckIns.length}</div>
@@ -150,8 +170,8 @@ function DashboardPage() {
                             ))}
                         </ul>
                     </div>
-                </Link>
-                <Link to="/reservations" className="stat-card">
+                </button>
+                <button type="button" onClick={() => setShowCheckingOutModal(true)} className="stat-card text-left">
                     <div>
                         <div className="stat-label">Checking Out Today</div>
                         <div className="stat-value">{todayCheckOuts.length}</div>
@@ -163,7 +183,7 @@ function DashboardPage() {
                             ))}
                         </ul>
                     </div>
-                </Link>
+                </button>
             </div>
 
             <div className="dashboard-calendar">
@@ -242,6 +262,52 @@ function DashboardPage() {
 
             {folioId && (
                 <FolioModal folioId={folioId} onClose={() => setFolioId(null)} onPaid={fetchData} />
+            )}
+
+            {showCheckingInModal && (
+                <CheckingInTodayModal
+                    reservations={reservations}
+                    guestsMap={guestsMap}
+                    roomLabel={roomLabel}
+                    onClose={() => setShowCheckingInModal(false)}
+                    onCheckIn={reservationId => {
+                        setShowCheckingInModal(false)
+                        setCheckInTarget(reservationId)
+                    }}
+                />
+            )}
+
+            {showCheckingOutModal && (
+                <CheckingOutTodayModal
+                    reservations={reservations}
+                    guestsMap={guestsMap}
+                    roomLabel={roomLabel}
+                    onClose={() => setShowCheckingOutModal(false)}
+                    onCheckOut={handleCheckOutFromModal}
+                />
+            )}
+
+            {showOccupancyModal && (
+                <OccupancyModal
+                    rooms={rooms}
+                    roomTypesMap={roomTypesMap}
+                    guestsMap={guestsMap}
+                    reservations={reservations}
+                    onClose={() => setShowOccupancyModal(false)}
+                    onSelectRoom={r => {
+                        setShowOccupancyModal(false)
+                        setSelectedEvent({
+                            reservationId: r.id,
+                            status: r.status,
+                            guestId: r.guestId,
+                            roomId: r.roomId,
+                            roomTypeId: r.roomTypeId,
+                            roomNumber: roomsMap[r.roomId]?.roomNumber ?? Infinity,
+                            checkInDate: r.checkInDate,
+                            checkOutDate: r.checkOutDate
+                        })
+                    }}
+                />
             )}
         </div>
     )

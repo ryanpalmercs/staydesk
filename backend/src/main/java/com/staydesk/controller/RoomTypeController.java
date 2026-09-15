@@ -4,6 +4,7 @@ import com.staydesk.model.RoomType;
 import com.staydesk.model.request.UpdateRoomTypeRequest;
 import com.staydesk.repository.RoomTypeAvailabilityRepository;
 import com.staydesk.repository.RoomTypeRepository;
+import com.staydesk.service.ReservationService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,10 +30,13 @@ public class RoomTypeController {
 
     private final RoomTypeRepository roomTypeRepository;
     private final RoomTypeAvailabilityRepository roomTypeAvailabilityRepository;
+    private final ReservationService reservationService;
 
-    public RoomTypeController(RoomTypeRepository roomTypeRepository, RoomTypeAvailabilityRepository roomTypeAvailabilityRepository) {
+    public RoomTypeController(RoomTypeRepository roomTypeRepository, RoomTypeAvailabilityRepository roomTypeAvailabilityRepository,
+                              ReservationService reservationService) {
         this.roomTypeRepository = roomTypeRepository;
         this.roomTypeAvailabilityRepository = roomTypeAvailabilityRepository;
+        this.reservationService = reservationService;
     }
 
     @GetMapping
@@ -45,6 +49,12 @@ public class RoomTypeController {
     public List<LocalDate> getFullyBookedDates(@PathVariable int id,
                                                @RequestParam(required = false) Integer excludeReservationId) {
         return roomTypeAvailabilityRepository.getFullyBookedDates(id, excludeReservationId);
+    }
+
+    @GetMapping("availability")
+    public List<Integer> getUnavailableRoomTypeIds(@RequestParam LocalDate checkIn, @RequestParam LocalDate checkOut,
+                                                    @RequestParam(required = false) Integer excludeReservationId) {
+        return reservationService.getUnavailableRoomTypeIds(checkIn, checkOut, excludeReservationId);
     }
 
     @PutMapping("{id}")

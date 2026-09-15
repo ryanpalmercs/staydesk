@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { format } from 'date-fns'
 import { getRooms } from '../api/roomApi'
 import { getReservations } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
@@ -17,7 +18,7 @@ export default function HousekeepingDashboardPage() {
             })
     }, [])
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = format(new Date(), 'yyyy-MM-dd')
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
     const roomsMap = Object.fromEntries(rooms.map(r => [r.id, r]))
 

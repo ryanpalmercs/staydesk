@@ -1,113 +1,9 @@
 import { useEffect, useState } from "react"
 import { extendStay, extendStayTerminal, getExtendStayEstimate } from "../api/reservationApi"
-import { getPosDevices, getPosDeviceConfig, checkPosDeviceHealth } from "../api/posDeviceApi"
-import { displayPrice } from "../utils/price"
+import { addCardOnFile, addCardOnFileTerminal, getFolioByReservationId } from "../api/folioApi"
 import Modal from "./Modal"
-
-function AmountBanner({ amount, label }) {
-    if (amount == null) return null
-    return (
-        <div className="flex justify-between items-baseline mb-2">
-            <span className="text-sm text-muted">{label}</span>
-            <span className="text-lg font-semibold text-black">{displayPrice(amount)}</span>
-        </div>
-    )
-}
-
-function TerminalExtendForm({ reservationId, checkOutDate, chargeAmount, devices, onExtended, onCancel, onError }) {
-    const [selectedDeviceId, setSelectedDeviceId] = useState(devices[0]?.id ?? '')
-    const [submitting, setSubmitting] = useState(false)
-    const [deviceOnline, setDeviceOnline] = useState(null)
-
-    useEffect(() => {
-        if (!selectedDeviceId) return
-        setDeviceOnline(null)
-        let cancelled = false
-        checkPosDeviceHealth(selectedDeviceId)
-            .then(res => { if (!cancelled) setDeviceOnline(res.data.online) })
-            .catch(() => { if (!cancelled) setDeviceOnline(false) })
-        return () => { cancelled = true }
-    }, [selectedDeviceId])
-
-    async function handleSubmit(e) {
-        e.preventDefault()
-        setSubmitting(true)
-        onError(null)
-
-        try {
-            const res = await extendStayTerminal(reservationId, checkOutDate, Number(selectedDeviceId))
-            onExtended(res.data)
-        } catch (err) {
-            const data = err.response?.data
-            onError(typeof data === 'string' && data ? data : 'Failed to charge terminal.')
-        }
-
-        setSubmitting(false)
-    }
-
-    return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <AmountBanner amount={chargeAmount} label="Will charge on terminal" />
-            {devices.length > 1 && (
-                <select value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)} className="filter-input">
-                    {devices.map(d => (
-                        <option key={d.id} value={d.id}>{d.friendlyName}{d.location ? ` — ${d.location}` : ''}</option>
-                    ))}
-                </select>
-            )}
-
-            {deviceOnline === false && (
-                <p className="text-sm text-error">Terminal isn't responding. Try another device.</p>
-            )}
-
-            {submitting && (
-                <p className="text-sm text-muted text-center py-2">Waiting for guest to tap, dip, or swipe...</p>
-            )}
-
-            <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>Back</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting || !selectedDeviceId || deviceOnline === false}>
-                    {submitting ? 'Waiting on terminal...' : 'Charge on Terminal'}
-                </button>
-            </div>
-        </form>
-    )
-}
-
-function RecordOnlyExtendForm({ reservationId, checkOutDate, chargeAmount, onExtended, onCancel, onError }) {
-    const [submitting, setSubmitting] = useState(false)
-
-    async function handleSubmit(e) {
-        e.preventDefault()
-        setSubmitting(true)
-        onError(null)
-
-        try {
-            const res = await extendStayTerminal(reservationId, checkOutDate, null)
-            onExtended(res.data)
-        } catch (err) {
-            const data = err.response?.data
-            onError(typeof data === 'string' && data ? data : 'Failed to record charge.')
-        }
-
-        setSubmitting(false)
-    }
-
-    return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <AmountBanner amount={chargeAmount} label="Will record charge" />
-            <p className="text-sm text-muted">
-                No card-present terminal is paired. This records the charge on the folio without processing a real payment.
-            </p>
-            <div className="flex justify-end gap-3 mt-2">
-                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>Back</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                    {submitting ? 'Recording...' : 'Record Charge (No Terminal)'}
-                </button>
-            </div>
-        </form>
-    )
-}
+import PaymentMethodStep from "./PaymentMethodStep"
+import { AmountBanner } from "./TerminalOrRecordOnlyPayment"
 
 function ExtendStayModal({ reservation, onSaved, onClose }) {
     const [checkOutDate, setCheckOutDate] = useState(reservation.checkOutDate)
@@ -116,14 +12,6 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
     const [submitting, setSubmitting] = useState(false)
     const [result, setResult] = useState(null)
     const [noCredential, setNoCredential] = useState(false)
-    const [posDevices, setPosDevices] = useState([])
-    const [cardPresentRecordOnly, setCardPresentRecordOnly] = useState(false)
-    const [paymentMode, setPaymentMode] = useState(null)
-
-    useEffect(() => {
-        getPosDevices().then(res => setPosDevices(res.data ?? []))
-        getPosDeviceConfig().then(res => setCardPresentRecordOnly(res.data.recordOnly))
-    }, [])
 
     useEffect(() => {
         if (checkOutDate === reservation.checkOutDate) {
@@ -157,6 +45,34 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
         setSubmitting(false)
     }
 
+    async function retryExtendAfterCardAdded(fallbackPosDeviceId) {
+        try {
+            const res = await extendStay(reservation.id, checkOutDate)
+            setResult(res.data)
+        } catch (err) {
+            if (err.response?.status !== 409) {
+                throw err
+            }
+
+            // The credential just added wasn't usable for auto-charge (record-only stand-in) -
+            // charge this extension directly the same way the card was just added.
+            const res = await extendStayTerminal(reservation.id, checkOutDate, fallbackPosDeviceId)
+            setResult(res.data)
+        }
+    }
+
+    async function handleCardAddedManually(paymentMethodId) {
+        const folioRes = await getFolioByReservationId(reservation.id)
+        await addCardOnFile(folioRes.data.id, paymentMethodId)
+        await retryExtendAfterCardAdded(null)
+    }
+
+    async function handleCardAddedByTerminal(posDeviceId) {
+        const folioRes = await getFolioByReservationId(reservation.id)
+        await addCardOnFileTerminal(folioRes.data.id, posDeviceId)
+        await retryExtendAfterCardAdded(posDeviceId)
+    }
+
     if (result) {
         return (
             <Modal onClose={onSaved} size="sm">
@@ -171,61 +87,25 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
     }
 
     if (noCredential) {
-        const noDeviceRecordOnly = posDevices.length === 0 && cardPresentRecordOnly
-
         return (
             <Modal onClose={onClose} size="sm">
                 <h2 className="text-lg text-black font-semibold mb-4">No Card on File</h2>
                 <p className="text-sm text-muted mb-4">
-                    This reservation has no active card on file to charge for the extension. Charge via the front-desk terminal instead.
+                    This reservation has no active card on file. Add one now — the extension (and any future charges)
+                    will be collected automatically. If a real card isn't available, recording it without a terminal
+                    still lets you collect this extension now.
                 </p>
-                {error && <p className="text-sm text-error mb-2">{error}</p>}
 
-                {!paymentMode && posDevices.length > 0 && (
-                    <div className="flex justify-end gap-3">
-                        <button type="button" onClick={() => setNoCredential(false)} className="btn btn-secondary">Back</button>
-                        <button type="button" onClick={() => setPaymentMode('terminal')} className="btn btn-primary">Charge on Terminal</button>
-                    </div>
-                )}
-
-                {!paymentMode && posDevices.length === 0 && noDeviceRecordOnly && (
-                    <div className="flex justify-end gap-3">
-                        <button type="button" onClick={() => setNoCredential(false)} className="btn btn-secondary">Back</button>
-                        <button type="button" onClick={() => setPaymentMode('record')} className="btn btn-primary">Record Charge (No Terminal)</button>
-                    </div>
-                )}
-
-                {!paymentMode && posDevices.length === 0 && !noDeviceRecordOnly && (
-                    <div className="flex flex-col gap-4">
-                        <p className="text-sm text-error">No terminal is paired and record-only charging isn't enabled. Contact support.</p>
-                        <div className="flex justify-end">
-                            <button type="button" onClick={() => setNoCredential(false)} className="btn btn-secondary">Back</button>
-                        </div>
-                    </div>
-                )}
-
-                {paymentMode === 'terminal' && (
-                    <TerminalExtendForm
-                        reservationId={reservation.id}
-                        checkOutDate={checkOutDate}
-                        chargeAmount={estimatedCharge}
-                        devices={posDevices}
-                        onExtended={setResult}
-                        onCancel={() => setPaymentMode(null)}
-                        onError={setError}
-                    />
-                )}
-
-                {paymentMode === 'record' && (
-                    <RecordOnlyExtendForm
-                        reservationId={reservation.id}
-                        checkOutDate={checkOutDate}
-                        chargeAmount={estimatedCharge}
-                        onExtended={setResult}
-                        onCancel={() => setPaymentMode(null)}
-                        onError={setError}
-                    />
-                )}
+                <PaymentMethodStep
+                    amount={estimatedCharge}
+                    amountLabel="Will charge card on file"
+                    submitLabel="Add Card & Extend"
+                    onSubmitToken={handleCardAddedManually}
+                    onSubmitTerminal={handleCardAddedByTerminal}
+                    onCancel={() => setNoCredential(false)}
+                    terminalErrorMessage="Failed to add card / charge terminal."
+                    recordOnlyErrorMessage="Failed to record charge."
+                />
             </Modal>
         )
     }
