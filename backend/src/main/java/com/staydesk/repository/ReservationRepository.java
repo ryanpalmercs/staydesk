@@ -18,11 +18,27 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW') ORDER BY check_in_date")
     List<Reservation> findActiveByRoomId(@Param("roomId") int roomId);
 
-    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')")
+    /**
+     * A CHECKED_IN Regular Guest counts as occupying their room type for any future date,
+     * regardless of their actual check_out_date - we don't know how long they'll ultimately stay,
+     * and a potential renewal takes priority over a new booking that hasn't happened yet.
+     */
+    @Query("""
+            SELECT COUNT(*) FROM reservations r LEFT JOIN guests g ON g.id = r.guest_id
+            WHERE r.room_type_id = :roomTypeId AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
+              AND r.check_in_date < :checkOut
+              AND (r.check_out_date > :checkIn OR (r.status = 'CHECKED_IN' AND COALESCE(g.regular_guest, false)))
+            """)
     int countOverlappingByRoomType(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut,
                                    @Param("checkIn") LocalDate checkIn);
 
-    @Query("SELECT COUNT(*) FROM reservations WHERE room_type_id = :roomTypeId AND id != :excludingReservationId AND check_in_date < :checkOut AND check_out_date > :checkIn AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')")
+    @Query("""
+            SELECT COUNT(*) FROM reservations r LEFT JOIN guests g ON g.id = r.guest_id
+            WHERE r.room_type_id = :roomTypeId AND r.id != :excludingReservationId
+              AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
+              AND r.check_in_date < :checkOut
+              AND (r.check_out_date > :checkIn OR (r.status = 'CHECKED_IN' AND COALESCE(g.regular_guest, false)))
+            """)
     int countOverlappingByRoomTypeExcludingReservation(@Param("roomTypeId") int roomTypeId,
                                                        @Param("checkOut") LocalDate checkOut,
                                                        @Param("checkIn") LocalDate checkIn,
