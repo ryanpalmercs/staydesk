@@ -2,6 +2,7 @@ import { useState } from "react"
 import { addDays, format } from "date-fns"
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react"
 import Modal from "./Modal"
+import { formatGuestName } from "../utils/guestName"
 
 function todayStr() {
     return format(new Date(), 'yyyy-MM-dd')
@@ -58,7 +59,7 @@ function CheckingInTodayModal({ reservations, guestsMap, roomLabel, onClose, onC
                                     onClick={() => setSelectedId(selected ? null : r.id)}
                                     className={`w-full bg-warm-white rounded flex flex-col gap-1 p-4 text-left ${selected ? 'border-2 border-black' : 'border-2 border-tan'}`}
                                 >
-                                    <span className="font-semibold text-black">{guest?.firstName} {guest?.lastName}</span>
+                                    <span className="font-semibold text-black">{formatGuestName(guest)}</span>
                                     <p className="text-sm text-muted">{roomLabel(r)}</p>
                                 </button>
                             </li>

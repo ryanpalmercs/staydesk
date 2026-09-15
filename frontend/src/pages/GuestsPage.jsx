@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { getGuests } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
+import { formatGuestName } from "../utils/guestName"
 import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
 import GuestEditModal from "../components/GuestEditModal"
@@ -69,7 +70,7 @@ function GuestsPage() {
                     {filtered.map(guest => (
                         <Link key={guest.id} to={`/guest/${guest.id}`} className="feat-card block hover:shadow-md transition-shadow">
                             <div className="flex items-start justify-between gap-4 mb-2">
-                                <span className="font-semibold text-black">{guest.name}</span>
+                                <span className="font-semibold text-black">{formatGuestName(guest)}</span>
                                 <div className="flex gap-2">
                                     {guest.flagged && <StatusBadge status="FLAGGED" />}
                                     {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
