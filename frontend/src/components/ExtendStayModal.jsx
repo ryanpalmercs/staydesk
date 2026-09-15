@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
 import { extendStay, extendStayTerminal, getExtendStayEstimate } from "../api/reservationApi"
+import { addCardOnFile, addCardOnFileTerminal, getFolioByReservationId } from "../api/folioApi"
 import Modal from "./Modal"
-import TerminalOrRecordOnlyStep, { AmountBanner } from "./TerminalOrRecordOnlyPayment"
+import PaymentMethodStep from "./PaymentMethodStep"
+import { AmountBanner } from "./TerminalOrRecordOnlyPayment"
 
 function ExtendStayModal({ reservation, onSaved, onClose }) {
     const [checkOutDate, setCheckOutDate] = useState(reservation.checkOutDate)
@@ -43,6 +45,34 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
         setSubmitting(false)
     }
 
+    async function retryExtendAfterCardAdded(fallbackPosDeviceId) {
+        try {
+            const res = await extendStay(reservation.id, checkOutDate)
+            setResult(res.data)
+        } catch (err) {
+            if (err.response?.status !== 409) {
+                throw err
+            }
+
+            // The credential just added wasn't usable for auto-charge (record-only stand-in) -
+            // charge this extension directly the same way the card was just added.
+            const res = await extendStayTerminal(reservation.id, checkOutDate, fallbackPosDeviceId)
+            setResult(res.data)
+        }
+    }
+
+    async function handleCardAddedManually(paymentMethodId) {
+        const folioRes = await getFolioByReservationId(reservation.id)
+        await addCardOnFile(folioRes.data.id, paymentMethodId)
+        await retryExtendAfterCardAdded(null)
+    }
+
+    async function handleCardAddedByTerminal(posDeviceId) {
+        const folioRes = await getFolioByReservationId(reservation.id)
+        await addCardOnFileTerminal(folioRes.data.id, posDeviceId)
+        await retryExtendAfterCardAdded(posDeviceId)
+    }
+
     if (result) {
         return (
             <Modal onClose={onSaved} size="sm">
@@ -61,19 +91,19 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
             <Modal onClose={onClose} size="sm">
                 <h2 className="text-lg text-black font-semibold mb-4">No Card on File</h2>
                 <p className="text-sm text-muted mb-4">
-                    This reservation has no active card on file to charge for the extension. Charge via the front-desk terminal instead.
+                    This reservation has no active card on file. Add one now — the extension (and any future charges)
+                    will be collected automatically. If a real card isn't available, recording it without a terminal
+                    still lets you collect this extension now.
                 </p>
 
-                <TerminalOrRecordOnlyStep
+                <PaymentMethodStep
                     amount={estimatedCharge}
-                    amountLabel="Amount to collect"
-                    onSubmitTerminal={async posDeviceId => {
-                        const res = await extendStayTerminal(reservation.id, checkOutDate, posDeviceId)
-                        setResult(res.data)
-                    }}
+                    amountLabel="Will charge card on file"
+                    submitLabel="Add Card & Extend"
+                    onSubmitToken={handleCardAddedManually}
+                    onSubmitTerminal={handleCardAddedByTerminal}
                     onCancel={() => setNoCredential(false)}
-                    cancelLabel="Back"
-                    terminalErrorMessage="Failed to charge terminal."
+                    terminalErrorMessage="Failed to add card / charge terminal."
                     recordOnlyErrorMessage="Failed to record charge."
                 />
             </Modal>

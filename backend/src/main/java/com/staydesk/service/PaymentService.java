@@ -67,6 +67,39 @@ public class PaymentService {
         createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now, customerEmail);
     }
 
+    /**
+     * Retroactively captures a card on file for a CHECKED_IN reservation that never got one at
+     * check-in (e.g. a backlog-imported guest) - reuses the same incidentals-hold-to-credential
+     * flow check-in already does, just triggered later instead of only at check-in time.
+     */
+    public void addCardOnFile(Folio folio, String paymentMethodId, String customerEmail) {
+        createIncidentalHold(folio, providerFactory.getPaymentProviderName(), paymentMethodId, customerEmail);
+    }
+
+    /**
+     * Same as {@link #addCardOnFile}, but via a card-present terminal sale (or record-only
+     * recording, matching every other terminal-or-record-only flow) instead of manual card entry.
+     * A record-only "card on file" is deliberately excluded from future auto-charge lookups (see
+     * {@link #chargeExtraToCardOnFile} and extendStay) since it was never a real card - it exists
+     * here purely so this doesn't dead-end for a record-only checked-in guest, matching the
+     * per-transaction terminal/record-only fallback available everywhere else.
+     */
+    public void addCardOnFileTerminal(Folio folio, Integer posDeviceId, String customerEmail) {
+        String paymentMethodToken;
+
+        if (posDeviceId != null) {
+            paymentMethodToken = posDeviceRepository.findById(posDeviceId)
+                                                    .orElseThrow(PosDeviceNotFoundException::new)
+                                                    .deviceId();
+        } else if (providerFactory.isCardPresentRecordOnly()) {
+            paymentMethodToken = "no-device-record-only";
+        } else {
+            throw new CardPresentRecordOnlyDisabledException();
+        }
+
+        createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken, customerEmail);
+    }
+
     public void cancelOpenHolds(Folio folio) {
         folioPaymentRepository.findByFolioId(folio.id()).forEach(payment -> {
             if (payment.status() == PaymentStatus.REQUIRES_CAPTURE) {

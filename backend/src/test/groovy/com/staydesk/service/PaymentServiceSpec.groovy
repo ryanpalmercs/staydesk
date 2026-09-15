@@ -6,6 +6,7 @@ import com.staydesk.model.FolioPayment
 import com.staydesk.model.FolioPayment.PaymentKind
 import com.staydesk.model.FolioPayment.PaymentStatus
 import com.staydesk.model.PosDevice
+import com.staydesk.model.PropertySetting
 import com.staydesk.model.ReusablePaymentCredential
 import com.staydesk.payment.AuthResult
 import com.staydesk.payment.PaymentProvider
@@ -327,6 +328,98 @@ class PaymentServiceSpec extends Specification {
 
         when:
         paymentService.chargeExtraTerminal(folio, BigDecimal.valueOf(25), "Pet Fee", 6, null)
+
+        then:
+        thrown(com.staydesk.exception.PosDeviceNotFoundException)
+    }
+
+    private static PropertySetting holdAmountSetting(String value = "0.00") {
+        new PropertySetting("incidentals_hold_amount", value, LocalDateTime.now(), LocalDateTime.now())
+    }
+
+    def "addCardOnFile places a manual incidentals hold and captures a reusable credential from it"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+        def provider = Mock(PaymentProvider)
+
+        providerFactory.getPaymentProviderName() >> "authorizenet"
+        propertySettingsService.getProperty("incidentals_hold_amount") >> holdAmountSetting()
+        providerFactory.getProvider("authorizenet") >> provider
+        provider.authorize(BigDecimal.ZERO, "manual-token", "INCIDENTALS hold for folio 1", "guest@example.com") >>
+                new AuthResult(true, "hold-1", null, "4242")
+
+        when:
+        paymentService.addCardOnFile(folio, "manual-token", "guest@example.com")
+
+        then:
+        1 * folioPaymentRepository.save({ FolioPayment fp -> fp.kind() == PaymentKind.INCIDENTALS && fp.provider() == "authorizenet" }) >>
+                { FolioPayment fp -> fp }
+        1 * paymentCredentialService.captureCheckInCredential(folio, "authorizenet", _)
+    }
+
+    def "addCardOnFileTerminal charges the given POS device and captures a reusable credential"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+        def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
+        def provider = Mock(PaymentProvider)
+
+        posDeviceRepository.findById(6) >> Optional.of(device)
+        providerFactory.getCardPresentProviderName() >> "elavon_cpi"
+        propertySettingsService.getProperty("incidentals_hold_amount") >> holdAmountSetting()
+        providerFactory.getProvider("elavon_cpi") >> provider
+        provider.authorize(BigDecimal.ZERO, "dev-token-1", "INCIDENTALS hold for folio 1", null) >>
+                new AuthResult(true, "hold-1", null, "4242")
+
+        when:
+        paymentService.addCardOnFileTerminal(folio, 6, null)
+
+        then:
+        1 * folioPaymentRepository.save({ FolioPayment fp -> fp.kind() == PaymentKind.INCIDENTALS && fp.provider() == "elavon_cpi" }) >>
+                { FolioPayment fp -> fp }
+        1 * paymentCredentialService.captureCheckInCredential(folio, "elavon_cpi", _)
+    }
+
+    def "addCardOnFileTerminal falls back to record-only recording when no device is given and record-only is enabled"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+        def provider = Mock(PaymentProvider)
+
+        providerFactory.isCardPresentRecordOnly() >> true
+        providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
+        propertySettingsService.getProperty("incidentals_hold_amount") >> holdAmountSetting()
+        providerFactory.getProvider("elavon_cpi_manual") >> provider
+        provider.authorize(BigDecimal.ZERO, "no-device-record-only", "INCIDENTALS hold for folio 1", null) >>
+                new AuthResult(true, "MANUAL-1", null, null)
+
+        when:
+        paymentService.addCardOnFileTerminal(folio, null, null)
+
+        then:
+        0 * posDeviceRepository.findById(_)
+        1 * folioPaymentRepository.save(_) >> { FolioPayment fp -> fp }
+    }
+
+    def "addCardOnFileTerminal throws CardPresentRecordOnlyDisabledException when no device is given and record-only is disabled"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+
+        providerFactory.isCardPresentRecordOnly() >> false
+
+        when:
+        paymentService.addCardOnFileTerminal(folio, null, null)
+
+        then:
+        thrown(com.staydesk.exception.CardPresentRecordOnlyDisabledException)
+    }
+
+    def "addCardOnFileTerminal throws PosDeviceNotFoundException when the given device doesn't resolve"() {
+        given:
+        def folio = new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+
+        posDeviceRepository.findById(6) >> Optional.empty()
+
+        when:
+        paymentService.addCardOnFileTerminal(folio, 6, null)
 
         then:
         thrown(com.staydesk.exception.PosDeviceNotFoundException)
