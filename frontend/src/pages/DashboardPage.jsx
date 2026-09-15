@@ -114,7 +114,7 @@ function DashboardPage() {
         })
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = format(new Date(), 'yyyy-MM-dd')
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
     const roomsMap = Object.fromEntries(rooms.map(r => [r.id, r]))
     const roomTypesMap = Object.fromEntries(roomTypes.map(rt => [rt.id, rt]))

@@ -4,7 +4,7 @@ import { ArrowLeftIcon, ArrowRightIcon, ChevronLeft, ChevronRight } from "lucide
 import Modal from "./Modal"
 
 function todayStr() {
-    return new Date().toISOString().split('T')[0]
+    return format(new Date(), 'yyyy-MM-dd')
 }
 
 function formatDateLabel(dateStr) {
