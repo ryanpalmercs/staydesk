@@ -682,7 +682,7 @@ public class ReservationService {
 
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                     new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
-                    false, null, null, null, false, false, null, false, createdAt, createdAt));
+                    false, null, null, null, false, false, null, false, Guest.GuestType.INDIVIDUAL, createdAt, createdAt));
         });
     }
 

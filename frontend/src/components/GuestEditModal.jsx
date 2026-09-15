@@ -1,20 +1,22 @@
 import { useRef, useState } from "react"
 import { PatternFormat } from "react-number-format"
-import { updateGuest } from "../api/guestApi"
+import { createGuest, updateGuest } from "../api/guestApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import Modal from "./Modal"
 
-function GuestEditModal({ guest, onSaved, onClose }) {
+function GuestEditModal({ guest = null, onSaved, onClose }) {
+    const isEditing = guest != null
     const [priceFocused, setPriceFocused] = useState(false)
     const [form, setForm] = useState({
-        firstName: guest.firstName,
-        lastName: guest.lastName,
-        email: guest.email ?? '',
-        phoneNumber: guest.phoneNumber,
-        smsConsent: guest.smsConsent,
-        legacyPricing: guest.legacyPricing ?? false,
-        legacyPricingAmount: guest.legacyPricingAmount ?? '',
-        regularGuest: guest.regularGuest ?? false
+        firstName: guest?.firstName ?? '',
+        lastName: guest?.lastName ?? '',
+        email: guest?.email ?? '',
+        phoneNumber: guest?.phoneNumber ?? '',
+        smsConsent: guest?.smsConsent ?? false,
+        legacyPricing: guest?.legacyPricing ?? false,
+        legacyPricingAmount: guest?.legacyPricingAmount ?? '',
+        regularGuest: guest?.regularGuest ?? false,
+        guestType: guest?.guestType ?? 'INDIVIDUAL'
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -36,11 +38,14 @@ function GuestEditModal({ guest, onSaved, onClose }) {
 
         setSubmitting(true)
         try {
-            await updateGuest(guest.id, { ...form, legacyPricingAmount: form.legacyPricing ? form.legacyPricingAmount : null })
-            onSaved()
+            const payload = { ...form, legacyPricingAmount: form.legacyPricing ? form.legacyPricingAmount : null }
+            const res = isEditing ? await updateGuest(guest.id, payload) : await createGuest(payload)
+            onSaved(res.data)
         } catch (err) {
-            if (err.response?.status === 400) {
-                setError('Please check the fields — phone must be 10 digits and email must be valid.')
+            if (err.response?.status === 409) {
+                setError('A guest with that email already exists.')
+            } else if (err.response?.status === 400) {
+                setError('Please check the fields — phone must be 10 digits, email must be valid, and last name is required for individuals.')
             } else {
                 setError('Failed to save guest.')
             }
@@ -49,24 +54,38 @@ function GuestEditModal({ guest, onSaved, onClose }) {
     }
 
     return (
-        <Modal onClose={onClose} size="md" isDirty={isDirty}>
-            <h2 className="text-lg text-black font-semibold mb-4">Edit Guest</h2>
+        <Modal onClose={onClose} size="md" isDirty={isEditing && isDirty}>
+            <h2 className="text-lg text-black font-semibold mb-4">{isEditing ? 'Edit Guest' : 'Add Guest'}</h2>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div className="flex gap-2">
+                    <button type="button" onClick={() => setForm({ ...form, guestType: 'INDIVIDUAL' })} className={`filter-btn${form.guestType === 'INDIVIDUAL' ? ' active' : ''}`}>Individual</button>
+                    <button type="button" onClick={() => setForm({ ...form, guestType: 'BUSINESS', lastName: '' })} className={`filter-btn${form.guestType === 'BUSINESS' ? ' active' : ''}`}>Business Entity</button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm text-muted mb-1">First Name</label>
-                        <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input" required />
-                    </div>
-                    <div>
-                        <label className="block text-sm text-muted mb-1">Last Name</label>
-                        <input name="lastName" value={form.lastName} onChange={handleChange} className="filter-input" required />
-                    </div>
+                    {form.guestType === 'BUSINESS' ? (
+                        <div className="min-w-0 sm:col-span-2">
+                            <label className="block text-sm text-muted mb-1">Business Name</label>
+                            <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input w-full" required />
+                        </div>
+                    ) : (
+                        <>
+                            <div className="min-w-0">
+                                <label className="block text-sm text-muted mb-1">First Name</label>
+                                <input name="firstName" value={form.firstName} onChange={handleChange} className="filter-input w-full" required />
+                            </div>
+                            <div className="min-w-0">
+                                <label className="block text-sm text-muted mb-1">Last Name</label>
+                                <input name="lastName" value={form.lastName} onChange={handleChange} className="filter-input w-full" required />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div>
                     <label className="block text-sm text-muted mb-1">Email <span className="text-muted">(optional)</span></label>
-                    <input type="email" name="email" value={form.email} onChange={handleChange} className="filter-input" />
+                    <input type="email" name="email" value={form.email} onChange={handleChange} className="filter-input w-full" />
                 </div>
 
                 <div>
@@ -77,7 +96,7 @@ function GuestEditModal({ guest, onSaved, onClose }) {
                         mask="_"
                         value={form.phoneNumber}
                         onValueChange={values => setForm({ ...form, phoneNumber: values.value })}
-                        className="filter-input"
+                        className="filter-input w-full"
                         placeholder="(###) ###-####"
                         required
                     />
@@ -138,8 +157,8 @@ function GuestEditModal({ guest, onSaved, onClose }) {
                     <button type="button" onClick={onClose} className="btn btn-secondary">
                         Cancel
                     </button>
-                    <button type="submit" className="btn btn-primary" disabled={!isDirty || submitting}>
-                        Save
+                    <button type="submit" className="btn btn-primary" disabled={(isEditing && !isDirty) || submitting}>
+                        {isEditing ? 'Save' : 'Add Guest'}
                     </button>
                 </div>
             </form>
