@@ -23,7 +23,7 @@ function RoomModal({ room, onSaved, onClose }) {
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
     useEffect(() => {
-        getRoomTypes().then(res => {
+        getRoomTypes(true).then(res => {
             setRoomTypes([...(res.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)))
         })
     }, [])
