@@ -788,6 +788,28 @@ public class ReservationService {
             throw new DateConflictException();
         }
 
+        boolean isRegularGuest = reservation.guestId() != null && guestRepository.findById(reservation.guestId())
+                                                                                  .map(Guest::regularGuest)
+                                                                                  .orElse(false);
+
+        // findOverlapping above only catches a conflict against a room already assigned to another
+        // reservation. A not-yet-checked-in reservation for the same room type has room_id = NULL
+        // (deferred room assignment) until its own check-in, so it's invisible to that check -
+        // extending into its dates would otherwise go through with nothing stopping it. Regular
+        // Guests are exempted: a long-term guest already in the room takes priority over a newer,
+        // not-yet-arrived reservation for the same room type.
+        if (!isRegularGuest) {
+            RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
+                                                  .orElseThrow(RoomTypeNotFoundException::new);
+
+            int overlappingByType = reservationRepository.countOverlappingByRoomTypeExcludingReservation(
+                    roomType.id(), newCheckOutDate, reservation.checkOutDate(), id);
+
+            if (overlappingByType >= roomType.availableCount()) {
+                throw new RoomTypeUnavailableException();
+            }
+        }
+
         long additionalNights = ChronoUnit.DAYS.between(reservation.checkOutDate(), newCheckOutDate);
         long newTotalNights = getTotalNights(reservation.checkInDate(), newCheckOutDate);
         Rate.RateType newTier = tierForNights(newTotalNights);
