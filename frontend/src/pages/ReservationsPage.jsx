@@ -4,6 +4,7 @@ import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
+import { formatGuestName } from "../utils/guestName"
 import StatusBadge from "../components/StatusBadge"
 import { getFolioByReservationId } from "../api/folioApi"
 import CheckInPaymentModal from "../components/CheckInPaymentModal"
@@ -268,7 +269,7 @@ function ReservationsPage() {
                             <div key={res.id} className="feat-card">
                                 <div className="flex items-start justify-between gap-4 mb-2">
                                     <span className="font-semibold text-black">
-                                        {guest ? `${guest.firstName} ${guest.lastName}` : res.guestId}
+                                        {guest ? formatGuestName(guest) : res.guestId}
                                     </span>
                                     <StatusBadge status={res.status} />
                                 </div>
