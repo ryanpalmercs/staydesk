@@ -285,6 +285,10 @@ function DashboardPage() {
                     roomLabel={roomLabel}
                     onClose={() => setShowCheckingOutModal(false)}
                     onCheckOut={handleCheckOutFromModal}
+                    onExtend={reservationId => {
+                        setShowCheckingOutModal(false)
+                        setExtendTarget(reservations.find(r => r.id === reservationId))
+                    }}
                 />
             )}
 

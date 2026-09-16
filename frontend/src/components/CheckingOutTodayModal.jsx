@@ -13,7 +13,7 @@ function formatDateLabel(dateStr) {
     return dateStr === todayStr() ? `${label} (Today)` : label
 }
 
-function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut }) {
+function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut, onExtend }) {
     const [viewDate, setViewDate] = useState(todayStr)
     const [selectedId, setSelectedId] = useState(null)
     const [submitting, setSubmitting] = useState(false)
@@ -80,6 +80,14 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
 
             <div className="flex justify-end gap-3 mt-4">
                 <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>
+                <button
+                    type="button"
+                    onClick={() => onExtend(selectedId)}
+                    className="btn btn-secondary"
+                    disabled={selectedId == null || submitting}
+                >
+                    Extend Stay
+                </button>
                 <button
                     type="button"
                     onClick={handleCheckOut}
