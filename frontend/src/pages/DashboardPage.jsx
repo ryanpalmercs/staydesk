@@ -5,6 +5,7 @@ import { getRooms } from '../api/roomApi'
 import { getRoomTypes } from '../api/roomTypeApi'
 import { getReservations, checkIn, checkInTerminal, checkOut } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
+import { formatGuestName } from '../utils/guestName'
 import { getFolioByReservationId } from '../api/folioApi'
 import './DashboardPage.css'
 import FullCalendar from '@fullcalendar/react'
@@ -129,7 +130,7 @@ function DashboardPage() {
     const events = reservations
         .filter(r => r.status !== 'CANCELLED' && visibleStatuses.has(r.status))
         .map(r => ({
-            title: `${guestsMap[r.guestId]?.firstName ?? 'Guest'} — ${roomLabel(r)}`,
+            title: `${guestsMap[r.guestId]?.firstName?.toUpperCase() ?? 'Guest'} — ${roomLabel(r)}`,
             start: new Date(r.checkInDate + 'T12:00:00'),
             end: new Date(r.checkOutDate + 'T12:00:00'),
             allDay: true,
@@ -165,7 +166,7 @@ function DashboardPage() {
                         <ul className="stat-list">
                             {todayCheckIns.slice(0, 5).map(r => (
                                 <li key={r.id}>
-                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — {roomLabel(r)}
+                                    {formatGuestName(guestsMap[r.guestId])} — {roomLabel(r)}
                                 </li>
                             ))}
                         </ul>
@@ -178,7 +179,7 @@ function DashboardPage() {
                         <ul className="stat-list">
                             {todayCheckOuts.slice(0, 5).map(r => (
                                 <li key={r.id}>
-                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — {roomLabel(r)}
+                                    {formatGuestName(guestsMap[r.guestId])} — {roomLabel(r)}
                                 </li>
                             ))}
                         </ul>
@@ -284,6 +285,10 @@ function DashboardPage() {
                     roomLabel={roomLabel}
                     onClose={() => setShowCheckingOutModal(false)}
                     onCheckOut={handleCheckOutFromModal}
+                    onExtend={reservationId => {
+                        setShowCheckingOutModal(false)
+                        setExtendTarget(reservations.find(r => r.id === reservationId))
+                    }}
                 />
             )}
 

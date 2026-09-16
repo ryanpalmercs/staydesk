@@ -1,5 +1,6 @@
 import StatusBadge from './StatusBadge'
 import Modal from './Modal'
+import { formatGuestName } from '../utils/guestName'
 
 function formatDate(str) {
     return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -11,7 +12,7 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
             <div className="flex items-start justify-between mb-4">
                 <div>
                     <h2 className="text-lg font-semibold text-black">
-                        {guest?.firstName} {guest?.lastName}
+                        {formatGuestName(guest)}
                     </h2>
                     <p className="text-sm text-muted">{roomLabel}</p>
                 </div>
