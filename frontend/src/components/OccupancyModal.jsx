@@ -3,6 +3,7 @@ import { addDays, format } from "date-fns"
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react"
 import Modal from "./Modal"
 import StatusBadge from "./StatusBadge"
+import { formatGuestName } from "../utils/guestName"
 
 function todayStr() {
     return format(new Date(), 'yyyy-MM-dd')
@@ -72,7 +73,7 @@ function OccupancyModal({ rooms, roomTypesMap, guestsMap, reservations, onClose,
                                 <StatusBadge status={displayStatus} />
                             </div>
                             <p className="text-sm text-muted">
-                                {guest ? `${guest.firstName} ${guest.lastName}` : roomTypeName}
+                                {guest ? formatGuestName(guest) : roomTypeName}
                             </p>
                         </>
                     )

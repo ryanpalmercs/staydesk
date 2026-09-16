@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom"
 import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, unflagGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { displayPrice } from "../utils/price"
+import { formatGuestName } from "../utils/guestName"
 import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
 import GuestEditModal from "../components/GuestEditModal"
@@ -101,7 +102,7 @@ function GuestProfilePage() {
     return (
         <div>
             <div className="page-header mb-6">
-                <h1 className="section-title">{guest.name}</h1>
+                <h1 className="section-title">{formatGuestName(guest)}</h1>
                 {guest.flagged && <StatusBadge status="FLAGGED" />}
                 {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
                 {guest.legacyPricing && <StatusBadge status="LEGACY_PRICING" />}

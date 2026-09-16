@@ -2,6 +2,7 @@ import { useState } from "react"
 import { addDays, format } from "date-fns"
 import { ArrowLeftIcon, ArrowRightIcon, ChevronLeft, ChevronRight } from "lucide-react"
 import Modal from "./Modal"
+import { formatGuestName } from "../utils/guestName"
 
 function todayStr() {
     return format(new Date(), 'yyyy-MM-dd')
@@ -12,7 +13,7 @@ function formatDateLabel(dateStr) {
     return dateStr === todayStr() ? `${label} (Today)` : label
 }
 
-function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut }) {
+function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut, onExtend }) {
     const [viewDate, setViewDate] = useState(todayStr)
     const [selectedId, setSelectedId] = useState(null)
     const [submitting, setSubmitting] = useState(false)
@@ -68,7 +69,7 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
                                     onClick={() => setSelectedId(selected ? null : r.id)}
                                     className={`w-full bg-warm-white rounded flex flex-col gap-1 p-4 text-left ${selected ? 'border-2 border-black' : 'border-2 border-tan'}`}
                                 >
-                                    <span className="font-semibold text-black">{guest?.firstName} {guest?.lastName}</span>
+                                    <span className="font-semibold text-black">{formatGuestName(guest)}</span>
                                     <p className="text-sm text-muted">{roomLabel(r)}</p>
                                 </button>
                             </li>
@@ -79,6 +80,14 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
 
             <div className="flex justify-end gap-3 mt-4">
                 <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>
+                <button
+                    type="button"
+                    onClick={() => onExtend(selectedId)}
+                    className="btn btn-secondary"
+                    disabled={selectedId == null || submitting}
+                >
+                    Extend Stay
+                </button>
                 <button
                     type="button"
                     onClick={handleCheckOut}
