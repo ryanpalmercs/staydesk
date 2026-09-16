@@ -3,6 +3,7 @@ import { createReservation, getCheckInEstimate, getReservationEstimateWithExtras
 import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
+import { formatGuestName } from "../utils/guestName"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
@@ -12,11 +13,6 @@ import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus } from "lucide-react"
 import Modal from "./Modal"
-
-function guestName(guest) {
-    return guest?.lastName ? `${guest.firstName} ${guest.lastName}` : guest?.firstName ?? ''
-}
-
 
 function Stepper({ label, value, min, max, onChange }) {
     return (
@@ -102,8 +98,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     ))
 
     const visibleGuests = [...guests]
-        .filter(g => guestName(g).toLowerCase().includes(guestSearchQuery.toLowerCase()))
-        .sort((a, b) => guestName(a).localeCompare(guestName(b)))
+        .filter(g => formatGuestName(g).toLowerCase().includes(guestSearchQuery.toLowerCase()))
+        .sort((a, b) => formatGuestName(a).localeCompare(formatGuestName(b)))
 
     const totalNights = form.checkInDate && form.checkOutDate
         ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
@@ -414,7 +410,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         : step === 'guestList' ? 'Select Guest'
                             : step === 'newGuest' ? 'New Guest'
                                 : step === 'confirmGuest' ? 'Confirm Guest Information'
-                                    : isEditing ? `Edit Reservation for ${guestName(selectedGuest)}` : `New Reservation for ${guestName(selectedGuest)}`}
+                                    : isEditing ? `Edit Reservation for ${formatGuestName(selectedGuest)}` : `New Reservation for ${formatGuestName(selectedGuest)}`}
             </h2>
 
             {step === 'choice' && (
@@ -456,7 +452,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 onClick={() => { setForm(f => ({ ...f, guestId: g.id })); setStep('confirmGuest') }}
                                 className="filter-input flex justify-between items-center text-left hover:border-green"
                             >
-                                <span>{guestName(g)}</span>
+                                <span>{formatGuestName(g)}</span>
                                 {g.flagged && <span className="text-xs text-error font-medium">Flagged</span>}
                             </button>
                         ))}
@@ -532,7 +528,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         <div className="flex flex-col gap-4">
                             <div>
                                 <label className="block text-sm text-muted mb-1">Name</label>
-                                <p className="text-sm text-black">{guestName(selectedGuest)}</p>
+                                <p className="text-sm text-black">{formatGuestName(selectedGuest)}</p>
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Email</label>
