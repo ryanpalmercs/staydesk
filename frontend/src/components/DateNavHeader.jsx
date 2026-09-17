@@ -35,6 +35,14 @@ function DateNavHeader({ viewDate, onChange, minDate }) {
             <button type="button" onClick={() => shiftDate(1)} className="text-muted hover:text-green" aria-label="Next day">
                 <ArrowRightIcon size={20} />
             </button>
+            <button
+                type="button"
+                onClick={() => onChange(todayStr())}
+                disabled={viewDate === todayStr()}
+                className="filter-btn disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+                Today
+            </button>
         </div>
     )
 }
