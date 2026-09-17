@@ -22,6 +22,7 @@ import com.staydesk.model.dto.CheckInEstimateResponse;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
+import com.staydesk.model.request.AssignRoomRequest;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.model.request.ExtendStayRequest;
@@ -134,6 +135,21 @@ public class ReservationController {
             return ResponseEntity.ok(reservationService.getAvailableRoomsForCheckIn(id));
         } catch (ReservationNotFoundException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PutMapping("{id}/room")
+    public ResponseEntity<Reservation> assignRoom(@PathVariable Integer id, @RequestBody AssignRoomRequest request) {
+        LOGGER.info("Assigning room {} to reservation {}", request.roomId(), id);
+
+        try {
+            return ResponseEntity.ok(reservationService.assignRoom(id, request.roomId()));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (NoRoomAvailableException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 

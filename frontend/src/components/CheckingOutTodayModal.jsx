@@ -1,25 +1,17 @@
-import { useState } from "react"
-import { addDays, format } from "date-fns"
-import { ArrowLeftIcon, ArrowRightIcon, ChevronLeft, ChevronRight } from "lucide-react"
+import { useRef, useState } from "react"
 import Modal from "./Modal"
+import DateNavHeader, { todayStr } from "./DateNavHeader"
 import { formatGuestName } from "../utils/guestName"
-
-function todayStr() {
-    return format(new Date(), 'yyyy-MM-dd')
-}
-
-function formatDateLabel(dateStr) {
-    const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-    return dateStr === todayStr() ? `${label} (Today)` : label
-}
+import { useHasOverflow } from "../hooks/useHasOverflow"
 
 function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut, onExtend }) {
     const [viewDate, setViewDate] = useState(todayStr)
     const [selectedId, setSelectedId] = useState(null)
     const [submitting, setSubmitting] = useState(false)
+    const listRef = useRef(null)
 
-    function shiftDate(deltaDays) {
-        setViewDate(d => format(addDays(new Date(d + 'T12:00:00'), deltaDays), 'yyyy-MM-dd'))
+    function handleDateChange(date) {
+        setViewDate(date)
         setSelectedId(null)
     }
 
@@ -33,31 +25,18 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
     }
 
     const dayReservations = reservations.filter(r => r.checkOutDate === viewDate && r.status === 'CHECKED_IN')
+    const listHasScrollbar = useHasOverflow(listRef, [dayReservations.length])
 
     return (
         <Modal onClose={onClose} size="lg">
             <h2 className="text-lg text-black font-semibold mb-2">Checking Out</h2>
 
-            <div className="flex items-center justify-between mb-4">
-                <button
-                    type="button"
-                    onClick={() => shiftDate(-1)}
-                    disabled={viewDate <= todayStr()}
-                    className="text-muted hover:text-green disabled:opacity-30 disabled:hover:text-muted"
-                    aria-label="Previous day"
-                >
-                    <ArrowLeftIcon size={20} />
-                </button>
-                <span className="text-sm font-medium text-black">{formatDateLabel(viewDate)}</span>
-                <button type="button" onClick={() => shiftDate(1)} className="text-muted hover:text-green" aria-label="Next day">
-                    <ArrowRightIcon size={20} />
-                </button>
-            </div>
+            <DateNavHeader viewDate={viewDate} onChange={handleDateChange} minDate={todayStr()} offsetToday={listHasScrollbar} />
 
             {dayReservations.length === 0 ? (
-                <p className="text-sm text-muted">No guests are checking out this day.</p>
+                <p className="text-sm text-muted text-center">No guests are checking out this day.</p>
             ) : (
-                <ul className="flex flex-col gap-3 max-h-96 overflow-y-auto">
+                <ul ref={listRef} className="flex flex-col gap-3 max-h-96 overflow-y-auto">
                     {dayReservations.map(r => {
                         const guest = guestsMap[r.guestId]
                         const selected = selectedId === r.id

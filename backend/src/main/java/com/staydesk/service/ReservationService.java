@@ -370,10 +370,37 @@ public class ReservationService {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
-        return roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
+        return roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
                              .stream()
                              .sorted(Comparator.comparingInt(Room::roomNumber))
                              .toList();
+    }
+
+    /**
+     * Lets staff assign a specific room to a CONFIRMED reservation ahead of check-in (e.g. a phone
+     * or future-dated walk-in booking), without any of check-in's side effects - no charge, no
+     * incidentals hold, no lock passcode. Re-assignable: calling this again with a different room
+     * simply moves the assignment, and the previous room becomes available again immediately since
+     * only this reservation's row held it.
+     */
+    @Transactional
+    public Reservation assignRoom(int id, int roomId) {
+        Reservation reservation = reservationRepository.findById(id)
+                                                       .orElseThrow(ReservationNotFoundException::new);
+
+        if (reservation.status() != Reservation.ReservationStatus.CONFIRMED) {
+            throw new InvalidReservationException();
+        }
+
+        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
+                                  .stream()
+                                  .filter(r -> r.id() == roomId)
+                                  .findFirst()
+                                  .orElseThrow(NoRoomAvailableException::new);
+
+        reservationRepository.assignRoom(id, room.id());
+
+        return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
 
     @Transactional
@@ -387,7 +414,7 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
+        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
                                   .stream()
                                   .filter(r -> r.id() == roomId)
                                   .findFirst()
@@ -455,7 +482,7 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate())
+        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
                                   .stream()
                                   .filter(r -> r.id() == roomId)
                                   .findFirst()
