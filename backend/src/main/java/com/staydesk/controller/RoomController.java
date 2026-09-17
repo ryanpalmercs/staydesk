@@ -15,10 +15,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -43,6 +46,18 @@ public class RoomController {
     public List<Room> getRooms() {
         LOGGER.info("Finding all rooms");
         return roomRepository.findAllWithComputedStatus();
+    }
+
+    // Keyed off room type + dates directly rather than a reservation id, so a room can be picked
+    // before a reservation exists yet (e.g. mid-booking, ahead of the pay-timing choice).
+    @GetMapping("available")
+    public List<Room> getAvailableRooms(@RequestParam int roomTypeId, @RequestParam LocalDate checkIn, @RequestParam LocalDate checkOut) {
+        LOGGER.info("Finding available rooms of type {} for {} - {}", roomTypeId, checkIn, checkOut);
+
+        return roomRepository.findAvailableOfType(roomTypeId, checkOut, checkIn, null)
+                             .stream()
+                             .sorted(Comparator.comparingInt(Room::roomNumber))
+                             .toList();
     }
 
     @GetMapping("{id}")

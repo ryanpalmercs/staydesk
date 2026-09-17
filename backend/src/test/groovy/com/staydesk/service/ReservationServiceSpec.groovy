@@ -4,7 +4,9 @@ import com.staydesk.exception.CardPresentRecordOnlyDisabledException
 import com.staydesk.exception.DateConflictException
 import com.staydesk.exception.InvalidReservationException
 import com.staydesk.exception.NoReusableCredentialException
+import com.staydesk.exception.NoRoomAvailableException
 import com.staydesk.exception.PosDeviceNotFoundException
+import com.staydesk.exception.ReservationNotFoundException
 import com.staydesk.exception.RoomNotFoundException
 import com.staydesk.exception.RoomTypeUnavailableException
 import com.staydesk.exception.RoomUnavailableException
@@ -897,7 +899,7 @@ class ReservationServiceSpec extends Specification {
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
-        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -922,7 +924,7 @@ class ReservationServiceSpec extends Specification {
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
-        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -948,7 +950,7 @@ class ReservationServiceSpec extends Specification {
 
         posDeviceRepository.findById(6) >> Optional.of(device)
         reservationRepository.findById(1) >> Optional.of(res)
-        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -975,7 +977,7 @@ class ReservationServiceSpec extends Specification {
 
         posDeviceRepository.findById(6) >> Optional.of(device)
         reservationRepository.findById(1) >> Optional.of(res)
-        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -999,7 +1001,7 @@ class ReservationServiceSpec extends Specification {
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
-        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -1026,7 +1028,7 @@ class ReservationServiceSpec extends Specification {
 
         posDeviceRepository.findById(6) >> Optional.of(device)
         reservationRepository.findById(1) >> Optional.of(res)
-        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10)) >> [room]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
@@ -1493,5 +1495,62 @@ class ReservationServiceSpec extends Specification {
         then:
         result.subtotal().compareTo(BigDecimal.valueOf(210)) == 0
         result.total().compareTo(BigDecimal.valueOf(210)) == 0
+    }
+
+    def "assignRoom assigns an available room to a CONFIRMED reservation without checking it in"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def room = availableRoom()
+        def updated = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+
+        reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(updated)]
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
+
+        when:
+        def result = reservationService.assignRoom(1, 5)
+
+        then:
+        1 * reservationRepository.assignRoom(1, 5)
+        result.status() == Reservation.ReservationStatus.CONFIRMED
+        0 * paymentService.chargeFullStay(*_)
+        0 * lockPasscodeService.issuePasscode(*_)
+    }
+
+    def "assignRoom throws InvalidReservationException when the reservation isn't CONFIRMED"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.assignRoom(1, 5)
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.assignRoom(*_)
+    }
+
+    def "assignRoom throws NoRoomAvailableException when the requested room isn't available for the stay"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        reservationRepository.findById(1) >> Optional.of(res)
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> []
+
+        when:
+        reservationService.assignRoom(1, 5)
+
+        then:
+        thrown(NoRoomAvailableException)
+        0 * reservationRepository.assignRoom(*_)
+    }
+
+    def "assignRoom throws ReservationNotFoundException when the reservation doesn't exist"() {
+        given:
+        reservationRepository.findById(99) >> Optional.empty()
+
+        when:
+        reservationService.assignRoom(99, 5)
+
+        then:
+        thrown(ReservationNotFoundException)
     }
 }

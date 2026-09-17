@@ -6,7 +6,7 @@ function formatDate(str) {
     return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio, onExtend }) {
+function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio, onExtend, onAssignRoom }) {
     return (
         <Modal onClose={onClose} size="lg-xl">
             <div className="flex items-start justify-between mb-4">
@@ -32,7 +32,12 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
             <div className="flex justify-center gap-3">
                 <button onClick={onClose} className="btn btn-secondary">Close</button>
                 {reservation.status === 'CONFIRMED' && (
-                    <button onClick={onCheckIn} className="btn btn-primary">Check In</button>
+                    <>
+                        {reservation.roomId == null && (
+                            <button onClick={onAssignRoom} className="btn btn-secondary">Assign Room</button>
+                        )}
+                        <button onClick={onCheckIn} className="btn btn-primary">Check In</button>
+                    </>
                 )}
                 {reservation.status === 'CHECKED_IN' && (
                     <>
