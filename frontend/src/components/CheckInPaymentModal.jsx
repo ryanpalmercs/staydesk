@@ -3,7 +3,6 @@ import { getPropertySetting } from "../api/settingsApi"
 import { getAvailableRoomsForCheckIn, getCheckInEstimate } from "../api/reservationApi"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
-import ConfirmDialog from "./ConfirmDialog"
 import PaymentMethodStep from "./PaymentMethodStep"
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
@@ -112,9 +111,7 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
-    const reservationChannel = reservation.channel
-    const isWalkIn = reservationChannel === 'WALK_IN'
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
     const daysOut = daysUntil(reservation.checkInDate)
     const isFutureCheckIn = daysOut > 0
 
@@ -123,7 +120,6 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
     const [stayTotal, setStayTotal] = useState(null)
     const [roomChargeDue, setRoomChargeDue] = useState(false)
-    const [confirmingCancel, setConfirmingCancel] = useState(false)
 
     useEffect(() => {
         getPropertySetting('incidentals_hold_amount').then(res => {
@@ -156,22 +152,8 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
         }
     }
 
-    function handleCancelClick() {
-        if (isWalkIn) {
-            setConfirmingCancel(true)
-            return
-        }
-        onClose()
-    }
-
     function handleFutureWarningConfirmed() {
         setStep('room')
-    }
-
-    async function confirmCancelReservation() {
-        setConfirmingCancel(false)
-        await onCancelReservation()
-        onClose()
     }
 
     return (
@@ -185,13 +167,13 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                     checkInDate={reservation.checkInDate}
                     daysOut={daysOut}
                     showChargeWarning={roomChargeDue}
-                    onCancel={handleCancelClick}
+                    onCancel={onClose}
                     onConfirm={handleFutureWarningConfirmed}
                 />
             )}
 
             {step === 'room' && (
-                <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
+                <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={onClose} />
             )}
 
             {step === 'payment' && (
@@ -211,7 +193,7 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
                         const doorAccessStatus = await onConfirmTerminal(selectedRoomId, deviceId)
                         handleCheckedIn(doorAccessStatus)
                     }}
-                    onCancel={handleCancelClick}
+                    onCancel={onClose}
                     terminalErrorMessage="Failed to check in. The card may have been declined on the terminal."
                     recordOnlyErrorMessage="Failed to check in."
                 />
@@ -229,16 +211,6 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
             {step === 'door-failed' && (
                 <DoorAccessFailedNotice onClose={onClose} />
-            )}
-
-            {confirmingCancel && (
-                <ConfirmDialog
-                    message="Cancel this walk-in reservation? It will be marked as cancelled."
-                    cancelLabel="Keep Going"
-                    confirmLabel="Yes, Cancel"
-                    onCancel={() => setConfirmingCancel(false)}
-                    onConfirm={confirmCancelReservation}
-                />
             )}
         </Modal>
     )

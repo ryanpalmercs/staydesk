@@ -362,7 +362,6 @@ function ReservationsPage() {
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
-                    onCancelReservation={() => handleCancel(checkInTarget)}
                 />
             )}
 
