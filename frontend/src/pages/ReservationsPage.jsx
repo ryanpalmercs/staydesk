@@ -14,6 +14,7 @@ import { useAuth } from "../contexts/AuthContext"
 import DeleteReservationModal from "../components/DeleteReservationModal"
 import ConfirmDialog from "../components/ConfirmDialog"
 import ExtendStayModal from "../components/ExtendStayModal"
+import AssignRoomModal from "../components/AssignRoomModal"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -36,6 +37,7 @@ function ReservationsPage() {
     const [sortDir, setSortDir] = useState('desc')
     const [cancelTarget, setCancelTarget] = useState(null)
     const [extendTarget, setExtendTarget] = useState(null)
+    const [assignRoomTarget, setAssignRoomTarget] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -279,6 +281,9 @@ function ReservationsPage() {
                                     {res.confirmationCode && <span>Conf# {res.confirmationCode}</span>}
                                 </div>
                                 <div className="flex gap-4 justify-end">
+                                    {res.status === 'CONFIRMED' && res.roomId == null && (
+                                        <button onClick={() => setAssignRoomTarget(res)} className="text-sm font-medium text-muted hover:text-green">Assign Room</button>
+                                    )}
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-green hover:text-black">Check In</button>
                                     )}
@@ -328,6 +333,17 @@ function ReservationsPage() {
                     reservation={extendTarget}
                     onSaved={() => { setExtendTarget(null); fetchReservations() }}
                     onClose={() => setExtendTarget(null)}
+                />
+            )}
+
+            {assignRoomTarget != null && (
+                <AssignRoomModal
+                    roomTypeId={assignRoomTarget.roomTypeId}
+                    checkInDate={assignRoomTarget.checkInDate}
+                    checkOutDate={assignRoomTarget.checkOutDate}
+                    reservationId={assignRoomTarget.id}
+                    onSaved={() => { setAssignRoomTarget(null); fetchReservations() }}
+                    onClose={() => setAssignRoomTarget(null)}
                 />
             )}
 

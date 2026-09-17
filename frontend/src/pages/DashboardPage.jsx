@@ -17,6 +17,7 @@ import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
 import ExtendStayModal from '../components/ExtendStayModal'
+import AssignRoomModal from '../components/AssignRoomModal'
 import CheckingInTodayModal from '../components/CheckingInTodayModal'
 import CheckingOutTodayModal from '../components/CheckingOutTodayModal'
 import OccupancyModal from '../components/OccupancyModal'
@@ -40,6 +41,7 @@ function DashboardPage() {
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [folioId, setFolioId] = useState(null)
     const [extendTarget, setExtendTarget] = useState(null)
+    const [assignRoomTarget, setAssignRoomTarget] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
     const [showCheckingInModal, setShowCheckingInModal] = useState(false)
     const [showCheckingOutModal, setShowCheckingOutModal] = useState(false)
@@ -240,6 +242,10 @@ function DashboardPage() {
                         setExtendTarget(reservations.find(r => r.id === selectedEvent.reservationId))
                         setSelectedEvent(null)
                     }}
+                    onAssignRoom={() => {
+                        setAssignRoomTarget(reservations.find(r => r.id === selectedEvent.reservationId))
+                        setSelectedEvent(null)
+                    }}
                 />
             )}
 
@@ -248,6 +254,17 @@ function DashboardPage() {
                     reservation={extendTarget}
                     onSaved={() => { setExtendTarget(null); fetchData() }}
                     onClose={() => setExtendTarget(null)}
+                />
+            )}
+
+            {assignRoomTarget != null && (
+                <AssignRoomModal
+                    roomTypeId={assignRoomTarget.roomTypeId}
+                    checkInDate={assignRoomTarget.checkInDate}
+                    checkOutDate={assignRoomTarget.checkOutDate}
+                    reservationId={assignRoomTarget.id}
+                    onSaved={() => { setAssignRoomTarget(null); fetchData() }}
+                    onClose={() => setAssignRoomTarget(null)}
                 />
             )}
 
