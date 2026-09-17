@@ -14,32 +14,35 @@ function DateNavHeader({ viewDate, onChange, minDate }) {
     }
 
     return (
-        <div className="flex items-center justify-center gap-3 mb-4">
-            <button
-                type="button"
-                onClick={() => shiftDate(-1)}
-                disabled={minDate != null && viewDate <= minDate}
-                className="text-muted hover:text-green disabled:opacity-30 disabled:hover:text-muted"
-                aria-label="Previous day"
-            >
-                <ArrowLeftIcon size={20} />
-            </button>
-            <input
-                type="date"
-                value={viewDate}
-                min={minDate}
-                onChange={e => e.target.value && onChange(e.target.value)}
-                className="filter-input text-sm font-medium text-black text-center"
-                aria-label="Jump to date"
-            />
-            <button type="button" onClick={() => shiftDate(1)} className="text-muted hover:text-green" aria-label="Next day">
-                <ArrowRightIcon size={20} />
-            </button>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-4">
+            <div />
+            <div className="flex items-center gap-3 justify-self-center">
+                <button
+                    type="button"
+                    onClick={() => shiftDate(-1)}
+                    disabled={minDate != null && viewDate <= minDate}
+                    className="text-muted hover:text-green disabled:opacity-30 disabled:hover:text-muted"
+                    aria-label="Previous day"
+                >
+                    <ArrowLeftIcon size={20} />
+                </button>
+                <input
+                    type="date"
+                    value={viewDate}
+                    min={minDate}
+                    onChange={e => e.target.value && onChange(e.target.value)}
+                    className="filter-input text-sm font-medium text-black text-center"
+                    aria-label="Jump to date"
+                />
+                <button type="button" onClick={() => shiftDate(1)} className="text-muted hover:text-green" aria-label="Next day">
+                    <ArrowRightIcon size={20} />
+                </button>
+            </div>
             <button
                 type="button"
                 onClick={() => onChange(todayStr())}
                 disabled={viewDate === todayStr()}
-                className="filter-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                className="filter-btn disabled:opacity-40 disabled:cursor-not-allowed justify-self-end"
             >
                 Today
             </button>
