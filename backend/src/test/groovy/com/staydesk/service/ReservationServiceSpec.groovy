@@ -1479,6 +1479,72 @@ class ReservationServiceSpec extends Specification {
         result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 
+    def "estimateTotal sums exactly to a WEEKLY_7 rate that doesn't divide evenly, over exactly 7 nights"() {
+        // 362.70 / 7 = 51.8142857... - rounding that per-night amount to 51.81 and multiplying by
+        // 7 undershoots the flat rate by 3 cents (362.67). Cumulative rounding must land exactly
+        // on the stated rate for a stay of exactly the tier's length.
+        given:
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_7, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(362.70)) == 0
+    }
+
+    def "estimateTotal distributes a WEEKLY_7 rate's rounding across an 11-night stay without losing pennies"() {
+        given:
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_7, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 12), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(569.96)) == 0
+    }
+
+    def "estimateTotal sums exactly to a WEEKLY_5 rate that doesn't divide evenly, over exactly 5 nights"() {
+        // 272.13 / 5 = 54.426 - rounding that per-night amount to 54.43 and multiplying by 5
+        // overshoots the flat rate by 2 cents (272.15). Same class of bug as WEEKLY_7, opposite
+        // rounding direction - cumulative rounding must still land exactly on the stated rate.
+        given:
+        def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(272.13), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_5, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 6), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(272.13)) == 0
+    }
+
+    def "estimateTotal distributes a WEEKLY_5 rate's rounding across a 6-night stay without losing pennies"() {
+        given:
+        def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(272.13), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_5, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(326.56)) == 0
+    }
+
     def "estimateTotalWithExtras adds the priced extras to the room subtotal"() {
         given:
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
