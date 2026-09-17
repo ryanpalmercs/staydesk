@@ -1,25 +1,11 @@
 import { useState } from "react"
-import { addDays, format } from "date-fns"
-import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react"
 import Modal from "./Modal"
+import DateNavHeader, { todayStr } from "./DateNavHeader"
 import StatusBadge from "./StatusBadge"
 import { formatGuestName } from "../utils/guestName"
 
-function todayStr() {
-    return format(new Date(), 'yyyy-MM-dd')
-}
-
-function formatDateLabel(dateStr) {
-    const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-    return dateStr === todayStr() ? `${label} (Today)` : label
-}
-
 function OccupancyModal({ rooms, roomTypesMap, guestsMap, reservations, onClose, onSelectRoom }) {
     const [viewDate, setViewDate] = useState(todayStr)
-
-    function shiftDate(deltaDays) {
-        setViewDate(d => format(addDays(new Date(d + 'T12:00:00'), deltaDays), 'yyyy-MM-dd'))
-    }
 
     const isToday = viewDate === todayStr()
 
@@ -37,21 +23,7 @@ function OccupancyModal({ rooms, roomTypesMap, guestsMap, reservations, onClose,
         <Modal onClose={onClose} size="lg">
             <h2 className="text-lg text-black font-semibold mb-2">Occupancy</h2>
 
-            <div className="flex items-center justify-between mb-4">
-                <button
-                    type="button"
-                    onClick={() => shiftDate(-1)}
-                    disabled={viewDate <= todayStr()}
-                    className="text-muted hover:text-green disabled:opacity-30 disabled:hover:text-muted"
-                    aria-label="Previous day"
-                >
-                    <ArrowLeftIcon size={20} />
-                </button>
-                <span className="text-sm font-medium text-black">{formatDateLabel(viewDate)}</span>
-                <button type="button" onClick={() => shiftDate(1)} className="text-muted hover:text-green" aria-label="Next day">
-                    <ArrowRightIcon size={20} />
-                </button>
-            </div>
+            <DateNavHeader viewDate={viewDate} onChange={setViewDate} minDate={todayStr()} />
 
             {!isToday && (
                 <p className="text-xs text-muted mb-2">
