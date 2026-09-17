@@ -42,7 +42,7 @@ function DateNavHeader({ viewDate, onChange, minDate }) {
                 type="button"
                 onClick={() => onChange(todayStr())}
                 disabled={viewDate === todayStr()}
-                className="filter-btn disabled:opacity-40 disabled:cursor-not-allowed justify-self-end"
+                className="filter-btn disabled:opacity-40 disabled:cursor-not-allowed justify-self-end mr-4"
             >
                 Today
             </button>
