@@ -8,7 +8,7 @@ export function todayStr() {
 // Shared by the dashboard's quick-action modals (Checking In/Out, Occupancy): a prev/next day
 // stepper plus a native date input so staff can jump straight to any date instead of only
 // stepping one day at a time.
-function DateNavHeader({ viewDate, onChange, minDate }) {
+function DateNavHeader({ viewDate, onChange, minDate, offsetToday }) {
     function shiftDate(deltaDays) {
         onChange(format(addDays(new Date(viewDate + 'T12:00:00'), deltaDays), 'yyyy-MM-dd'))
     }
@@ -42,7 +42,7 @@ function DateNavHeader({ viewDate, onChange, minDate }) {
                 type="button"
                 onClick={() => onChange(todayStr())}
                 disabled={viewDate === todayStr()}
-                className="filter-btn disabled:opacity-40 disabled:cursor-not-allowed justify-self-end mr-4"
+                className={`filter-btn disabled:opacity-40 disabled:cursor-not-allowed justify-self-end${offsetToday ? ' mr-4' : ''}`}
             >
                 Today
             </button>

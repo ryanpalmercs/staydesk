@@ -1,12 +1,14 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Modal from "./Modal"
 import DateNavHeader, { todayStr } from "./DateNavHeader"
 import { formatGuestName } from "../utils/guestName"
+import { useHasOverflow } from "../hooks/useHasOverflow"
 
 function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut, onExtend }) {
     const [viewDate, setViewDate] = useState(todayStr)
     const [selectedId, setSelectedId] = useState(null)
     const [submitting, setSubmitting] = useState(false)
+    const listRef = useRef(null)
 
     function handleDateChange(date) {
         setViewDate(date)
@@ -23,17 +25,18 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
     }
 
     const dayReservations = reservations.filter(r => r.checkOutDate === viewDate && r.status === 'CHECKED_IN')
+    const listHasScrollbar = useHasOverflow(listRef, [dayReservations.length])
 
     return (
         <Modal onClose={onClose} size="lg">
             <h2 className="text-lg text-black font-semibold mb-2">Checking Out</h2>
 
-            <DateNavHeader viewDate={viewDate} onChange={handleDateChange} minDate={todayStr()} />
+            <DateNavHeader viewDate={viewDate} onChange={handleDateChange} minDate={todayStr()} offsetToday={listHasScrollbar} />
 
             {dayReservations.length === 0 ? (
-                <p className="text-sm text-muted">No guests are checking out this day.</p>
+                <p className="text-sm text-muted text-center">No guests are checking out this day.</p>
             ) : (
-                <ul className="flex flex-col gap-3 max-h-96 overflow-y-auto">
+                <ul ref={listRef} className="flex flex-col gap-3 max-h-96 overflow-y-auto">
                     {dayReservations.map(r => {
                         const guest = guestsMap[r.guestId]
                         const selected = selectedId === r.id
