@@ -17,6 +17,9 @@ public interface RoomRepository extends ListCrudRepository<Room, Integer> {
     // exclusion below additionally covers future date conflicts; in practice every reservation that
     // has a room_id also passed through CHECKED_IN at some point, so the two overlap, but the
     // CHECKED_IN check is the one that actually matters here and is kept unconditional on purpose.
+    // excludeReservationId lets a reservation that already holds this room (assigned ahead of
+    // check-in via assignRoom) see that same room as available to itself - without it, the room's
+    // own overlapping reservation row would make it look occupied by itself.
     @Query("""
             SELECT * FROM rooms ro
             WHERE ro.room_type_id = :roomTypeId
@@ -24,15 +27,19 @@ public interface RoomRepository extends ListCrudRepository<Room, Integer> {
               AND ro.id NOT IN (
                   SELECT r.room_id FROM reservations r
                   WHERE r.room_id IS NOT NULL AND r.status = 'CHECKED_IN'
+                    AND (:excludeReservationId::int IS NULL OR r.id != :excludeReservationId::int)
               )
               AND ro.id NOT IN (
                   SELECT r.room_id FROM reservations r
                   WHERE r.room_id IS NOT NULL
                     AND r.check_in_date < :checkOut AND r.check_out_date > :checkIn
                     AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT')
+                    AND (:excludeReservationId::int IS NULL OR r.id != :excludeReservationId::int)
               )
             """)
-    List<Room> findAvailableOfType(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut, @Param("checkIn") LocalDate checkIn);
+    List<Room> findAvailableOfType(@Param("roomTypeId") int roomTypeId, @Param("checkOut") LocalDate checkOut,
+                                   @Param("checkIn") LocalDate checkIn,
+                                   @Param("excludeReservationId") Integer excludeReservationId);
 
     // status is computed live rather than trusted from the stored column: MAINTENANCE is the only
     // value an admin sets directly, OCCUPIED is derived from whether a reservation for this room

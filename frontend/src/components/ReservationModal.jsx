@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
+import { assignRoom, createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
 import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
@@ -13,6 +13,7 @@ import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus } from "lucide-react"
 import Modal from "./Modal"
+import AssignRoomModal from "./AssignRoomModal"
 
 function Stepper({ label, value, min, max, onChange }) {
     return (
@@ -83,7 +84,9 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const paymentReady = provider === 'authorizenet'
     const [payTimingChoice, setPayTimingChoice] = useState(null)
     const [payNowReservationId, setPayNowReservationId] = useState(null)
+    const [payNowReservation, setPayNowReservation] = useState(null)
     const [payNowAmount, setPayNowAmount] = useState(null)
+    const [selectedRoomId, setSelectedRoomId] = useState('')
 
     const isFutureWalkIn = form.channel === 'WALK_IN' && form.checkInDate
         ? differenceInCalendarDays(parseISO(form.checkInDate), new Date()) > 0
@@ -328,11 +331,12 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                     return
                 }
 
-                // A future-dated walk-in or any phone booking needs an explicit pay-now-or-later
-                // choice, presented as its own step so it can't be missed inline in a long form.
+                // A future-dated walk-in or any phone booking has no guest present yet, so staff
+                // can optionally lock in a specific room before working through payment timing.
                 setPendingForm(submittedForm)
                 setPayTimingChoice(null)
-                setStep('pay-timing')
+                setSelectedRoomId('')
+                setStep('assign-room')
                 return
             }
 
@@ -348,10 +352,25 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
     }
 
+    // The room (if any) was picked earlier in the assign-room step, before the reservation itself
+    // existed - assignRoom runs now that it does. A room-assignment failure here (e.g. someone else
+    // just took it) doesn't block finishing: the reservation is already secured either way, and the
+    // room can still be assigned later from the reservation list or calendar.
+    async function completeReservation(created) {
+        if (selectedRoomId) {
+            try {
+                await assignRoom(created.id, Number(selectedRoomId))
+            } catch (err) {
+                console.error('Failed to assign room:', err)
+            }
+        }
+        onSaved()
+    }
+
     async function handleCapture(paymentMethodId) {
         try {
-            await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
-            onSaved()
+            const res = await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
+            completeReservation(res.data)
         } catch (err) {
             setStep('form')
             if (err.response?.status === 400) {
@@ -368,6 +387,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             try {
                 const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
                 setPayNowReservationId(res.data.id)
+                setPayNowReservation(res.data)
                 const estimateRes = await getCheckInEstimate(res.data.id)
                 setPayNowAmount(estimateRes.data.total)
                 setStep('pay-now')
@@ -392,12 +412,28 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         try {
             // No charge now; the room total is collected via the card-present terminal once the
             // guest actually arrives and checks in.
-            await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
-            onSaved()
+            const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+            completeReservation(res.data)
         } catch (err) {
             setStep('form')
             setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
         }
+    }
+
+    // Its own separate modal, not a step inside this one - the reservation form closes, this
+    // opens in its place, and picking a room (or skipping) hands control back for pay-timing to
+    // open next, rather than nesting one dialog inside another.
+    if (step === 'assign-room') {
+        return (
+            <AssignRoomModal
+                roomTypeId={form.roomTypeId}
+                checkInDate={form.checkInDate}
+                checkOutDate={form.checkOutDate}
+                onSaved={roomId => { setSelectedRoomId(String(roomId)); setStep('pay-timing') }}
+                onClose={() => { setSelectedRoomId(''); setStep('pay-timing') }}
+                onBack={() => setStep('form')}
+            />
+        )
     }
 
     return (
@@ -630,7 +666,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
                             <div>
                                 <label className="block text-sm text-muted mb-1">Room Type</label>
-                                <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
+                                <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input w-full sm:w-56" required>
                                     <option value="">Select a room type...</option>
                                     {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
                                         <option key={rt.id} value={rt.id} disabled={unavailableRoomTypeIds.includes(rt.id)}>
@@ -764,7 +800,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </button>
                     </div>
                     <div className="flex justify-between mt-2">
-                        <button type="button" onClick={() => setStep('form')} className="btn btn-secondary">
+                        <button type="button" onClick={() => setStep('assign-room')} className="btn btn-secondary">
                             Back
                         </button>
                         <button
@@ -795,19 +831,18 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         submitLabel="Charge"
                         onSubmitToken={async (roomToken) => {
                             await payFullStayNow(payNowReservationId, roomToken)
-                            onSaved()
+                            completeReservation(payNowReservation)
                         }}
                         onSubmitTerminal={async (deviceId) => {
                             await payFullStayNowTerminal(payNowReservationId, deviceId)
-                            onSaved()
+                            completeReservation(payNowReservation)
                         }}
-                        onCancel={() => onSaved()}
+                        onCancel={() => completeReservation(payNowReservation)}
                         terminalErrorMessage="Failed to charge card. It may have been declined on the terminal."
                         recordOnlyErrorMessage="Failed to charge card."
                     />
                 </div>
             )}
-
         </Modal>
     )
 }
