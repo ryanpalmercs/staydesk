@@ -6,7 +6,7 @@ function formatDate(str) {
     return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio, onExtend, onAssignRoom }) {
+function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio, onExtend, onAssignRoom, onMoveRoom }) {
     return (
         <Modal onClose={onClose} size="lg-xl">
             <div className="flex items-start justify-between mb-4">
@@ -43,6 +43,7 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
                     <>
                         <button onClick={onViewFolio} className="btn btn-secondary">View Folio</button>
                         <button onClick={onExtend} className="btn btn-secondary">Extend Stay</button>
+                        <button onClick={onMoveRoom} className="btn btn-secondary">Move Room</button>
                         <button onClick={onCheckOut} className="btn btn-primary">Check Out</button>
                     </>
                 )}

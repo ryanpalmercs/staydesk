@@ -402,12 +402,12 @@ public class ReservationService {
     /**
      * Lets staff assign a specific room to a CONFIRMED reservation ahead of check-in (e.g. a phone
      * or future-dated walk-in booking), without any of check-in's side effects - no charge, no
-     * incidentals hold, no lock passcode. Re-assignable: calling this again with a different room
-     * simply moves the assignment, and the previous room becomes available again immediately since
-     * only this reservation's row held it.
+     * incidentals hold, no lock passcode. Re-assignable, and the room doesn't have to match the
+     * reservation's current room type - editing a booking to a different type re-points roomTypeId
+     * at whichever room actually gets picked, same as moveRoom does for a CHECKED_IN guest.
      */
     @Transactional
-    public Reservation assignRoom(int id, int roomId) {
+    public Reservation assignRoom(int id, int newRoomId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -415,13 +415,17 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
-                                  .stream()
-                                  .filter(r -> r.id() == roomId)
-                                  .findFirst()
-                                  .orElseThrow(NoRoomAvailableException::new);
+        Room newRoom = roomRepository.findById(newRoomId).orElseThrow(RoomNotFoundException::new);
 
-        reservationRepository.assignRoom(id, room.id());
+        boolean available = roomRepository.findAvailableOfType(newRoom.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
+                                          .stream()
+                                          .anyMatch(r -> r.id() == newRoom.id());
+
+        if (!available) {
+            throw new NoRoomAvailableException();
+        }
+
+        reservationRepository.moveRoom(id, newRoom.id(), newRoom.roomTypeId());
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
@@ -804,6 +808,51 @@ public class ReservationService {
         paymentCredentialService.scheduleExpiry(folio.id(), now.plusDays(30));
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+    }
+
+    /**
+     * Relocates an already-CHECKED_IN guest to a different physical room - same type or a
+     * different one (e.g. a flooded room forcing a move to whatever's actually available).
+     * Folio/pricing is untouched: the guest keeps what they already agreed to pay, they're just
+     * physically somewhere else now. The old room's door passcode is revoked and a new one issued
+     * for the new room, same as check-in does.
+     */
+    @Transactional
+    public Reservation moveRoom(int id, int newRoomId) {
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        if (reservation.status() != Reservation.ReservationStatus.CHECKED_IN) {
+            throw new InvalidReservationException();
+        }
+
+        if (reservation.roomId() != null && reservation.roomId() == newRoomId) {
+            throw new InvalidReservationException();
+        }
+
+        Room newRoom = roomRepository.findById(newRoomId).orElseThrow(RoomNotFoundException::new);
+
+        boolean available = roomRepository.findAvailableOfType(newRoom.roomTypeId(), reservation.checkOutDate(), LocalDate.now(), id)
+                                          .stream()
+                                          .anyMatch(r -> r.id() == newRoom.id());
+
+        if (!available) {
+            throw new NoRoomAvailableException();
+        }
+
+        lockPasscodeService.revokePasscodes(id);
+        reservationRepository.moveRoom(id, newRoom.id(), newRoom.roomTypeId());
+
+        Reservation moved = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
+
+        LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(moved, newRoom);
+
+        if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && moved.guestId() != null) {
+            guestRepository.findById(moved.guestId())
+                           .filter(Guest::smsConsent)
+                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode()));
+        }
+
+        return moved;
     }
 
     private record ExtendStayContext(Reservation reservation, Rate.RateType newTier, Folio folio, BigDecimal chargeAmount, LocalDateTime now) {

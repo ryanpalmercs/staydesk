@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { assignRoom, createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
 import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
+import { getRoom } from "../api/roomApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { formatGuestName } from "../utils/guestName"
@@ -14,6 +15,7 @@ import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus } from "lucide-react"
 import Modal from "./Modal"
 import AssignRoomModal from "./AssignRoomModal"
+import MoveRoomModal from "./MoveRoomModal"
 
 function Stepper({ label, value, min, max, onChange }) {
     return (
@@ -69,6 +71,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [showExtras, setShowExtras] = useState(false)
     const [folioId, setFolioId] = useState(null)
+    const [assignedRoom, setAssignedRoom] = useState(null)
+    const [dateLeftInset, setDateLeftInset] = useState(0)
     const [extras, setExtras] = useState([])
     const [selectedExtraId, setSelectedExtraId] = useState('')
     const [extraQuantity, setExtraQuantity] = useState(1)
@@ -132,6 +136,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             getPropertySetting('payment_provider').then(res => {
                 setProvider(res.data.value)
             })
+        }
+
+        if (isEditing && reservation.roomId != null) {
+            getRoom(reservation.roomId).then(res => setAssignedRoom(res.data)).catch(() => setAssignedRoom(null))
         }
     }, [])
 
@@ -352,6 +360,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
     }
 
+
     // The room (if any) was picked earlier in the assign-room step, before the reservation itself
     // existed - assignRoom runs now that it does. A room-assignment failure here (e.g. someone else
     // just took it) doesn't block finishing: the reservation is already secured either way, and the
@@ -436,17 +445,31 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         )
     }
 
+    // "Change Room" on an existing reservation - same "separate modal, not nested" treatment as
+    // the booking flow's own room picker. A standalone action, not bundled into the rest of the
+    // edit form's save: closes the whole edit modal on success so the parent refetches fresh data,
+    // same as the Move/Assign Room entry points elsewhere in the app.
+    if (step === 'change-room') {
+        return (
+            <MoveRoomModal
+                reservation={reservation}
+                onSaved={onSaved}
+                onClose={() => setStep('form')}
+            />
+        )
+    }
+
     return (
         <Modal onClose={onClose} size="reservation" scrollable padded={false} isDirty={isDirty}>
             <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
                 {step === 'payment' ? 'Card Details'
                     : step === 'pay-now' ? 'Charge for Stay'
                         : step === 'pay-timing' ? 'How Should This Stay Be Paid?'
-                        : step === 'choice' ? 'New or Returning Guest?'
-                        : step === 'guestList' ? 'Select Guest'
-                            : step === 'newGuest' ? 'New Guest'
-                                : step === 'confirmGuest' ? 'Confirm Guest Information'
-                                    : isEditing ? `Edit Reservation for ${formatGuestName(selectedGuest)}` : `New Reservation for ${formatGuestName(selectedGuest)}`}
+                            : step === 'choice' ? 'New or Returning Guest?'
+                                : step === 'guestList' ? 'Select Guest'
+                                    : step === 'newGuest' ? 'New Guest'
+                                        : step === 'confirmGuest' ? 'Confirm Guest Information'
+                                            : isEditing ? `Edit Reservation for ${formatGuestName(selectedGuest)}` : `New Reservation for ${formatGuestName(selectedGuest)}`}
             </h2>
 
             {step === 'choice' && (
@@ -638,8 +661,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
             {step === 'form' && (
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-                    <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
-                        <div className="flex flex-col sm:flex-row sm:justify-center gap-4 sm:gap-10">
+                    <div className="flex flex-col gap-2 overflow-y-auto px-6 pb-4 flex-1 min-h-0">
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-10" style={{ paddingLeft: dateLeftInset }}>
                             <div>
                                 <label className="block text-sm text-muted mb-1">How is this being booked?</label>
                                 <div className="flex justify-left gap-2">
@@ -666,64 +689,88 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
                             <div>
                                 <label className="block text-sm text-muted mb-1">Room Type</label>
-                                <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input w-full sm:w-56" required>
-                                    <option value="">Select a room type...</option>
-                                    {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
-                                        <option key={rt.id} value={rt.id} disabled={unavailableRoomTypeIds.includes(rt.id)}>
-                                            {rt.name.replace('_', ' ')}{unavailableRoomTypeIds.includes(rt.id) ? ' (Unavailable)' : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                {isEditing ? (
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-sm text-black">
+                                            {roomTypes.find(rt => rt.id === Number(form.roomTypeId))?.name.replace('_', ' ') ?? '—'}
+                                            {assignedRoom && ` — Room ${assignedRoom.roomNumber}`}
+                                        </p>
+                                        {(reservation.status === 'CONFIRMED' || reservation.status === 'CHECKED_IN') && (
+                                            <button type="button" onClick={() => setStep('change-room')} className="text-sm font-medium text-green hover:text-black self-start">
+                                                Change Room
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input w-full sm:w-56" required>
+                                        <option value="">Select a room type...</option>
+                                        {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
+                                            <option key={rt.id} value={rt.id} disabled={unavailableRoomTypeIds.includes(rt.id)}>
+                                                {rt.name.replace('_', ' ')}{unavailableRoomTypeIds.includes(rt.id) ? ' (Unavailable)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                            <div style={{ paddingLeft: dateLeftInset }}>
+                                <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                            </div>
                             <ReservationDatePicker
                                 roomTypeId={form.roomTypeId}
                                 checkInDate={form.checkInDate}
                                 checkOutDate={form.checkOutDate}
                                 onRangeSelected={({ checkInDate, checkOutDate }) => setForm(f => ({ ...f, checkInDate, checkOutDate }))}
                                 excludeReservationId={reservation?.id}
+                                onLeftInsetChange={setDateLeftInset}
                             />
                         </div>
 
                         {isEditing && (
-                            <div>
-                                <label className="block text-sm text-muted mb-1">Status</label>
-                                <div className="flex justify-center">
-                                    <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
+                            <div className="flex items-end justify-between gap-4" style={{ paddingLeft: dateLeftInset, paddingRight: dateLeftInset }}>
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Status</label>
+                                    <select name="status" value={form.status} onChange={handleChange} className="filter-input">
                                         <option value="CONFIRMED">Confirmed</option>
                                         <option value="CANCELLED">Cancelled</option>
                                     </select>
                                 </div>
+                                {canAddExtras && (
+                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="btn btn-secondary !py-2 !px-3 !text-sm">
+                                        {showExtras ? 'Hide Extras' : 'Add Extras'}
+                                    </button>
+                                )}
                             </div>
                         )}
 
-                        {(canAddExtras || !isEditing) && (
+                        {!isEditing && (
                             <div>
                                 <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-green hover:text-black">
                                     {showExtras ? 'Hide Extras' : 'Add Extras'}
                                 </button>
+                            </div>
+                        )}
 
-                                {showExtras && (
-                                    <div className="flex gap-2 items-end mt-2">
-                                        <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
-                                            <option value="">Select an extra...</option>
-                                            {extras.map(extra => (
-                                                <option key={extra.id} value={extra.id}>
-                                                    {extra.name} (${extra.price.toFixed(2)}{extra.billingType === 'PER_NIGHT' ? '/night' : ''})
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
-                                        <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
-                                    </div>
-                                )}
+                        {(canAddExtras || !isEditing) && showExtras && (
+                            <div className="flex flex-col gap-2">
+                                <div className="flex gap-2 items-end">
+                                    <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
+                                        <option value="">Select an extra...</option>
+                                        {extras.map(extra => (
+                                            <option key={extra.id} value={extra.id}>
+                                                {extra.name} (${extra.price.toFixed(2)}{extra.billingType === 'PER_NIGHT' ? '/night' : ''})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
+                                    <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                                </div>
 
-                                {canAddExtras && extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
+                                {canAddExtras && extraMessage && <p className="text-sm text-muted">{extraMessage}</p>}
 
                                 {!canAddExtras && stagedExtras.length > 0 && (
-                                    <ul className="flex flex-col gap-1 mt-2">
+                                    <ul className="flex flex-col gap-1">
                                         {stagedExtras.map((item, i) => (
                                             <li key={i} className="flex justify-between items-center text-sm text-black">
                                                 <span>
