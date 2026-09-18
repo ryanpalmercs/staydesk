@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react"
-import { moveRoom } from "../api/reservationApi"
+import { assignRoom, moveRoom } from "../api/reservationApi"
 import { getAvailableRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import { todayStr } from "./DateNavHeader"
 import Modal from "./Modal"
 
-// Relocates an already-CHECKED_IN guest to a different physical room - same type or a different
-// one (e.g. a flooded room forcing a move to whatever's actually available). Room type defaults
-// to the reservation's current type but can be changed to see rooms of any other type.
+// Relocates a guest to a different physical room - same type or a different one (e.g. a flooded
+// room forcing a move to whatever's actually available). Room type defaults to the reservation's
+// current type but can be changed to see rooms of any other type. Works for a CHECKED_IN guest
+// (moveRoom - swaps the door passcode too) or a CONFIRMED reservation with a room already
+// pre-assigned (assignRoom - no passcode involved yet).
 function MoveRoomModal({ reservation, onSaved, onClose }) {
     const [roomTypes, setRoomTypes] = useState([])
     const [roomTypeId, setRoomTypeId] = useState(reservation.roomTypeId)
@@ -33,7 +35,8 @@ function MoveRoomModal({ reservation, onSaved, onClose }) {
         setSubmitting(true)
 
         try {
-            const res = await moveRoom(reservation.id, Number(roomId))
+            const action = reservation.status === 'CHECKED_IN' ? moveRoom : assignRoom
+            const res = await action(reservation.id, Number(roomId))
             onSaved(res.data)
         } catch (err) {
             setError(err.response?.status === 409 ? 'That room is no longer available.' : 'Failed to move room.')
