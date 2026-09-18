@@ -29,4 +29,8 @@ public interface EmployeeRepository extends ListCrudRepository<Employee, UUID> {
     @Modifying
     @Query("UPDATE employees SET active = true WHERE id = :id")
     void activate(@Param("id") UUID id);
+
+    @Modifying
+    @Query("UPDATE employees SET last_seen_app_version = :version WHERE id = :id")
+    void updateLastSeenAppVersion(@Param("id") UUID id, @Param("version") String version);
 }

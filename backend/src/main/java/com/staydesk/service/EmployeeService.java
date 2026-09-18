@@ -81,13 +81,13 @@ public class EmployeeService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        jdbcAggregateTemplate.insert(new Account(supabaseId, Account.AccountKind.EMPLOYEE, null, true, now, now));
+        jdbcAggregateTemplate.insert(new Account(supabaseId, Account.AccountKind.EMPLOYEE, null, true, now, now, null));
 
         Employee saved = jdbcAggregateTemplate.insert(new Employee(supabaseId, new EncryptedString(createEmployeeRequest.firstName()),
                 new EncryptedString(createEmployeeRequest.lastName()), new EncryptedString(createEmployeeRequest.email()), emailHash,
                 createEmployeeRequest.username(), createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(),
                 createEmployeeRequest.hireDate(), true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(),
-                createEmployeeRequest.grantDoorAccess(), now, now));
+                createEmployeeRequest.grantDoorAccess(), now, now, null));
 
         if (createEmployeeRequest.grantDoorAccess()) {
             staffDoorAccessService.grantAccess(saved, createEmployeeRequest.pin());
@@ -147,7 +147,7 @@ public class EmployeeService {
         Employee updated = new Employee(existing.id(), new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                 existing.email(), existing.emailHash(), existing.username(), existing.employeeTypeId(), request.payRate(),
                 request.hireDate(), existing.active(), request.contactInfo(), request.payRateType(),
-                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now());
+                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now(), existing.lastSeenAppVersion());
 
         employeeRepository.save(updated);
     }

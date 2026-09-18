@@ -8,7 +8,7 @@ import java.util.UUID;
 
 @Table("accounts")
 public record Account(@Id UUID id, AccountKind kind, String displayName, boolean active,
-                      LocalDateTime createdAt, LocalDateTime updatedAt) {
+                      LocalDateTime createdAt, LocalDateTime updatedAt, String lastSeenAppVersion) {
 
     public enum AccountKind {
         EMPLOYEE, SYSTEM_ADMIN
