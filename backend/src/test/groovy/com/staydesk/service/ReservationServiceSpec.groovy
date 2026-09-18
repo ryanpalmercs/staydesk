@@ -1570,16 +1570,35 @@ class ReservationServiceSpec extends Specification {
         def updated = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
 
         reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(updated)]
+        roomRepository.findById(5) >> Optional.of(room)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
 
         when:
         def result = reservationService.assignRoom(1, 5)
 
         then:
-        1 * reservationRepository.assignRoom(1, 5)
+        1 * reservationRepository.moveRoom(1, 5, 2)
         result.status() == Reservation.ReservationStatus.CONFIRMED
         0 * paymentService.chargeFullStay(*_)
         0 * lockPasscodeService.issuePasscode(*_)
+    }
+
+    def "assignRoom moves a CONFIRMED reservation to a room of a different type, e.g. when the room type is changed on edit"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def newRoom = new Room(6, 202, 4, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def updated = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+
+        reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(updated)]
+        roomRepository.findById(6) >> Optional.of(newRoom)
+        roomRepository.findAvailableOfType(4, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [newRoom]
+
+        when:
+        reservationService.assignRoom(1, 6)
+
+        then:
+        // room_type_id follows the new room's actual type (4), not the reservation's old type (2)
+        1 * reservationRepository.moveRoom(1, 6, 4)
     }
 
     def "assignRoom throws InvalidReservationException when the reservation isn't CONFIRMED"() {
@@ -1592,13 +1611,15 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(InvalidReservationException)
-        0 * reservationRepository.assignRoom(*_)
+        0 * reservationRepository.moveRoom(*_)
     }
 
     def "assignRoom throws NoRoomAvailableException when the requested room isn't available for the stay"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def room = availableRoom()
         reservationRepository.findById(1) >> Optional.of(res)
+        roomRepository.findById(5) >> Optional.of(room)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> []
 
         when:
@@ -1606,7 +1627,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(NoRoomAvailableException)
-        0 * reservationRepository.assignRoom(*_)
+        0 * reservationRepository.moveRoom(*_)
     }
 
     def "assignRoom throws ReservationNotFoundException when the reservation doesn't exist"() {

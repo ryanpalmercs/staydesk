@@ -402,12 +402,12 @@ public class ReservationService {
     /**
      * Lets staff assign a specific room to a CONFIRMED reservation ahead of check-in (e.g. a phone
      * or future-dated walk-in booking), without any of check-in's side effects - no charge, no
-     * incidentals hold, no lock passcode. Re-assignable: calling this again with a different room
-     * simply moves the assignment, and the previous room becomes available again immediately since
-     * only this reservation's row held it.
+     * incidentals hold, no lock passcode. Re-assignable, and the room doesn't have to match the
+     * reservation's current room type - editing a booking to a different type re-points roomTypeId
+     * at whichever room actually gets picked, same as moveRoom does for a CHECKED_IN guest.
      */
     @Transactional
-    public Reservation assignRoom(int id, int roomId) {
+    public Reservation assignRoom(int id, int newRoomId) {
         Reservation reservation = reservationRepository.findById(id)
                                                        .orElseThrow(ReservationNotFoundException::new);
 
@@ -415,13 +415,17 @@ public class ReservationService {
             throw new InvalidReservationException();
         }
 
-        Room room = roomRepository.findAvailableOfType(reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
-                                  .stream()
-                                  .filter(r -> r.id() == roomId)
-                                  .findFirst()
-                                  .orElseThrow(NoRoomAvailableException::new);
+        Room newRoom = roomRepository.findById(newRoomId).orElseThrow(RoomNotFoundException::new);
 
-        reservationRepository.assignRoom(id, room.id());
+        boolean available = roomRepository.findAvailableOfType(newRoom.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id)
+                                          .stream()
+                                          .anyMatch(r -> r.id() == newRoom.id());
+
+        if (!available) {
+            throw new NoRoomAvailableException();
+        }
+
+        reservationRepository.moveRoom(id, newRoom.id(), newRoom.roomTypeId());
 
         return reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
     }
