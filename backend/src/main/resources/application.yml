@@ -43,6 +43,9 @@ app:
   base-url: ${APP_BASE_URL}
   frontend-url: ${APP_FRONTEND_URL}
   allowed-origins: ${ALLOWED_ORIGINS:https://localhost:5174}
+  # Render sets RENDER_GIT_COMMIT automatically on every deploy, so this tracks the deployed
+  # commit with no manual upkeep. Falls back to "local" outside Render.
+  version: ${RENDER_GIT_COMMIT:local}
 
 twilio:
   account-sid: ${TWILIO_ACCOUNT_SID}

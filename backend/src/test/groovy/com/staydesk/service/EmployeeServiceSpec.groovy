@@ -42,7 +42,7 @@ class EmployeeServiceSpec extends Specification {
     private static Employee existingEmployee() {
         new Employee(UUID.randomUUID(), new EncryptedString("Existing"), new EncryptedString("Employee"),
                 new EncryptedString("existing@staydesk.com"), "existing-hash", "existing", 1, BigDecimal.TEN,
-                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now())
+                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), null)
     }
 
     def "throws EmployeeAlreadyExistsException when the username is already taken"() {
