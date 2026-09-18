@@ -6,11 +6,12 @@ import 'react-date-range/dist/styles.css'
 import 'react-date-range/dist/theme/default.css'
 import './ReservationDatePicker.css'
 
-function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeSelected, excludeReservationId }) {
+function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeSelected, excludeReservationId, onLeftInsetChange }) {
     const [disabledDates, setDisabledDates] = useState([])
     const [months, setMonths] = useState(window.innerWidth < 768 ? 1 : 2)
     const [focusedRange, setFocusedRange] = useState([0, 0])
     const containerRef = useRef(null)
+    const calendarRef = useRef(null)
 
     useEffect(() => {
         if (!roomTypeId) {
@@ -34,6 +35,22 @@ function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeS
         return () => observer.disconnect()
     }, [])
 
+    useEffect(() => {
+        if (!onLeftInsetChange || !containerRef.current || !calendarRef.current) {
+            return
+        }
+
+        const measure = () => {
+            const inset = calendarRef.current.getBoundingClientRect().left - containerRef.current.getBoundingClientRect().left
+            onLeftInsetChange(inset)
+        }
+
+        measure()
+        const observer = new ResizeObserver(measure)
+        observer.observe(containerRef.current)
+        return () => observer.disconnect()
+    }, [months, onLeftInsetChange])
+
     const selection = {
         startDate: checkInDate ? parseISO(checkInDate) : new Date(),
         endDate: checkOutDate ? parseISO(checkOutDate) : new Date(),
@@ -50,17 +67,19 @@ function ReservationDatePicker({ roomTypeId, checkInDate, checkOutDate, onRangeS
 
     return (
         <div ref={containerRef} className="flex justify-center">
-            <DateRange
-                ranges={[selection]}
-                onChange={handleChange}
-                focusedRange={focusedRange}
-                onRangeFocusChange={setFocusedRange}
-                months={months}
-                direction={months === 1 ? 'vertical' : 'horizontal'}
-                minDate={new Date()}
-                disabledDates={disabledDates}
-                rangeColors={['#334428']}
-            />
+            <div ref={calendarRef}>
+                <DateRange
+                    ranges={[selection]}
+                    onChange={handleChange}
+                    focusedRange={focusedRange}
+                    onRangeFocusChange={setFocusedRange}
+                    months={months}
+                    direction={months === 1 ? 'vertical' : 'horizontal'}
+                    minDate={new Date()}
+                    disabledDates={disabledDates}
+                    rangeColors={['#334428']}
+                />
+            </div>
         </div>
     )
 }
