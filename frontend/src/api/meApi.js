@@ -4,6 +4,6 @@ export function getCurrentUser() {
     return api.get('/me')
 }
 
-export function acknowledgeVersion() {
-    return api.post('/me/acknowledge-version')
+export function acknowledgeVersion(releaseNotesId) {
+    return api.post('/me/acknowledge-version', { releaseNotesId })
 }
