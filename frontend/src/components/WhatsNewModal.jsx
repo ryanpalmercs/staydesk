@@ -7,19 +7,26 @@ function WhatsNewModal({ entries, onAcknowledge }) {
             <h2 className="text-lg text-black font-semibold mb-4">What's New</h2>
 
             <div className="flex flex-col gap-4 mb-6">
-                {entries.map(entry => (
-                    <div key={entry.id}>
-                        <p className="text-sm text-muted mb-1">
-                            {entry.version && <span className="font-medium">{entry.version} — </span>}
-                            {format(parseISO(entry.date), 'MMM d, yyyy')}
-                        </p>
-                        <ul className="flex flex-col gap-2 list-disc pl-5">
-                            {entry.notes.map((note, i) => (
-                                <li key={i} className="text-sm text-black">{note}</li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
+                {entries.map((entry, index) => {
+                    // Only the newest entry can safely fall back to the currently-built tag -
+                    // __APP_TAG__ reflects this build alone, not whatever was live when an older,
+                    // also-being-shown entry originally shipped.
+                    const version = entry.version ?? (index === 0 ? __APP_TAG__ : null)
+
+                    return (
+                        <div key={entry.id}>
+                            <p className="text-sm text-muted mb-1">
+                                {version && <span className="font-medium">{version} — </span>}
+                                {format(parseISO(entry.date), 'MMM d, yyyy')}
+                            </p>
+                            <ul className="flex flex-col gap-2 list-disc pl-5">
+                                {entry.notes.map((note, i) => (
+                                    <li key={i} className="text-sm text-black">{note}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )
+                })}
             </div>
 
             <div className="flex justify-end">
