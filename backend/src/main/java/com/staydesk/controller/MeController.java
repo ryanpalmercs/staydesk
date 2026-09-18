@@ -1,12 +1,14 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.dto.CurrentUserResponse;
+import com.staydesk.model.request.AcknowledgeVersionRequest;
 import com.staydesk.service.CurrentUserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -26,8 +28,8 @@ public class MeController {
     }
 
     @PostMapping("/me/acknowledge-version")
-    public ResponseEntity<Void> acknowledgeVersion(@AuthenticationPrincipal Jwt jwt) {
-        currentUserService.acknowledgeVersion(UUID.fromString(jwt.getSubject()));
+    public ResponseEntity<Void> acknowledgeVersion(@AuthenticationPrincipal Jwt jwt, @RequestBody AcknowledgeVersionRequest request) {
+        currentUserService.acknowledgeVersion(UUID.fromString(jwt.getSubject()), request.releaseNotesId());
         return ResponseEntity.noContent().build();
     }
 }

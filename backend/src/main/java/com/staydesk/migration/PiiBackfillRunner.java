@@ -142,7 +142,7 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 rs.getBoolean("door_access_enabled"),
                 toLocalDateTime(rs.getTimestamp("created_at")),
                 toLocalDateTime(rs.getTimestamp("updated_at")),
-                rs.getString("last_seen_app_version")
+                (Integer) rs.getObject("last_seen_release_notes_id")
         );
     }
 

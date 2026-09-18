@@ -147,7 +147,7 @@ public class EmployeeService {
         Employee updated = new Employee(existing.id(), new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                 existing.email(), existing.emailHash(), existing.username(), existing.employeeTypeId(), request.payRate(),
                 request.hireDate(), existing.active(), request.contactInfo(), request.payRateType(),
-                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now(), existing.lastSeenAppVersion());
+                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now(), existing.lastSeenReleaseNotesId());
 
         employeeRepository.save(updated);
     }

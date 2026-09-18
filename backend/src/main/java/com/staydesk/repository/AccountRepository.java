@@ -10,6 +10,6 @@ import java.util.UUID;
 
 public interface AccountRepository extends ListCrudRepository<Account, UUID> {
     @Modifying
-    @Query("UPDATE accounts SET last_seen_app_version = :version WHERE id = :id")
-    void updateLastSeenAppVersion(@Param("id") UUID id, @Param("version") String version);
+    @Query("UPDATE accounts SET last_seen_release_notes_id = :releaseNotesId WHERE id = :id")
+    void updateLastSeenReleaseNotesId(@Param("id") UUID id, @Param("releaseNotesId") Integer releaseNotesId);
 }

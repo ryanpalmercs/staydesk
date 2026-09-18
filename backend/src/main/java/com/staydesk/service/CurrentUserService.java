@@ -32,23 +32,23 @@ public class CurrentUserService {
     public CurrentUserResponse getCurrentUser(UUID id) {
         Optional<Employee> employee = employeeRepository.findById(id);
         if (employee.isPresent()) {
-            return new CurrentUserResponse(id, employee.get().name(), employee.get().lastSeenAppVersion(), appVersion);
+            return new CurrentUserResponse(id, employee.get().name(), employee.get().lastSeenReleaseNotesId(), appVersion);
         }
 
         Account account = accountRepository.findById(id)
                                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No employee or account for this user"));
 
-        return new CurrentUserResponse(id, account.displayName(), account.lastSeenAppVersion(), appVersion);
+        return new CurrentUserResponse(id, account.displayName(), account.lastSeenReleaseNotesId(), appVersion);
     }
 
-    public void acknowledgeVersion(UUID id) {
+    public void acknowledgeVersion(UUID id, Integer releaseNotesId) {
         if (employeeRepository.existsById(id)) {
-            employeeRepository.updateLastSeenAppVersion(id, appVersion);
+            employeeRepository.updateLastSeenReleaseNotesId(id, releaseNotesId);
             return;
         }
 
         if (accountRepository.existsById(id)) {
-            accountRepository.updateLastSeenAppVersion(id, appVersion);
+            accountRepository.updateLastSeenReleaseNotesId(id, releaseNotesId);
             return;
         }
 
