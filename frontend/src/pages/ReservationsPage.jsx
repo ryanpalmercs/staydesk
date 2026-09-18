@@ -15,6 +15,7 @@ import DeleteReservationModal from "../components/DeleteReservationModal"
 import ConfirmDialog from "../components/ConfirmDialog"
 import ExtendStayModal from "../components/ExtendStayModal"
 import AssignRoomModal from "../components/AssignRoomModal"
+import MoveRoomModal from "../components/MoveRoomModal"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -38,6 +39,7 @@ function ReservationsPage() {
     const [cancelTarget, setCancelTarget] = useState(null)
     const [extendTarget, setExtendTarget] = useState(null)
     const [assignRoomTarget, setAssignRoomTarget] = useState(null)
+    const [moveRoomTarget, setMoveRoomTarget] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -293,6 +295,9 @@ function ReservationsPage() {
                                     {res.status === 'CHECKED_IN' && (
                                         <button onClick={() => setExtendTarget(res)} className="text-sm font-medium text-muted hover:text-green">Extend Stay</button>
                                     )}
+                                    {res.status === 'CHECKED_IN' && (
+                                        <button onClick={() => setMoveRoomTarget(res)} className="text-sm font-medium text-muted hover:text-green">Move Room</button>
+                                    )}
                                     {res.status === 'CHECKED_IN' && canViewDoorCode && (
                                         <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-muted hover:text-green">Door Code</button>
                                     )}
@@ -344,6 +349,14 @@ function ReservationsPage() {
                     reservationId={assignRoomTarget.id}
                     onSaved={() => { setAssignRoomTarget(null); fetchReservations() }}
                     onClose={() => setAssignRoomTarget(null)}
+                />
+            )}
+
+            {moveRoomTarget != null && (
+                <MoveRoomModal
+                    reservation={moveRoomTarget}
+                    onSaved={() => { setMoveRoomTarget(null); fetchReservations() }}
+                    onClose={() => setMoveRoomTarget(null)}
                 />
             )}
 

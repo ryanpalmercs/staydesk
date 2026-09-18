@@ -51,6 +51,13 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("UPDATE reservations SET room_id = :roomId WHERE id = :id")
     void assignRoom(@Param("id") Integer id, @Param("roomId") Integer roomId);
 
+    // Also updates room_type_id, not just room_id - moving a CHECKED_IN guest to a room of a
+    // different type has to keep the reservation's own room type in sync, since room-type
+    // capacity/occupancy math (countOverlappingByRoomType et al.) keys off it, not room_id.
+    @Modifying
+    @Query("UPDATE reservations SET room_id = :roomId, room_type_id = :roomTypeId WHERE id = :id")
+    void moveRoom(@Param("id") Integer id, @Param("roomId") Integer roomId, @Param("roomTypeId") Integer roomTypeId);
+
     @Modifying
     @Query("UPDATE reservations SET status = 'CHECKED_IN', checked_in_at = now() WHERE id = :id")
     void updateReservationStatusToCheckedIn(@Param("id") Integer id);

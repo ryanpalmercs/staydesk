@@ -18,6 +18,7 @@ import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
 import ExtendStayModal from '../components/ExtendStayModal'
 import AssignRoomModal from '../components/AssignRoomModal'
+import MoveRoomModal from '../components/MoveRoomModal'
 import CheckingInTodayModal from '../components/CheckingInTodayModal'
 import CheckingOutTodayModal from '../components/CheckingOutTodayModal'
 import OccupancyModal from '../components/OccupancyModal'
@@ -42,6 +43,7 @@ function DashboardPage() {
     const [folioId, setFolioId] = useState(null)
     const [extendTarget, setExtendTarget] = useState(null)
     const [assignRoomTarget, setAssignRoomTarget] = useState(null)
+    const [moveRoomTarget, setMoveRoomTarget] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
     const [showCheckingInModal, setShowCheckingInModal] = useState(false)
     const [showCheckingOutModal, setShowCheckingOutModal] = useState(false)
@@ -246,6 +248,10 @@ function DashboardPage() {
                         setAssignRoomTarget(reservations.find(r => r.id === selectedEvent.reservationId))
                         setSelectedEvent(null)
                     }}
+                    onMoveRoom={() => {
+                        setMoveRoomTarget(reservations.find(r => r.id === selectedEvent.reservationId))
+                        setSelectedEvent(null)
+                    }}
                 />
             )}
 
@@ -265,6 +271,14 @@ function DashboardPage() {
                     reservationId={assignRoomTarget.id}
                     onSaved={() => { setAssignRoomTarget(null); fetchData() }}
                     onClose={() => setAssignRoomTarget(null)}
+                />
+            )}
+
+            {moveRoomTarget != null && (
+                <MoveRoomModal
+                    reservation={moveRoomTarget}
+                    onSaved={() => { setMoveRoomTarget(null); fetchData() }}
+                    onClose={() => setMoveRoomTarget(null)}
                 />
             )}
 
