@@ -1479,6 +1479,72 @@ class ReservationServiceSpec extends Specification {
         result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 
+    def "estimateTotal sums exactly to a WEEKLY_7 rate that doesn't divide evenly, over exactly 7 nights"() {
+        // 362.70 / 7 = 51.8142857... - rounding that per-night amount to 51.81 and multiplying by
+        // 7 undershoots the flat rate by 3 cents (362.67). Cumulative rounding must land exactly
+        // on the stated rate for a stay of exactly the tier's length.
+        given:
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_7, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(362.70)) == 0
+    }
+
+    def "estimateTotal distributes a WEEKLY_7 rate's rounding across an 11-night stay without losing pennies"() {
+        given:
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_7, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 12), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(569.96)) == 0
+    }
+
+    def "estimateTotal sums exactly to a WEEKLY_5 rate that doesn't divide evenly, over exactly 5 nights"() {
+        // 272.13 / 5 = 54.426 - rounding that per-night amount to 54.43 and multiplying by 5
+        // overshoots the flat rate by 2 cents (272.15). Same class of bug as WEEKLY_7, opposite
+        // rounding direction - cumulative rounding must still land exactly on the stated rate.
+        given:
+        def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(272.13), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_5, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 6), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(272.13)) == 0
+    }
+
+    def "estimateTotal distributes a WEEKLY_5 rate's rounding across a 6-night stay without losing pennies"() {
+        given:
+        def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(272.13), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        when:
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_5, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7), null)
+
+        then:
+        result.subtotal().compareTo(BigDecimal.valueOf(326.56)) == 0
+    }
+
     def "estimateTotalWithExtras adds the priced extras to the room subtotal"() {
         given:
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
@@ -1504,16 +1570,35 @@ class ReservationServiceSpec extends Specification {
         def updated = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
 
         reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(updated)]
+        roomRepository.findById(5) >> Optional.of(room)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
 
         when:
         def result = reservationService.assignRoom(1, 5)
 
         then:
-        1 * reservationRepository.assignRoom(1, 5)
+        1 * reservationRepository.moveRoom(1, 5, 2)
         result.status() == Reservation.ReservationStatus.CONFIRMED
         0 * paymentService.chargeFullStay(*_)
         0 * lockPasscodeService.issuePasscode(*_)
+    }
+
+    def "assignRoom moves a CONFIRMED reservation to a room of a different type, e.g. when the room type is changed on edit"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def newRoom = new Room(6, 202, 4, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def updated = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+
+        reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(updated)]
+        roomRepository.findById(6) >> Optional.of(newRoom)
+        roomRepository.findAvailableOfType(4, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [newRoom]
+
+        when:
+        reservationService.assignRoom(1, 6)
+
+        then:
+        // room_type_id follows the new room's actual type (4), not the reservation's old type (2)
+        1 * reservationRepository.moveRoom(1, 6, 4)
     }
 
     def "assignRoom throws InvalidReservationException when the reservation isn't CONFIRMED"() {
@@ -1526,13 +1611,15 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(InvalidReservationException)
-        0 * reservationRepository.assignRoom(*_)
+        0 * reservationRepository.moveRoom(*_)
     }
 
     def "assignRoom throws NoRoomAvailableException when the requested room isn't available for the stay"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def room = availableRoom()
         reservationRepository.findById(1) >> Optional.of(res)
+        roomRepository.findById(5) >> Optional.of(room)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> []
 
         when:
@@ -1540,7 +1627,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(NoRoomAvailableException)
-        0 * reservationRepository.assignRoom(*_)
+        0 * reservationRepository.moveRoom(*_)
     }
 
     def "assignRoom throws ReservationNotFoundException when the reservation doesn't exist"() {
@@ -1549,6 +1636,102 @@ class ReservationServiceSpec extends Specification {
 
         when:
         reservationService.assignRoom(99, 5)
+
+        then:
+        thrown(ReservationNotFoundException)
+    }
+
+    def "moveRoom relocates a CHECKED_IN guest to a new room of the same type, revoking the old passcode and issuing a new one"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def newRoom = availableRoom()
+        def moved = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+
+        reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(moved)]
+        roomRepository.findById(5) >> Optional.of(newRoom)
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), _, 1) >> [newRoom]
+        guestRepository.findById(7) >> Optional.empty()
+        lockPasscodeService.issuePasscode(moved, newRoom) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
+
+        when:
+        def result = reservationService.moveRoom(1, 5)
+
+        then:
+        1 * lockPasscodeService.revokePasscodes(1)
+        1 * reservationRepository.moveRoom(1, 5, 2)
+        result.status() == Reservation.ReservationStatus.CHECKED_IN
+    }
+
+    def "moveRoom updates the reservation's room type to match the new room when moving across types"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def newRoom = new Room(6, 202, 4, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def moved = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+
+        reservationRepository.findById(1) >>> [Optional.of(res), Optional.of(moved)]
+        roomRepository.findById(6) >> Optional.of(newRoom)
+        roomRepository.findAvailableOfType(4, LocalDate.of(2026, 7, 13), _, 1) >> [newRoom]
+        guestRepository.findById(7) >> Optional.empty()
+        lockPasscodeService.issuePasscode(moved, newRoom) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
+
+        when:
+        reservationService.moveRoom(1, 6)
+
+        then:
+        // room_type_id follows the new room's actual type (4), not the reservation's old type (2)
+        1 * reservationRepository.moveRoom(1, 6, 4)
+    }
+
+    def "moveRoom throws InvalidReservationException when the reservation isn't CHECKED_IN"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.moveRoom(1, 5)
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.moveRoom(*_)
+    }
+
+    def "moveRoom throws InvalidReservationException when moving to the room the guest is already in"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        reservationRepository.findById(1) >> Optional.of(res)
+
+        when:
+        reservationService.moveRoom(1, 3)
+
+        then:
+        thrown(InvalidReservationException)
+        0 * reservationRepository.moveRoom(*_)
+    }
+
+    def "moveRoom throws NoRoomAvailableException when the target room isn't actually available"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def newRoom = availableRoom()
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        roomRepository.findById(5) >> Optional.of(newRoom)
+        roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), _, 1) >> []
+
+        when:
+        reservationService.moveRoom(1, 5)
+
+        then:
+        thrown(NoRoomAvailableException)
+        0 * lockPasscodeService.revokePasscodes(_)
+        0 * reservationRepository.moveRoom(*_)
+    }
+
+    def "moveRoom throws ReservationNotFoundException when the reservation doesn't exist"() {
+        given:
+        reservationRepository.findById(99) >> Optional.empty()
+
+        when:
+        reservationService.moveRoom(99, 5)
 
         then:
         thrown(ReservationNotFoundException)
