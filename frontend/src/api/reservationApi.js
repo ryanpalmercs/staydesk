@@ -28,6 +28,10 @@ export function assignRoom(id, roomId) {
     return api.put(`/reservations/${id}/room`, { roomId })
 }
 
+export function moveRoom(id, roomId) {
+    return api.put(`/reservations/${id}/move-room`, { roomId })
+}
+
 export function checkIn(id, roomId, incidentalsPaymentMethodId, roomPaymentMethodId) {
     return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId, roomPaymentMethodId })
 }

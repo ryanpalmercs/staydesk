@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useRef } from 'react'
+import WhatsNewGate from './WhatsNewGate'
 
 export default function ProtectedRoute({ allowedRoles }) {
     const { session, loading, role } = useAuth()
@@ -21,6 +22,11 @@ export default function ProtectedRoute({ allowedRoles }) {
     if (allowedRoles && !allowedRoles.includes(role)) {
         return <Navigate to="/" replace />
     }
-    
-    return <Outlet />
+
+    return (
+        <>
+            <WhatsNewGate />
+            <Outlet />
+        </>
+    )
 }
