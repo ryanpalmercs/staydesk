@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 2,
+        title: "What's New",
+        version: 'v1.4.2',
+        date: '2026-09-19',
+        notes: [
+            'Guests with a legacy weekly rate are now billed correctly across the whole stay, instead of being charged the full weekly rate every night.'
+        ]
+    },
+    {
         id: 1,
         title: "What's New",
         version: 'v1.4.1',
