@@ -122,7 +122,7 @@ function GuestProfilePage() {
                 {guest.legacyPricing && (
                     <div>
                         <span className="block text-sm text-muted mb-1">Legacy Price</span>
-                        <p className="text-sm text-black">{displayPrice(guest.legacyPricingAmount)}</p>
+                        <p className="text-sm text-black">{displayPrice(guest.legacyPricingAmount)} {legacyRateTypeLabel(guest.legacyRateType)}</p>
                     </div>
                 )}
             </div>
@@ -204,6 +204,14 @@ function GuestProfilePage() {
             )}
         </div>
     )
+}
+
+function legacyRateTypeLabel(legacyRateType) {
+    switch (legacyRateType) {
+        case 'WEEKLY_5': return '/ 5 nights'
+        case 'WEEKLY_7': return '/ 7 nights'
+        default: return '/ night'
+    }
 }
 
 export default GuestProfilePage

@@ -15,8 +15,8 @@ public record Guest(@Id int id, EncryptedString firstName, EncryptedString lastN
                     @JsonIgnore @Nullable String emailHash, EncryptedString phoneNumber, boolean smsConsent,
                     boolean flagged, @Nullable String flagReason, @Nullable LocalDateTime flaggedDate,
                     @Nullable UUID flaggedBy, boolean legalHold, boolean legacyPricing,
-                    @Nullable BigDecimal legacyPricingAmount, boolean regularGuest, GuestType guestType,
-                    LocalDateTime createdAt, LocalDateTime updatedAt) {
+                    @Nullable BigDecimal legacyPricingAmount, Rate.RateType legacyRateType, boolean regularGuest,
+                    GuestType guestType, LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum GuestType {
         INDIVIDUAL, BUSINESS

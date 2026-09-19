@@ -53,7 +53,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -129,20 +128,23 @@ public class ReservationService {
      * A guest with legacy pricing enabled has their flat override amount substituted for the
      * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
      * any date-range rate_overrides row (legacy guests are grandfathered off seasonal pricing
-     * entirely). Otherwise, a Regular Guest always pays the tier's base per-night amount, skipping
-     * seasonal pricing entirely. For everyone else, an active rate_overrides row covering this date
-     * wins over the tier's base per-night amount - surge/seasonal pricing overrides the long-stay
+     * entirely). The override amount is itself tiered by the guest's own legacyRateType - a
+     * WEEKLY_5/WEEKLY_7 legacy amount is a flat total for that period and gets split across nights
+     * the same way a current WEEKLY_5/WEEKLY_7 rate does, not charged in full every night.
+     * Otherwise, a Regular Guest always pays the tier's base per-night amount, skipping seasonal
+     * pricing entirely. For everyone else, an active rate_overrides row covering this date wins
+     * over the tier's base per-night amount - surge/seasonal pricing overrides the long-stay
      * discount, not the other way around.
      */
     private BigDecimal resolveNightlyRateAmount(Integer guestId, Rate rate, LocalDate nightDate, long nightIndex) {
         Optional<Guest> guest = guestId == null ? Optional.empty() : guestRepository.findById(guestId);
 
-        Optional<BigDecimal> legacyAmount = guest.filter(Guest::legacyPricing)
-                                                  .map(Guest::legacyPricingAmount)
-                                                  .filter(Objects::nonNull);
+        Optional<Guest> legacyGuest = guest.filter(Guest::legacyPricing)
+                                           .filter(g -> g.legacyPricingAmount() != null);
 
-        if (legacyAmount.isPresent()) {
-            return legacyAmount.get();
+        if (legacyGuest.isPresent()) {
+            Guest g = legacyGuest.get();
+            return tieredAmount(g.legacyPricingAmount(), g.legacyRateType(), nightIndex);
         }
 
         BigDecimal tieredAmount = tieredNightlyAmount(rate, nightIndex);
@@ -165,20 +167,24 @@ public class ReservationService {
      * stated rate for an exact 7-night stay.
      */
     private BigDecimal tieredNightlyAmount(Rate rate, long nightIndex) {
-        int tierSize = switch (Rate.RateType.valueOf(rate.rateType())) {
+        return tieredAmount(rate.amount(), Rate.RateType.valueOf(rate.rateType()), nightIndex);
+    }
+
+    private BigDecimal tieredAmount(BigDecimal amount, Rate.RateType rateType, long nightIndex) {
+        int tierSize = switch (rateType) {
             case NIGHTLY -> 0;
             case WEEKLY_5 -> 5;
             case WEEKLY_7 -> 7;
         };
 
         if (tierSize == 0) {
-            return rate.amount();
+            return amount;
         }
 
-        BigDecimal cumulativeThroughThisNight = rate.amount().multiply(BigDecimal.valueOf(nightIndex + 1))
+        BigDecimal cumulativeThroughThisNight = amount.multiply(BigDecimal.valueOf(nightIndex + 1))
+                                                       .divide(BigDecimal.valueOf(tierSize), 2, RoundingMode.HALF_UP);
+        BigDecimal cumulativeBeforeThisNight = amount.multiply(BigDecimal.valueOf(nightIndex))
                                                      .divide(BigDecimal.valueOf(tierSize), 2, RoundingMode.HALF_UP);
-        BigDecimal cumulativeBeforeThisNight = rate.amount().multiply(BigDecimal.valueOf(nightIndex))
-                                                   .divide(BigDecimal.valueOf(tierSize), 2, RoundingMode.HALF_UP);
 
         return cumulativeThroughThisNight.subtract(cumulativeBeforeThisNight);
     }
@@ -759,7 +765,8 @@ public class ReservationService {
 
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                     new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
-                    false, null, null, null, false, false, null, false, Guest.GuestType.INDIVIDUAL, createdAt, createdAt));
+                    false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
+                    createdAt, createdAt));
         });
     }
 
