@@ -5,6 +5,7 @@ import com.staydesk.model.ContactInfo;
 import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Employee;
 import com.staydesk.model.Guest;
+import com.staydesk.model.Rate;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.security.PiiCipher;
@@ -60,8 +61,8 @@ public class PiiBackfillRunner implements CommandLineRunner {
     private void backfillGuests() {
         List<Guest> plaintextGuests = jdbcTemplate.query("""
                 SELECT id, first_name, last_name, email, phone_number, flagged, flag_reason, flagged_date,
-                       flagged_by, legal_hold, legacy_pricing, legacy_pricing_amount, regular_guest, guest_type,
-                       created_at, updated_at
+                       flagged_by, legal_hold, legacy_pricing, legacy_pricing_amount, legacy_rate_type, regular_guest,
+                       guest_type, created_at, updated_at
                 FROM guests
                 """, this::mapPlaintextGuest);
 
@@ -93,6 +94,7 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 rs.getBoolean("legal_hold"),
                 rs.getBoolean("legacy_pricing"),
                 rs.getBigDecimal("legacy_pricing_amount"),
+                Rate.RateType.valueOf(rs.getString("legacy_rate_type")),
                 rs.getBoolean("regular_guest"),
                 Guest.GuestType.valueOf(rs.getString("guest_type")),
                 toLocalDateTime(rs.getTimestamp("created_at")),

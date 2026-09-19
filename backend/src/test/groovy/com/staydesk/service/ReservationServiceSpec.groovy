@@ -309,7 +309,8 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def savedGuest = new Guest(9, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
-                false, false, null, null, null, false, false, null, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                false, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
+                LocalDateTime.now(), LocalDateTime.now())
         def savedReservation = new Reservation(11, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
                 Reservation.ReservationStatus.CHECKED_IN, LocalDate.of(2026, 8, 21).atTime(15, 0), null,
                 Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
@@ -346,7 +347,8 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def existingGuest = new Guest(3, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("james@example.com"), "hashed-real-email", new EncryptedString("5551234567"),
-                true, false, null, null, null, false, false, null, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                true, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
+                LocalDateTime.now(), LocalDateTime.now())
 
         roomRepository.findById(5) >> Optional.of(room)
         piiCipher.hash("james@example.com") >> "hashed-real-email"
@@ -1220,16 +1222,16 @@ class ReservationServiceSpec extends Specification {
         result.roomChargeDue()
     }
 
-    private static Guest legacyPricedGuest(BigDecimal legacyAmount = BigDecimal.valueOf(50)) {
+    private static Guest legacyPricedGuest(BigDecimal legacyAmount = BigDecimal.valueOf(50), Rate.RateType legacyRateType = Rate.RateType.NIGHTLY) {
         new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
-                true, legacyAmount, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                true, legacyAmount, legacyRateType, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
     }
 
     private static Guest regularGuest() {
         new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
-                false, null, true, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                false, null, Rate.RateType.NIGHTLY, true, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
     }
 
     def "createReservation charges the guest's legacy price instead of the standard rate"() {
@@ -1256,6 +1258,33 @@ class ReservationServiceSpec extends Specification {
 
         then:
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1",
+                "james@example.com")
+    }
+
+    def "createReservation splits a WEEKLY_7 legacy price evenly across the stay instead of charging it per night"() {
+        given:
+        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_7, 1, Reservation.Channel.PHONE,
+                false, LocalDateTime.now(), LocalDateTime.now(), null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(322.70), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.of(legacyPricedGuest(BigDecimal.valueOf(322.70), Rate.RateType.WEEKLY_7))
+
+        when:
+        reservationService.createReservation(draft, "token-1", [])
+
+        then:
+        7 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(46.10)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(322.70)) == 0 }, _, "token-1",
                 "james@example.com")
     }
 
