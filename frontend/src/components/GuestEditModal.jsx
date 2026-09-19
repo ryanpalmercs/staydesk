@@ -15,6 +15,7 @@ function GuestEditModal({ guest = null, onSaved, onClose }) {
         smsConsent: guest?.smsConsent ?? false,
         legacyPricing: guest?.legacyPricing ?? false,
         legacyPricingAmount: guest?.legacyPricingAmount ?? '',
+        legacyRateType: guest?.legacyRateType ?? 'NIGHTLY',
         regularGuest: guest?.regularGuest ?? false,
         guestType: guest?.guestType ?? 'INDIVIDUAL'
     })
@@ -126,19 +127,34 @@ function GuestEditModal({ guest = null, onSaved, onClose }) {
                 </label>
 
                 {form.legacyPricing && (
-                    <div>
-                        <label className="block text-sm text-muted mb-1">Legacy Price</label>
-                        <input
-                            type="text"
-                            name="legacyPricingAmount"
-                            value={priceFocused ? form.legacyPricingAmount : displayPrice(form.legacyPricingAmount)}
-                            onChange={e => setForm({ ...form, legacyPricingAmount: sanitizePrice(e.target.value) })}
-                            onFocus={() => setPriceFocused(true)}
-                            onBlur={e => { setPriceFocused(false); setForm({ ...form, legacyPricingAmount: formatPrice(sanitizePrice(e.target.value)) }) }}
-                            className="filter-input"
-                            required
-                        />
+                    <div className="flex gap-2">
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Legacy Price</label>
+                            <input
+                                type="text"
+                                name="legacyPricingAmount"
+                                value={priceFocused ? form.legacyPricingAmount : displayPrice(form.legacyPricingAmount)}
+                                onChange={e => setForm({ ...form, legacyPricingAmount: sanitizePrice(e.target.value) })}
+                                onFocus={() => setPriceFocused(true)}
+                                onBlur={e => { setPriceFocused(false); setForm({ ...form, legacyPricingAmount: formatPrice(sanitizePrice(e.target.value)) }) }}
+                                className="filter-input"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-muted mb-1">Rate Type</label>
+                            <select name="legacyRateType" value={form.legacyRateType} onChange={handleChange} className="filter-input" required>
+                                <option value="NIGHTLY">Nightly</option>
+                                <option value="WEEKLY_5">Weekly (5-night)</option>
+                                <option value="WEEKLY_7">Weekly (7-night)</option>
+                            </select>
+                        </div>
                     </div>
+                )}
+                {form.legacyPricing && form.legacyRateType !== 'NIGHTLY' && (
+                    <p className="text-xs text-muted -mt-2">
+                        This is treated as a flat total for the {form.legacyRateType === 'WEEKLY_5' ? '5' : '7'}-night period and split evenly across the stay, not charged per night.
+                    </p>
                 )}
 
                 <label className="flex items-start gap-2 text-sm text-muted">
