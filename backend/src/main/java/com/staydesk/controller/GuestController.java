@@ -2,6 +2,7 @@ package com.staydesk.controller;
 
 import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Guest;
+import com.staydesk.model.Rate;
 import com.staydesk.model.request.CreateGuestRequest;
 import com.staydesk.model.request.FlagGuestRequest;
 import com.staydesk.model.request.UpdateGuestRequest;
@@ -64,7 +65,7 @@ public class GuestController {
     public ResponseEntity<Guest> createGuest(@Valid @RequestBody CreateGuestRequest request) {
         LOGGER.info("Creating guest");
 
-        if (!isLegacyPricingValid(request.legacyPricing(), request.legacyPricingAmount())) {
+        if (!isLegacyPricingValid(request.legacyPricing(), request.legacyPricingAmount(), request.legacyRateType())) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -82,7 +83,7 @@ public class GuestController {
         Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(),
-                request.regularGuest(), request.guestType(), now, now);
+                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -92,7 +93,7 @@ public class GuestController {
     public ResponseEntity<Guest> updateGuest(@PathVariable Integer id, @Valid @RequestBody UpdateGuestRequest request) {
         LOGGER.info("Updating guest {}", id);
 
-        if (!isLegacyPricingValid(request.legacyPricing(), request.legacyPricingAmount())) {
+        if (!isLegacyPricingValid(request.legacyPricing(), request.legacyPricingAmount(), request.legacyRateType())) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -109,8 +110,9 @@ public class GuestController {
         Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
-                existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(), request.regularGuest(),
-                request.guestType(), existing.createdAt(), LocalDateTime.now());
+                existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(),
+                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), existing.createdAt(),
+                LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
     }
@@ -119,8 +121,17 @@ public class GuestController {
         return email == null || email.isBlank() ? null : piiCipher.hash(email.strip().toLowerCase());
     }
 
-    private boolean isLegacyPricingValid(boolean legacyPricing, BigDecimal legacyPricingAmount) {
-        return !legacyPricing || (legacyPricingAmount != null && legacyPricingAmount.compareTo(BigDecimal.ZERO) > 0);
+    private boolean isLegacyPricingValid(boolean legacyPricing, BigDecimal legacyPricingAmount, Rate.RateType legacyRateType) {
+        return !legacyPricing || (legacyPricingAmount != null && legacyPricingAmount.compareTo(BigDecimal.ZERO) > 0
+                && legacyRateType != null);
+    }
+
+    /**
+     * legacyRateType is only meaningful while legacyPricing is on, so requests that leave it out
+     * (or guests without legacy pricing at all) fall back to NIGHTLY rather than storing a null.
+     */
+    private Rate.RateType defaultRateType(Rate.RateType legacyRateType) {
+        return legacyRateType == null ? Rate.RateType.NIGHTLY : legacyRateType;
     }
 
     /**
