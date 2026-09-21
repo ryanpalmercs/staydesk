@@ -354,6 +354,56 @@ function DashboardPage() {
                     }}
                 />
             )}
+
+            {showCheckingInModal && (
+                <CheckingInTodayModal
+                    reservations={reservations}
+                    guestsMap={guestsMap}
+                    roomLabel={roomLabel}
+                    onClose={() => setShowCheckingInModal(false)}
+                    onCheckIn={reservationId => {
+                        setShowCheckingInModal(false)
+                        setCheckInTarget(reservationId)
+                    }}
+                />
+            )}
+
+            {showCheckingOutModal && (
+                <CheckingOutTodayModal
+                    reservations={reservations}
+                    guestsMap={guestsMap}
+                    roomLabel={roomLabel}
+                    onClose={() => setShowCheckingOutModal(false)}
+                    onCheckOut={handleCheckOutFromModal}
+                    onExtend={reservationId => {
+                        setShowCheckingOutModal(false)
+                        setExtendTarget(reservations.find(r => r.id === reservationId))
+                    }}
+                />
+            )}
+
+            {showOccupancyModal && (
+                <OccupancyModal
+                    rooms={rooms}
+                    roomTypesMap={roomTypesMap}
+                    guestsMap={guestsMap}
+                    reservations={reservations}
+                    onClose={() => setShowOccupancyModal(false)}
+                    onSelectRoom={r => {
+                        setShowOccupancyModal(false)
+                        setSelectedEvent({
+                            reservationId: r.id,
+                            status: r.status,
+                            guestId: r.guestId,
+                            roomId: r.roomId,
+                            roomTypeId: r.roomTypeId,
+                            roomNumber: roomsMap[r.roomId]?.roomNumber ?? Infinity,
+                            checkInDate: r.checkInDate,
+                            checkOutDate: r.checkOutDate
+                        })
+                    }}
+                />
+            )}
         </div>
     )
 }

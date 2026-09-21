@@ -345,6 +345,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
+        if (unavailableRoomTypeIds.includes(Number(form.roomTypeId))) {
+            setError('No room of this type is available for the selected dates.')
+            return
+        }
+
         if (form.checkOutDate <= form.checkInDate) {
             setError('Check-out date must be after check-in date.')
             return
@@ -443,6 +448,22 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         onSaved()
     }
 
+
+    // The room (if any) was picked earlier in the assign-room step, before the reservation itself
+    // existed - assignRoom runs now that it does. A room-assignment failure here (e.g. someone else
+    // just took it) doesn't block finishing: the reservation is already secured either way, and the
+    // room can still be assigned later from the reservation list or calendar.
+    async function completeReservation(created) {
+        if (selectedRoomId) {
+            try {
+                await assignRoom(created.id, Number(selectedRoomId))
+            } catch (err) {
+                console.error('Failed to assign room:', err)
+            }
+        }
+        onSaved()
+    }
+
     async function handleCapture(paymentMethodId) {
         try {
             const { multiRoom, ...payload } = pendingForm
@@ -461,6 +482,74 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 setError('Something went wrong.')
             }
         }
+    }
+
+    async function handlePayNowChosen() {
+        if (form.channel === 'WALK_IN') {
+            try {
+                const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                setPayNowReservationId(res.data.id)
+                setPayNowReservation(res.data)
+                const estimateRes = await getCheckInEstimate(res.data.id)
+                setPayNowAmount(estimateRes.data.total)
+                setStep('pay-now')
+            } catch (err) {
+                setStep('form')
+                setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+            }
+            return
+        }
+
+        // PHONE: paying now still means collecting a card-not-present token before creating,
+        // same as every phone booking did before this choice existed.
+        if (!paymentReady) {
+            setStep('form')
+            setError('Payment provider is not connected. Check Settings.')
+            return
+        }
+        setStep('payment')
+    }
+
+    async function handlePayLaterChosen() {
+        try {
+            // No charge now; the room total is collected via the card-present terminal once the
+            // guest actually arrives and checks in.
+            const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+            completeReservation(res.data)
+        } catch (err) {
+            setStep('form')
+            setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+        }
+    }
+
+    // Its own separate modal, not a step inside this one - the reservation form closes, this
+    // opens in its place, and picking a room (or skipping) hands control back for pay-timing to
+    // open next, rather than nesting one dialog inside another.
+    if (step === 'assign-room') {
+        return (
+            <AssignRoomModal
+                roomTypeId={form.roomTypeId}
+                checkInDate={form.checkInDate}
+                checkOutDate={form.checkOutDate}
+                onSaved={roomId => { setSelectedRoomId(String(roomId)); setStep('pay-timing') }}
+                onClose={() => { setSelectedRoomId(''); setStep('pay-timing') }}
+                onBack={() => setStep('form')}
+            />
+        )
+    }
+
+    // "Change Room" on an existing reservation - same "separate modal, not nested" treatment as
+    // the booking flow's own room picker. A standalone action, not bundled into the rest of the
+    // edit form's save: closes the whole edit modal on success so the parent refetches fresh data,
+    // same as the Move/Assign Room entry points elsewhere in the app.
+    if (step === 'change-room') {
+        return (
+            <MoveRoomModal
+                reservation={reservation}
+                onSaved={onSaved}
+                onClose={() => setStep('form')}
+            />
+        )
     }
 
     async function handlePayNowChosen() {
