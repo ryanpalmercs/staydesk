@@ -3,9 +3,9 @@ package com.staydesk.payment;
 import java.math.BigDecimal;
 
 public interface PaymentProvider {
-    AuthResult authorize(BigDecimal amount, String token, String description);
+    AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail);
 
-    AuthResult sale(BigDecimal amount, String token, String description);
+    AuthResult sale(BigDecimal amount, String token, String description, String customerEmail);
 
     CaptureResult capture(String authId, BigDecimal amount);
 
@@ -15,7 +15,8 @@ public interface PaymentProvider {
 
     ReusableCredentialResult createReusableCredential(String authorizationTransactionId, String customerReferenceId);
 
-    AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description);
+    AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description,
+                                      String customerEmail);
 
     void revokeReusableCredential(String providerCustomerId, String providerToken);
 }

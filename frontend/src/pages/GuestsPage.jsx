@@ -1,13 +1,21 @@
 import { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { getGuests } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
+import { formatGuestName } from "../utils/guestName"
+import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
+import GuestEditModal from "../components/GuestEditModal"
 
 function GuestsPage() {
+    const navigate = useNavigate()
+    const { role } = useAuth()
+    const canManage = ['ADMIN', 'MANAGER'].includes(role)
+
     const [guests, setGuests] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [addModalOpen, setAddModalOpen] = useState(false)
 
     useEffect(() => {
         fetchGuests()
@@ -30,12 +38,15 @@ function GuestsPage() {
             if (digitQuery && g.phoneNumber.replace(/\D/g, '').includes(digitQuery)) return true
             return false
         })
-        .sort((a, b) => a.lastName.localeCompare(b.lastName))
+        .sort((a, b) => (a.lastName || a.firstName).localeCompare(b.lastName || b.firstName))
 
     return (
         <div>
             <div className="page-header mb-6">
                 <h1 className="section-title">Guests</h1>
+                {canManage && (
+                    <button onClick={() => setAddModalOpen(true)} className="btn btn-primary">Add Guest</button>
+                )}
             </div>
 
             <div className="filter-bar mb-6">
@@ -59,7 +70,7 @@ function GuestsPage() {
                     {filtered.map(guest => (
                         <Link key={guest.id} to={`/guest/${guest.id}`} className="feat-card block hover:shadow-md transition-shadow">
                             <div className="flex items-start justify-between gap-4 mb-2">
-                                <span className="font-semibold text-black">{guest.name}</span>
+                                <span className="font-semibold text-black">{formatGuestName(guest)}</span>
                                 <div className="flex gap-2">
                                     {guest.flagged && <StatusBadge status="FLAGGED" />}
                                     {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
@@ -72,6 +83,13 @@ function GuestsPage() {
                         </Link>
                     ))}
                 </div>
+            )}
+
+            {addModalOpen && (
+                <GuestEditModal
+                    onSaved={newGuest => { setAddModalOpen(false); navigate(`/guest/${newGuest.id}`) }}
+                    onClose={() => setAddModalOpen(false)}
+                />
             )}
         </div>
     )

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, unflagGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
+import { displayPrice } from "../utils/price"
+import { formatGuestName } from "../utils/guestName"
 import { useAuth } from "../contexts/AuthContext"
 import StatusBadge from "../components/StatusBadge"
 import GuestEditModal from "../components/GuestEditModal"
@@ -100,9 +102,10 @@ function GuestProfilePage() {
     return (
         <div>
             <div className="page-header mb-6">
-                <h1 className="section-title">{guest.name}</h1>
+                <h1 className="section-title">{formatGuestName(guest)}</h1>
                 {guest.flagged && <StatusBadge status="FLAGGED" />}
                 {guest.legalHold && <StatusBadge status="LEGAL_HOLD" />}
+                {guest.legacyPricing && <StatusBadge status="LEGACY_PRICING" />}
                 {canManage && (
                     <button onClick={() => setEditModalOpen(true)} className="btn btn-secondary">Edit</button>
                 )}
@@ -110,12 +113,18 @@ function GuestProfilePage() {
             <div className="flex gap-2 mb-6 flex-wrap">
                 <div>
                     <span className="block text-sm text-muted mb-1">Email</span>
-                    <p className="text-sm text-black">{guest.email}</p>
+                    <p className="text-sm text-black">{guest.email || <span className="text-muted">No email on file</span>}</p>
                 </div>
                 <div>
                     <span className="block text-sm text-muted mb-1">Phone Number</span>
                     <p className="text-sm text-black">{formatPhone(guest.phoneNumber)}</p>
                 </div>
+                {guest.legacyPricing && (
+                    <div>
+                        <span className="block text-sm text-muted mb-1">Legacy Price</span>
+                        <p className="text-sm text-black">{displayPrice(guest.legacyPricingAmount)} {legacyRateTypeLabel(guest.legacyRateType)}</p>
+                    </div>
+                )}
             </div>
 
             {guest.flagged && (
@@ -195,6 +204,14 @@ function GuestProfilePage() {
             )}
         </div>
     )
+}
+
+function legacyRateTypeLabel(legacyRateType) {
+    switch (legacyRateType) {
+        case 'WEEKLY_5': return '/ 5 nights'
+        case 'WEEKLY_7': return '/ 7 nights'
+        default: return '/ night'
+    }
 }
 
 export default GuestProfilePage

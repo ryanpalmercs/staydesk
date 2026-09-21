@@ -5,17 +5,24 @@ import { getRooms } from '../api/roomApi'
 import { getRoomTypes } from '../api/roomTypeApi'
 import { getReservations, checkIn, checkInTerminal, checkOut } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
+import { formatGuestName } from '../utils/guestName'
 import { getFolioByReservationId } from '../api/folioApi'
 import './DashboardPage.css'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import interactionPlugin from '@fullcalendar/interaction'
 import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
 import { useAuth } from '../contexts/AuthContext'
+import ExtendStayModal from '../components/ExtendStayModal'
+import AssignRoomModal from '../components/AssignRoomModal'
+import MoveRoomModal from '../components/MoveRoomModal'
+import CheckingInTodayModal from '../components/CheckingInTodayModal'
+import CheckingOutTodayModal from '../components/CheckingOutTodayModal'
+import OccupancyModal from '../components/OccupancyModal'
 
 const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
@@ -35,8 +42,15 @@ function DashboardPage() {
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [folioId, setFolioId] = useState(null)
+    const [folioReservationId, setFolioReservationId] = useState(null)
+    const [extendTarget, setExtendTarget] = useState(null)
+    const [assignRoomTarget, setAssignRoomTarget] = useState(null)
+    const [moveRoomTarget, setMoveRoomTarget] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
     const { displayName } = useAuth()
+    const [showCheckingInModal, setShowCheckingInModal] = useState(false)
+    const [showCheckingOutModal, setShowCheckingOutModal] = useState(false)
+    const [showOccupancyModal, setShowOccupancyModal] = useState(false)
 
     function fetchData() {
         Promise.all([getRooms(), getRoomTypes(), getReservations(), getGuests()])
@@ -50,8 +64,8 @@ function DashboardPage() {
 
     useEffect(() => { fetchData() }, [])
 
-    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
-        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
+    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId, roomPaymentMethodId) {
+        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId, roomPaymentMethodId)
         setSelectedEvent(null)
         fetchData()
         return res.data.doorAccessStatus
@@ -68,19 +82,35 @@ function DashboardPage() {
         try {
             const res = await getFolioByReservationId(selectedEvent.reservationId)
             setFolioId(res.data.id)
+            setFolioReservationId(selectedEvent.reservationId)
             setSelectedEvent(null)
         } catch (err) {
             console.error('Failed to find folio:', err)
         }
     }
 
+    async function checkOutReservation(reservationId) {
+        const res = await checkOut(reservationId)
+        const folioRes = await getFolioByReservationId(reservationId)
+        setFolioId(folioRes.data.id)
+        setFolioReservationId(reservationId)
+        fetchData()
+        return res
+    }
+
     async function handleCheckOut() {
         try {
-            await checkOut(selectedEvent.reservationId)
-            const res = await getFolioByReservationId(selectedEvent.reservationId)
-            setFolioId(res.data.id)
+            await checkOutReservation(selectedEvent.reservationId)
             setSelectedEvent(null)
-            fetchData()
+        } catch (err) {
+            console.error('Check-out failed:', err)
+        }
+    }
+
+    async function handleCheckOutFromModal(reservationId) {
+        try {
+            await checkOutReservation(reservationId)
+            setShowCheckingOutModal(false)
         } catch (err) {
             console.error('Check-out failed:', err)
         }
@@ -94,7 +124,7 @@ function DashboardPage() {
         })
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = format(new Date(), 'yyyy-MM-dd')
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
     const roomsMap = Object.fromEntries(rooms.map(r => [r.id, r]))
     const roomTypesMap = Object.fromEntries(roomTypes.map(rt => [rt.id, rt]))
@@ -109,7 +139,7 @@ function DashboardPage() {
     const events = reservations
         .filter(r => r.status !== 'CANCELLED' && visibleStatuses.has(r.status))
         .map(r => ({
-            title: `${guestsMap[r.guestId]?.firstName ?? 'Guest'} — ${roomLabel(r)}`,
+            title: `${guestsMap[r.guestId]?.firstName?.toUpperCase() ?? 'Guest'} — ${roomLabel(r)}`,
             start: new Date(r.checkInDate + 'T12:00:00'),
             end: new Date(r.checkOutDate + 'T12:00:00'),
             allDay: true,
@@ -120,6 +150,7 @@ function DashboardPage() {
                 guestId: r.guestId,
                 roomId: r.roomId,
                 roomTypeId: r.roomTypeId,
+                roomNumber: roomsMap[r.roomId]?.roomNumber ?? Infinity,
                 checkInDate: r.checkInDate,
                 checkOutDate: r.checkOutDate
             }
@@ -134,39 +165,39 @@ function DashboardPage() {
             )}
 
             <div className="dashboard-stats">
-                <Link to="/rooms" className="stat-card">
+                <button type="button" onClick={() => setShowOccupancyModal(true)} className="stat-card text-left">
                     <div>
                         <div className="stat-label">Occupancy</div>
                         <div className="stat-value">{occupiedCount} / {rooms.length}</div>
                         <div className="stat-sub">{availableCount} available</div>
                     </div>
-                </Link>
-                <Link to="/reservations" className="stat-card">
+                </button>
+                <button type="button" onClick={() => setShowCheckingInModal(true)} className="stat-card text-left">
                     <div>
                         <div className="stat-label">Checking In Today</div>
                         <div className="stat-value">{todayCheckIns.length}</div>
                         <ul className="stat-list">
                             {todayCheckIns.slice(0, 5).map(r => (
                                 <li key={r.id}>
-                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — {roomLabel(r)}
+                                    {formatGuestName(guestsMap[r.guestId])} — {roomLabel(r)}
                                 </li>
                             ))}
                         </ul>
                     </div>
-                </Link>
-                <Link to="/reservations" className="stat-card">
+                </button>
+                <button type="button" onClick={() => setShowCheckingOutModal(true)} className="stat-card text-left">
                     <div>
                         <div className="stat-label">Checking Out Today</div>
                         <div className="stat-value">{todayCheckOuts.length}</div>
                         <ul className="stat-list">
                             {todayCheckOuts.slice(0, 5).map(r => (
                                 <li key={r.id}>
-                                    {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName} — {roomLabel(r)}
+                                    {formatGuestName(guestsMap[r.guestId])} — {roomLabel(r)}
                                 </li>
                             ))}
                         </ul>
                     </div>
-                </Link>
+                </button>
             </div>
 
             <div className="dashboard-calendar">
@@ -196,6 +227,7 @@ function DashboardPage() {
                         right: 'dayGridMonth,timeGridWeek'
                     }}
                     events={events}
+                    eventOrder="roomNumber"
                     eventContent={arg => (
                         <div
                             onClick={() => setSelectedEvent(arg.event.extendedProps)}
@@ -217,6 +249,45 @@ function DashboardPage() {
                     onCheckIn={() => setCheckInTarget(selectedEvent.reservationId)}
                     onCheckOut={handleCheckOut}
                     onViewFolio={handleViewFolio}
+                    onExtend={() => {
+                        setExtendTarget(reservations.find(r => r.id === selectedEvent.reservationId))
+                        setSelectedEvent(null)
+                    }}
+                    onAssignRoom={() => {
+                        setAssignRoomTarget(reservations.find(r => r.id === selectedEvent.reservationId))
+                        setSelectedEvent(null)
+                    }}
+                    onMoveRoom={() => {
+                        setMoveRoomTarget(reservations.find(r => r.id === selectedEvent.reservationId))
+                        setSelectedEvent(null)
+                    }}
+                />
+            )}
+
+            {extendTarget != null && (
+                <ExtendStayModal
+                    reservation={extendTarget}
+                    onSaved={() => { setExtendTarget(null); fetchData() }}
+                    onClose={() => setExtendTarget(null)}
+                />
+            )}
+
+            {assignRoomTarget != null && (
+                <AssignRoomModal
+                    roomTypeId={assignRoomTarget.roomTypeId}
+                    checkInDate={assignRoomTarget.checkInDate}
+                    checkOutDate={assignRoomTarget.checkOutDate}
+                    reservationId={assignRoomTarget.id}
+                    onSaved={() => { setAssignRoomTarget(null); fetchData() }}
+                    onClose={() => setAssignRoomTarget(null)}
+                />
+            )}
+
+            {moveRoomTarget != null && (
+                <MoveRoomModal
+                    reservation={moveRoomTarget}
+                    onSaved={() => { setMoveRoomTarget(null); fetchData() }}
+                    onClose={() => setMoveRoomTarget(null)}
                 />
             )}
 
@@ -231,7 +302,57 @@ function DashboardPage() {
             )}
 
             {folioId && (
-                <FolioModal folioId={folioId} onClose={() => setFolioId(null)} onPaid={fetchData} />
+                <FolioModal folioId={folioId} reservationId={folioReservationId} onClose={() => setFolioId(null)} onPaid={fetchData} />
+            )}
+
+            {showCheckingInModal && (
+                <CheckingInTodayModal
+                    reservations={reservations}
+                    guestsMap={guestsMap}
+                    roomLabel={roomLabel}
+                    onClose={() => setShowCheckingInModal(false)}
+                    onCheckIn={reservationId => {
+                        setShowCheckingInModal(false)
+                        setCheckInTarget(reservationId)
+                    }}
+                />
+            )}
+
+            {showCheckingOutModal && (
+                <CheckingOutTodayModal
+                    reservations={reservations}
+                    guestsMap={guestsMap}
+                    roomLabel={roomLabel}
+                    onClose={() => setShowCheckingOutModal(false)}
+                    onCheckOut={handleCheckOutFromModal}
+                    onExtend={reservationId => {
+                        setShowCheckingOutModal(false)
+                        setExtendTarget(reservations.find(r => r.id === reservationId))
+                    }}
+                />
+            )}
+
+            {showOccupancyModal && (
+                <OccupancyModal
+                    rooms={rooms}
+                    roomTypesMap={roomTypesMap}
+                    guestsMap={guestsMap}
+                    reservations={reservations}
+                    onClose={() => setShowOccupancyModal(false)}
+                    onSelectRoom={r => {
+                        setShowOccupancyModal(false)
+                        setSelectedEvent({
+                            reservationId: r.id,
+                            status: r.status,
+                            guestId: r.guestId,
+                            roomId: r.roomId,
+                            roomTypeId: r.roomTypeId,
+                            roomNumber: roomsMap[r.roomId]?.roomNumber ?? Infinity,
+                            checkInDate: r.checkInDate,
+                            checkOutDate: r.checkOutDate
+                        })
+                    }}
+                />
             )}
         </div>
     )

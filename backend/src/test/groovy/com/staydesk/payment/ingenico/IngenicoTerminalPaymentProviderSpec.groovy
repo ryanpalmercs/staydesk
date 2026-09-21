@@ -16,7 +16,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, null, "sale", BigDecimal.valueOf(64.17), null) >> result
 
         when:
-        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge")
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null)
 
         then:
         authResult.success()
@@ -30,7 +30,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(*_) >> result
 
         when:
-        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge")
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null)
 
         then:
         !authResult.success()
@@ -42,7 +42,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(*_) >> { throw new TerminalBridgeException("Terminal bridge is not connected") }
 
         when:
-        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge")
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null)
 
         then:
         !authResult.success()
@@ -77,7 +77,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
 
     def "authorize is not yet implemented pending Elavon/Ingenico confirmation"() {
         when:
-        provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold")
+        provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null)
 
         then:
         thrown(UnsupportedOperationException)

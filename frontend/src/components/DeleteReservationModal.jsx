@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import Modal from './Modal'
+import { formatGuestName } from '../utils/guestName'
 
 function DeleteReservationModal({ guest, onClose, onConfirm }) {
-    const requiredText = guest ? `${guest.firstName} ${guest.lastName}` : 'DELETE'
+    const requiredText = guest ? formatGuestName(guest) : 'DELETE'
     const [input, setInput] = useState('')
     const [error, setError] = useState(null)
     const [submitting, setSubmitting] = useState(false)

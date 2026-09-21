@@ -24,6 +24,14 @@ export function getAvailableRoomsForCheckIn(id) {
     return api.get(`/reservations/${id}/available-rooms`)
 }
 
+export function assignRoom(id, roomId) {
+    return api.put(`/reservations/${id}/room`, { roomId })
+}
+
+export function moveRoom(id, roomId) {
+    return api.put(`/reservations/${id}/move-room`, { roomId })
+}
+
 export function checkIn(id, roomId, incidentalsPaymentMethodId, roomPaymentMethodId) {
     return api.post(`/reservations/${id}/check-in`, { roomId, incidentalsPaymentMethodId, roomPaymentMethodId })
 }
@@ -34,6 +42,22 @@ export function checkInTerminal(id, roomId, posDeviceId = null) {
 
 export function checkOut(id) {
     return api.post(`/reservations/${id}/check-out`)
+}
+
+export function payFullStayNow(id, roomPaymentMethodId) {
+    return api.post(`/reservations/${id}/pay-full-stay`, { roomPaymentMethodId })
+}
+
+export function payFullStayNowTerminal(id, posDeviceId = null) {
+    return api.post(`/reservations/${id}/pay-full-stay/terminal`, { posDeviceId })
+}
+
+export function extendStay(id, checkOutDate) {
+    return api.post(`/reservations/${id}/extend`, { checkOutDate })
+}
+
+export function extendStayTerminal(id, checkOutDate, posDeviceId = null) {
+    return api.post(`/reservations/${id}/extend/terminal`, { checkOutDate, posDeviceId })
 }
 
 export function cancelReservation(id) {
@@ -48,8 +72,28 @@ export function clearReservationLegalHold(id) {
     return api.delete(`/reservations/${id}/legal-hold`)
 }
 
-export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate }) {
-    return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate } })
+export function getReservationEstimate({ rateType, guestCount, checkInDate, checkOutDate, guestId }) {
+    return api.get('/reservations/estimate', { params: { rateType, guestCount, checkInDate, checkOutDate, guestId } })
+}
+
+export function getReservationEstimateWithExtras({ rateType, guestCount, checkInDate, checkOutDate, guestId, extras }) {
+    return api.post('/reservations/estimate', { rateType, guestCount, checkInDate, checkOutDate, guestId, extras })
+}
+
+export function getExtendStayEstimate(id, newCheckOutDate) {
+    return api.get(`/reservations/${id}/extend-stay-estimate`, { params: { newCheckOutDate } })
+}
+
+export function getCheckInEstimate(id) {
+    return api.get(`/reservations/${id}/check-in-estimate`)
+}
+
+export function backlogCheckIn(payload) {
+    return api.post('/admin/reservations/backlog-check-in', payload)
+}
+
+export function syncBacklogFolios() {
+    return api.post('/admin/reservations/sync-folios')
 }
 
 export function createMultiRoomReservation(payload) {

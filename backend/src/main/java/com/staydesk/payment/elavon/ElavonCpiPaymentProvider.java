@@ -31,7 +31,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "AUTH", amount.toPlainString(),
                 null, null, null, null, null, "F101");
 
@@ -45,7 +45,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "SALE", amount.toPlainString(),
                 null, null, null, null, null, null);
 
@@ -108,7 +108,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
-                                             String description) {
+                                             String description, String customerEmail) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "SALE", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(providerToken)), null, null, "M206");
 

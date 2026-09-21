@@ -5,6 +5,7 @@ import com.staydesk.exception.AlreadyCheckedOutException;
 import com.staydesk.exception.CannotCancelException;
 import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.DateConflictException;
+import com.staydesk.exception.ExtraNotFoundException;
 import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.InvalidReservationException;
 import com.staydesk.exception.NoRoomAvailableException;
@@ -14,18 +15,27 @@ import com.staydesk.exception.ReservationNotFoundException;
 import com.staydesk.exception.RoomNotFoundException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.exception.RoomTypeUnavailableException;
-import com.staydesk.exception.StayNotSettledException;
 import com.staydesk.model.Rate;
 import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
+import com.staydesk.model.dto.CheckInEstimateResponse;
 import com.staydesk.model.dto.CheckInResult;
+import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
+import com.staydesk.model.request.AssignRoomRequest;
 import com.staydesk.model.request.CheckInRequest;
 import com.staydesk.model.request.CreateMultiRoomReservationRequest;
 import com.staydesk.model.request.CreateReservationRequest;
+import com.staydesk.model.request.ExtendStayRequest;
+import com.staydesk.model.request.ExtendStayTerminalRequest;
+import com.staydesk.model.request.MoveRoomRequest;
+import com.staydesk.model.request.PayFullStayRequest;
+import com.staydesk.model.request.ReservationEstimateRequest;
 import com.staydesk.model.request.TerminalCheckInRequest;
+import com.staydesk.model.request.TerminalPayFullStayRequest;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.service.ReservationService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -88,10 +98,10 @@ public class ReservationController {
                     new Reservation(0, 0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null),
-                    request.roomPaymentMethodId());
+                    request.roomPaymentMethodId(), request.extras());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
-        } catch (RoomTypeNotFoundException | RateNotFoundException e) {
+        } catch (RoomTypeNotFoundException | RateNotFoundException | ExtraNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (RoomTypeUnavailableException | DateConflictException e) {
             return ResponseEntity.badRequest().build();
@@ -151,12 +161,43 @@ public class ReservationController {
         }
     }
 
+    @PutMapping("{id}/room")
+    public ResponseEntity<Reservation> assignRoom(@PathVariable Integer id, @RequestBody AssignRoomRequest request) {
+        LOGGER.info("Assigning room {} to reservation {}", request.roomId(), id);
+
+        try {
+            return ResponseEntity.ok(reservationService.assignRoom(id, request.roomId()));
+        } catch (ReservationNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (NoRoomAvailableException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PutMapping("{id}/move-room")
+    public ResponseEntity<Reservation> moveRoom(@PathVariable Integer id, @RequestBody MoveRoomRequest request) {
+        LOGGER.info("Moving reservation {} to room {}", id, request.roomId());
+
+        try {
+            return ResponseEntity.ok(reservationService.moveRoom(id, request.roomId()));
+        } catch (ReservationNotFoundException | RoomNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (NoRoomAvailableException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (InvalidReservationException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     @PostMapping("{id}/check-in")
     public ResponseEntity<CheckInResult> checkIn(@PathVariable Integer id, @RequestBody CheckInRequest request) {
         LOGGER.info("Checking reservation in with id {}", id);
 
         try {
-            return ResponseEntity.ok(reservationService.checkIn(id, request.roomId(), request.incidentalsPaymentMethodId()));
+            return ResponseEntity.ok(reservationService.checkIn(id, request.roomId(), request.incidentalsPaymentMethodId(),
+                    request.roomPaymentMethodId()));
         } catch (RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException | NoRoomAvailableException e) {
@@ -179,8 +220,7 @@ public class ReservationController {
         } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException |
                  RateNotFoundException e) {
             return ResponseEntity.notFound().build();
-        } catch (AlreadyCheckedInException | NoRoomAvailableException | CardPresentRecordOnlyDisabledException |
-                 StayNotSettledException e) {
+        } catch (AlreadyCheckedInException | NoRoomAvailableException | CardPresentRecordOnlyDisabledException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (InvalidReservationException e) {
             return ResponseEntity.badRequest().build();
@@ -188,6 +228,18 @@ public class ReservationController {
             LOGGER.error("An error occurred while checking reservation in via terminal with id {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @PostMapping("{id}/pay-full-stay")
+    public ResponseEntity<Reservation> payFullStayNow(@PathVariable int id, @RequestBody PayFullStayRequest request) {
+        LOGGER.info("Charging full stay now for reservation with id {}", id);
+        return ResponseEntity.ok(reservationService.payFullStayNow(id, request.roomPaymentMethodId()));
+    }
+
+    @PostMapping("{id}/pay-full-stay/terminal")
+    public ResponseEntity<Reservation> payFullStayNowTerminal(@PathVariable int id, @RequestBody TerminalPayFullStayRequest request) {
+        LOGGER.info("Charging full stay now via terminal for reservation with id {}", id);
+        return ResponseEntity.ok(reservationService.payFullStayNowTerminal(id, request.posDeviceId()));
     }
 
     @PostMapping("{id}/check-out")
@@ -207,6 +259,40 @@ public class ReservationController {
             LOGGER.error("An error occurred while checking reservation out with id {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @GetMapping("{id}/check-in-estimate")
+    public ResponseEntity<CheckInEstimateResponse> getCheckInEstimate(@PathVariable Integer id) {
+        try {
+            return ResponseEntity.ok(reservationService.estimateCheckInCharge(id));
+        } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("{id}/extend-stay-estimate")
+    public ResponseEntity<ReservationEstimateResponse> getExtendStayEstimate(@PathVariable Integer id,
+                                                                              @RequestParam LocalDate newCheckOutDate) {
+        try {
+            return ResponseEntity.ok(reservationService.estimateExtendStayCharge(id, newCheckOutDate));
+        } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("{id}/extend")
+    public ResponseEntity<ExtendStayResult> extendStay(@PathVariable Integer id, @Valid @RequestBody ExtendStayRequest request) {
+        LOGGER.info("Extending reservation {} to check out {}", id, request.checkOutDate());
+
+        return ResponseEntity.ok(reservationService.extendStay(id, request.checkOutDate()));
+    }
+
+    @PostMapping("{id}/extend/terminal")
+    public ResponseEntity<ExtendStayResult> extendStayTerminal(@PathVariable Integer id,
+                                                                @Valid @RequestBody ExtendStayTerminalRequest request) {
+        LOGGER.info("Extending reservation {} to check out {} via terminal", id, request.checkOutDate());
+
+        return ResponseEntity.ok(reservationService.extendStayTerminal(id, request.checkOutDate(), request.posDeviceId()));
     }
 
     @PostMapping("{id}/cancel")
@@ -251,12 +337,26 @@ public class ReservationController {
     public ResponseEntity<ReservationEstimateResponse> getEstimate(@RequestParam Rate.RateType rateType,
                                                                    @RequestParam int guestCount,
                                                                    @RequestParam LocalDate checkInDate,
-                                                                   @RequestParam LocalDate checkOutDate) {
+                                                                   @RequestParam LocalDate checkOutDate,
+                                                                   @RequestParam(required = false) Integer guestId) {
         LOGGER.info("Estimating total for rateType={} guestCount={} {} to {}", rateType, guestCount, checkInDate, checkOutDate);
 
         try {
-            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate));
+            return ResponseEntity.ok(reservationService.estimateTotal(rateType, guestCount, checkInDate, checkOutDate, guestId));
         } catch (RateNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/estimate")
+    public ResponseEntity<ReservationEstimateResponse> getEstimateWithExtras(@RequestBody ReservationEstimateRequest request) {
+        LOGGER.info("Estimating total with extras for rateType={} guestCount={} {} to {}",
+                request.rateType(), request.guestCount(), request.checkInDate(), request.checkOutDate());
+
+        try {
+            return ResponseEntity.ok(reservationService.estimateTotalWithExtras(request.rateType(), request.guestCount(),
+                    request.checkInDate(), request.checkOutDate(), request.guestId(), request.extras()));
+        } catch (RateNotFoundException | ExtraNotFoundException e) {
             return ResponseEntity.notFound().build();
         }
     }

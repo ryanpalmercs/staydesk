@@ -27,3 +27,7 @@ export function getRoomAccessLog(id, days) {
 export function getOccupiedDates(roomId) {
     return api.get(`/rooms/${roomId}/occupied-dates`)
 }
+
+export function getAvailableRooms(roomTypeId, checkIn, checkOut) {
+    return api.get('/rooms/available', { params: { roomTypeId, checkIn, checkOut } })
+}

@@ -2,6 +2,7 @@ package com.staydesk.controller;
 
 import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Guest;
+import com.staydesk.model.Rate;
 import com.staydesk.model.request.CreateGuestRequest;
 import com.staydesk.model.request.FlagGuestRequest;
 import com.staydesk.model.request.UpdateGuestRequest;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -63,16 +65,25 @@ public class GuestController {
     public ResponseEntity<Guest> createGuest(@Valid @RequestBody CreateGuestRequest request) {
         LOGGER.info("Creating guest");
 
-        String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
-        if (guestRepository.findByEmailHash(emailHash).isPresent()) {
+        if (!isLegacyPricingValid(request.legacyPricing(), request.legacyPricingAmount(), request.legacyRateType())) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!isGuestNameValid(request.guestType(), request.lastName())) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String emailHash = hashEmail(request.email());
+        if (emailHash != null && guestRepository.findByEmailHash(emailHash).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
 
         LocalDateTime now = LocalDateTime.now();
 
-        Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()), request.smsConsent(),
-                false, null, null, null, false, now, now);
+        Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
+                emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
+                request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(),
+                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -82,18 +93,57 @@ public class GuestController {
     public ResponseEntity<Guest> updateGuest(@PathVariable Integer id, @Valid @RequestBody UpdateGuestRequest request) {
         LOGGER.info("Updating guest {}", id);
 
+        if (!isLegacyPricingValid(request.legacyPricing(), request.legacyPricingAmount(), request.legacyRateType())) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!isGuestNameValid(request.guestType(), request.lastName())) {
+            return ResponseEntity.badRequest().build();
+        }
+
         Guest existing = guestRepository.findById(id).orElse(null);
         if (existing == null) {
             return ResponseEntity.notFound().build();
         }
 
-        String emailHash = piiCipher.hash(request.email().strip().toLowerCase());
-        Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()), request.smsConsent(),
-                existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
-                existing.legalHold(), existing.createdAt(), LocalDateTime.now());
+        String emailHash = hashEmail(request.email());
+        Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
+                emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
+                request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
+                existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(),
+                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), existing.createdAt(),
+                LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
+    }
+
+    private String hashEmail(String email) {
+        return email == null || email.isBlank() ? null : piiCipher.hash(email.strip().toLowerCase());
+    }
+
+    private boolean isLegacyPricingValid(boolean legacyPricing, BigDecimal legacyPricingAmount, Rate.RateType legacyRateType) {
+        return !legacyPricing || (legacyPricingAmount != null && legacyPricingAmount.compareTo(BigDecimal.ZERO) > 0
+                && legacyRateType != null);
+    }
+
+    /**
+     * legacyRateType is only meaningful while legacyPricing is on, so requests that leave it out
+     * (or guests without legacy pricing at all) fall back to NIGHTLY rather than storing a null.
+     */
+    private Rate.RateType defaultRateType(Rate.RateType legacyRateType) {
+        return legacyRateType == null ? Rate.RateType.NIGHTLY : legacyRateType;
+    }
+
+    /**
+     * A BUSINESS guest only needs a name in firstName (the organization name) - lastName is
+     * optional. An INDIVIDUAL guest still needs both, matching the original first/last requirement.
+     */
+    private boolean isGuestNameValid(Guest.GuestType guestType, String lastName) {
+        return guestType == Guest.GuestType.BUSINESS || (lastName != null && !lastName.isBlank());
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     @PostMapping("{id}/flag")

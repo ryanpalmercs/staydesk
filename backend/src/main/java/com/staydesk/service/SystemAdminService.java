@@ -38,6 +38,6 @@ public class SystemAdminService {
         LocalDateTime now = LocalDateTime.now();
 
         return jdbcAggregateTemplate.insert(new Account(supabaseId, Account.AccountKind.SYSTEM_ADMIN,
-                request.displayName(), true, now, now));
+                request.displayName(), true, now, now, null));
     }
 }

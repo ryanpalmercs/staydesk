@@ -4,6 +4,7 @@ import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import ReservationModal from "../components/ReservationModal"
 import { getGuests } from "../api/guestApi"
+import { formatGuestName } from "../utils/guestName"
 import StatusBadge from "../components/StatusBadge"
 import { getFolioByReservationId } from "../api/folioApi"
 import CheckInPaymentModal from "../components/CheckInPaymentModal"
@@ -12,6 +13,9 @@ import DoorCodeModal from "../components/DoorCodeModal"
 import { useAuth } from "../contexts/AuthContext"
 import DeleteReservationModal from "../components/DeleteReservationModal"
 import ConfirmDialog from "../components/ConfirmDialog"
+import ExtendStayModal from "../components/ExtendStayModal"
+import AssignRoomModal from "../components/AssignRoomModal"
+import MoveRoomModal from "../components/MoveRoomModal"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -26,6 +30,7 @@ function ReservationsPage() {
     const [selectedReservation, setSelectedReservation] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [reviewFolioId, setReviewFolioId] = useState(null)
+    const [reviewReservationId, setReviewReservationId] = useState(null)
     const [doorCodeTarget, setDoorCodeTarget] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '', status: '' })
@@ -34,6 +39,9 @@ function ReservationsPage() {
     const [sortDir, setSortDir] = useState('desc')
     const [cancelTarget, setCancelTarget] = useState(null)
     const [unsettledIds, setUnsettledIds] = useState(new Set())
+    const [extendTarget, setExtendTarget] = useState(null)
+    const [assignRoomTarget, setAssignRoomTarget] = useState(null)
+    const [moveRoomTarget, setMoveRoomTarget] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -122,6 +130,7 @@ function ReservationsPage() {
         try {
             const folioRes = await getFolioByReservationId(id)
             setReviewFolioId(folioRes.data.id)
+            setReviewReservationId(id)
         } catch (err) {
             setError('Failed to load folio.')
         }
@@ -133,6 +142,7 @@ function ReservationsPage() {
             await fetchReservations()
             const folioRes = await getFolioByReservationId(id)
             setReviewFolioId(folioRes.data.id)
+            setReviewReservationId(id)
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked out')
@@ -273,7 +283,7 @@ function ReservationsPage() {
                                 )}
                                 <div className="flex items-start justify-between gap-4 mb-2">
                                     <span className="font-semibold text-black">
-                                        {guest ? `${guest.firstName} ${guest.lastName}` : res.guestId}
+                                        {guest ? formatGuestName(guest) : res.guestId}
                                     </span>
                                     <StatusBadge status={res.status} />
                                 </div>
@@ -283,16 +293,22 @@ function ReservationsPage() {
                                     {res.confirmationCode && <span>Conf# {res.confirmationCode}</span>}
                                 </div>
                                 <div className="flex gap-4 justify-end">
-                                    {unsettledIds.has(res.id) && (
-                                        <button onClick={() => openCheckIn(res.id)} className="btn btn-secondary text-sm">
-                                            Settle Payment
-                                        </button>
+                                    {/* No "pay now" action here yet - settleWalkInStay/settleWalkInStayTerminal are
+                                        backend-only until #355 builds a real standalone entry point for them. */}
+                                    {res.status === 'CONFIRMED' && res.roomId == null && (
+                                        <button onClick={() => setAssignRoomTarget(res)} className="text-sm font-medium text-muted hover:text-green">Assign Room</button>
                                     )}
                                     {res.status === 'CONFIRMED' && (
                                         <button onClick={() => openCheckIn(res.id)} className="text-sm font-medium text-green hover:text-black">Check In</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && (
                                         <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-green hover:text-black">Check Out</button>
+                                    )}
+                                    {res.status === 'CHECKED_IN' && (
+                                        <button onClick={() => setExtendTarget(res)} className="text-sm font-medium text-muted hover:text-green">Extend Stay</button>
+                                    )}
+                                    {res.status === 'CHECKED_IN' && (
+                                        <button onClick={() => setMoveRoomTarget(res)} className="text-sm font-medium text-muted hover:text-green">Move Room</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && canViewDoorCode && (
                                         <button onClick={() => setDoorCodeTarget(res)} className="text-sm font-medium text-muted hover:text-green">Door Code</button>
@@ -318,7 +334,7 @@ function ReservationsPage() {
             )}
 
             {reviewFolioId != null && (
-                <FolioModal folioId={reviewFolioId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
+                <FolioModal folioId={reviewFolioId} reservationId={reviewReservationId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
             )}
 
             {doorCodeTarget != null && (
@@ -326,6 +342,33 @@ function ReservationsPage() {
                     reservationId={doorCodeTarget.id}
                     roomNumber={roomMap[doorCodeTarget.roomId]?.roomNumber ?? '—'}
                     onClose={() => setDoorCodeTarget(null)}
+                />
+            )}
+
+            {extendTarget != null && (
+                <ExtendStayModal
+                    reservation={extendTarget}
+                    onSaved={() => { setExtendTarget(null); fetchReservations() }}
+                    onClose={() => setExtendTarget(null)}
+                />
+            )}
+
+            {assignRoomTarget != null && (
+                <AssignRoomModal
+                    roomTypeId={assignRoomTarget.roomTypeId}
+                    checkInDate={assignRoomTarget.checkInDate}
+                    checkOutDate={assignRoomTarget.checkOutDate}
+                    reservationId={assignRoomTarget.id}
+                    onSaved={() => { setAssignRoomTarget(null); fetchReservations() }}
+                    onClose={() => setAssignRoomTarget(null)}
+                />
+            )}
+
+            {moveRoomTarget != null && (
+                <MoveRoomModal
+                    reservation={moveRoomTarget}
+                    onSaved={() => { setMoveRoomTarget(null); fetchReservations() }}
+                    onClose={() => setMoveRoomTarget(null)}
                 />
             )}
 
@@ -344,7 +387,6 @@ function ReservationsPage() {
                     onConfirm={handleCheckInConfirmed}
                     onConfirmTerminal={handleTerminalCheckInConfirmed}
                     onClose={() => setCheckInTarget(null)}
-                    onCancelReservation={() => handleCancel(checkInTarget)}
                 />
             )}
 
