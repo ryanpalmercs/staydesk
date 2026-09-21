@@ -21,11 +21,11 @@ class PaymentCredentialServiceSpec extends Specification {
     PaymentCredentialService service = new PaymentCredentialService(providerFactory, repository)
 
     private static Folio folio() {
-        new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.valueOf(75), null, LocalDateTime.now(), LocalDateTime.now())
+        new Folio(1, Folio.FolioStatus.OPEN, BigDecimal.valueOf(75), null, LocalDateTime.now(), LocalDateTime.now())
     }
 
     private static FolioPayment incidentalsHold() {
-        new FolioPayment(5, 1, PaymentKind.INCIDENTALS, "authorizenet", "txn-1", "4242",
+        new FolioPayment(5, 1, 10, PaymentKind.INCIDENTALS, "authorizenet", "txn-1", "4242",
                 PaymentStatus.REQUIRES_CAPTURE, BigDecimal.valueOf(75), null, "", LocalDateTime.now(), LocalDateTime.now())
     }
 
@@ -37,7 +37,7 @@ class PaymentCredentialServiceSpec extends Specification {
                 new ReusableCredentialResult(true, "cust-1", "profile-1", "4242", null)
 
         when:
-        service.captureCheckInCredential(folio(), "authorizenet", incidentalsHold())
+        service.captureCheckInCredential(folio(), 10, "authorizenet", incidentalsHold())
 
         then:
         1 * repository.save({ ReusablePaymentCredential c ->
@@ -52,7 +52,7 @@ class PaymentCredentialServiceSpec extends Specification {
         provider.createReusableCredential(*_) >> new ReusableCredentialResult(false, null, null, null, "declined")
 
         when:
-        service.captureCheckInCredential(folio(), "authorizenet", incidentalsHold())
+        service.captureCheckInCredential(folio(), 10, "authorizenet", incidentalsHold())
 
         then:
         noExceptionThrown()
@@ -66,7 +66,7 @@ class PaymentCredentialServiceSpec extends Specification {
         provider.createReusableCredential(*_) >> { throw new RuntimeException("network error") }
 
         when:
-        service.captureCheckInCredential(folio(), "authorizenet", incidentalsHold())
+        service.captureCheckInCredential(folio(), 10, "authorizenet", incidentalsHold())
 
         then:
         noExceptionThrown()

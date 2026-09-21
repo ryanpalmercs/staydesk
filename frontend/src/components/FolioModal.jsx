@@ -9,7 +9,7 @@ import StatusBadge from "./StatusBadge"
 import IncidentChargeRequestModal from "./IncidentChargeRequestModal"
 import TerminalOrRecordOnlyStep from "./TerminalOrRecordOnlyPayment"
 
-function FolioModal({ folioId, onClose, onPaid }) {
+function FolioModal({ folioId, reservationId, onClose, onPaid }) {
     const [folio, setFolio] = useState(null)
     const [items, setItems] = useState([])
     const [extras, setExtras] = useState([])
@@ -69,7 +69,7 @@ function FolioModal({ folioId, onClose, onPaid }) {
 
     async function attemptChargeExtra(amount, description) {
         try {
-            await chargeExtra(folioId, amount, description)
+            await chargeExtra(folioId, reservationId, amount, description)
             await loadFolio()
         } catch (err) {
             if (err.response?.status === 409) {
@@ -81,7 +81,7 @@ function FolioModal({ folioId, onClose, onPaid }) {
     }
 
     async function handleChargeExtraTerminal(posDeviceId) {
-        await chargeExtraTerminal(folioId, chargePrompt.amount, chargePrompt.description, posDeviceId)
+        await chargeExtraTerminal(folioId, reservationId, chargePrompt.amount, chargePrompt.description, posDeviceId)
         setChargePrompt(null)
         await loadFolio()
     }

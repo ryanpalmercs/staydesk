@@ -24,6 +24,7 @@ import com.staydesk.model.dto.ExtendStayResult;
 import com.staydesk.model.dto.ReservationEstimateResponse;
 import com.staydesk.model.request.AssignRoomRequest;
 import com.staydesk.model.request.CheckInRequest;
+import com.staydesk.model.request.CreateMultiRoomReservationRequest;
 import com.staydesk.model.request.CreateReservationRequest;
 import com.staydesk.model.request.ExtendStayRequest;
 import com.staydesk.model.request.ExtendStayTerminalRequest;
@@ -74,6 +75,11 @@ public class ReservationController {
         return reservationRepository.findAll();
     }
 
+    @GetMapping("/unsettled")
+    public List<Reservation> getUnsettledWalkIns() {
+        return reservationRepository.findUnsettledWalkIn();
+    }
+
     @GetMapping("{id}")
     public ResponseEntity<Reservation> getReservation(@PathVariable Integer id) {
         LOGGER.info("Getting reservation with id {}", id);
@@ -89,13 +95,29 @@ public class ReservationController {
 
         try {
             Reservation savedReservation = reservationService.createReservation(
-                    new Reservation(0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
+                    new Reservation(0, 0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
                             null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null),
                     request.roomPaymentMethodId(), request.extras());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
         } catch (RoomTypeNotFoundException | RateNotFoundException | ExtraNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (RoomTypeUnavailableException | DateConflictException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/multi")
+    public ResponseEntity<List<Reservation>> createMultiRoomReservation(@RequestBody CreateMultiRoomReservationRequest request) {
+        LOGGER.info("Creating multi-room reservation for guest {}", request.guestId());
+
+        try {
+            List<Reservation> savedReservations = reservationService.createMultiRoomReservation(
+                    request.guestId(), request.rooms(), request.checkInDate(), request.checkOutDate(),
+                    request.rateType(), request.guestCount(), request.channel(), request.roomPaymentMethodId());
+            return ResponseEntity.ok(savedReservations);
+        } catch (RoomTypeNotFoundException | RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (RoomTypeUnavailableException | DateConflictException e) {
             return ResponseEntity.badRequest().build();
@@ -195,7 +217,8 @@ public class ReservationController {
 
         try {
             return ResponseEntity.ok(reservationService.checkInTerminal(id, request.roomId(), request.posDeviceId()));
-        } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException | RateNotFoundException e) {
+        } catch (PosDeviceNotFoundException | RoomNotFoundException | ReservationNotFoundException |
+                 RateNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AlreadyCheckedInException | NoRoomAvailableException | CardPresentRecordOnlyDisabledException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();

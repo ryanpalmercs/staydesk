@@ -63,13 +63,13 @@ function ExtendStayModal({ reservation, onSaved, onClose }) {
 
     async function handleCardAddedManually(paymentMethodId) {
         const folioRes = await getFolioByReservationId(reservation.id)
-        await addCardOnFile(folioRes.data.id, paymentMethodId)
+        await addCardOnFile(folioRes.data.id, reservation.id, paymentMethodId)
         await retryExtendAfterCardAdded(null)
     }
 
     async function handleCardAddedByTerminal(posDeviceId) {
         const folioRes = await getFolioByReservationId(reservation.id)
-        await addCardOnFileTerminal(folioRes.data.id, posDeviceId)
+        await addCardOnFileTerminal(folioRes.data.id, reservation.id, posDeviceId)
         await retryExtendAfterCardAdded(posDeviceId)
     }
 

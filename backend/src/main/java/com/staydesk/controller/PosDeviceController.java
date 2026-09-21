@@ -1,5 +1,6 @@
 package com.staydesk.controller;
 
+import com.staydesk.bridge.TerminalBridgeSessionRegistry;
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.model.PosDevice;
 import com.staydesk.model.PosDeviceConfigResponse;
@@ -33,12 +34,14 @@ public class PosDeviceController {
     private final PosDeviceRepository posDeviceRepository;
     private final ElavonCpiClient elavonCpiClient;
     private final ProviderFactory providerFactory;
+    private final TerminalBridgeSessionRegistry bridgeSessionRegistry;
 
     public PosDeviceController(PosDeviceRepository posDeviceRepository, ElavonCpiClient elavonCpiClient,
-                               ProviderFactory providerFactory) {
+                               ProviderFactory providerFactory, TerminalBridgeSessionRegistry bridgeSessionRegistry) {
         this.posDeviceRepository = posDeviceRepository;
         this.elavonCpiClient = elavonCpiClient;
         this.providerFactory = providerFactory;
+        this.bridgeSessionRegistry = bridgeSessionRegistry;
     }
 
     @GetMapping
@@ -80,6 +83,10 @@ public class PosDeviceController {
 
         if (providerFactory.isCardPresentRecordOnly()) {
             return ResponseEntity.ok(new PosDeviceHealthResponse(true));
+        }
+
+        if ("ingenico_terminal".equals(providerFactory.getCardPresentProviderName())) {
+            return ResponseEntity.ok(new PosDeviceHealthResponse(bridgeSessionRegistry.isConnected()));
         }
 
         boolean online = elavonCpiClient.healthCheck(device.deviceId());

@@ -28,11 +28,11 @@ class FolioServiceSpec extends Specification {
             reservationRepository, propertySettingsService)
 
     private static Folio openFolio() {
-        new Folio(1, 10, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        new Folio(1, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
     }
 
     private static Reservation reservationFor(LocalDate checkIn, LocalDate checkOut) {
-        new Reservation(10, 1, 1, 1, checkIn, checkOut, Reservation.ReservationStatus.CHECKED_IN, null, null,
+        new Reservation(10, 1, 1, 1, 1, checkIn, checkOut, Reservation.ReservationStatus.CHECKED_IN, null, null,
                 com.staydesk.model.Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false,
                 LocalDateTime.now(), LocalDateTime.now(), null)
     }
@@ -62,7 +62,7 @@ class FolioServiceSpec extends Specification {
         def result = service.addExtra(1, 1, 2)
 
         then:
-        0 * reservationRepository.findById(_)
+        0 * reservationRepository.findByFolioId(_)
         1 * folioItemRepository.save({ it.description() == "LATE CHECKOUT X2" && it.amount().compareTo(BigDecimal.valueOf(40)) == 0 &&
                 it.extraId() == 1 && it.quantity() == 2 })
         result.total().compareTo(BigDecimal.valueOf(40)) == 0
@@ -72,7 +72,7 @@ class FolioServiceSpec extends Specification {
         given:
         folioRepository.findById(1) >> Optional.of(openFolio())
         extraRepository.findById(2) >> Optional.of(perNightExtra())
-        reservationRepository.findById(10) >> Optional.of(reservationFor(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 4)))
+        reservationRepository.findByFolioId(1) >> [reservationFor(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 4))]
         folioItemRepository.save(_) >> { it[0] }
         folioRepository.save(_) >> { it[0] }
 
@@ -89,7 +89,7 @@ class FolioServiceSpec extends Specification {
         given:
         folioRepository.findById(1) >> Optional.of(openFolio())
         extraRepository.findById(2) >> Optional.of(perNightExtra())
-        reservationRepository.findById(10) >> Optional.of(reservationFor(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 4)))
+        reservationRepository.findByFolioId(1) >> [reservationFor(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 4))]
         folioItemRepository.save(_) >> { it[0] }
         folioRepository.save(_) >> { it[0] }
 
@@ -104,7 +104,7 @@ class FolioServiceSpec extends Specification {
 
     def "addExtra throws FolioClosedException for a CLOSED folio"() {
         given:
-        def closedFolio = new Folio(1, 10, Folio.FolioStatus.CLOSED, BigDecimal.ZERO, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
+        def closedFolio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.ZERO, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
         folioRepository.findById(1) >> Optional.of(closedFolio)
 
         when:

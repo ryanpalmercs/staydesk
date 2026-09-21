@@ -1,6 +1,6 @@
 ---
 title: StayDesk — Emergency Contacts & Escalation
-last_updated: 2026-06-26
+last_updated: 2026-09-21
 pdf_options:
   format: Letter
   margin: 1.25in 1in 1in 1in
@@ -47,6 +47,17 @@ If payments fail to process:
 2. Do not attempt to run the card more than twice — multiple failed attempts can flag the guest's card.
 3. Ask the guest for an alternate form of payment.
 4. Contact the manager if the issue persists.
+
+---
+
+## Terminal / bridge down
+
+If the card terminal won't process a charge:
+
+1. Check the check-in screen — if it shows "Terminal isn't responding," that's the bridge, not the terminal itself.
+2. Confirm the front-desk laptop is powered on and connected to the network.
+3. Restart the `StayDeskBridge` Windows service (open **Services**, find `StayDeskBridge`, click Restart).
+4. Still down? Use **Enter Card Manually** to take the card another way, or switch to record-only mode if instructed by the manager, and notify the manager either way.
 
 ---
 

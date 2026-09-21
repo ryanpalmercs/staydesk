@@ -50,7 +50,7 @@ public class ProviderFactory {
      * see payment.card-present.record-only.
      */
     public String getCardPresentProviderName() {
-        return cardPresentRecordOnly ? CARD_PRESENT_RECORD_ONLY_PROVIDER : "elavon_cpi";
+        return cardPresentRecordOnly ? CARD_PRESENT_RECORD_ONLY_PROVIDER : "ingenico_terminal";
     }
 
     public boolean isCardPresentRecordOnly() {

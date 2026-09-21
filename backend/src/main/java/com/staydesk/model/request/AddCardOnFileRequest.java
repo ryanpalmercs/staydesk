@@ -1,4 +1,4 @@
 package com.staydesk.model.request;
 
-public record AddCardOnFileRequest(String paymentMethodId) {
+public record AddCardOnFileRequest(int reservationId, String paymentMethodId) {
 }
