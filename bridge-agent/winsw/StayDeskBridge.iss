@@ -19,7 +19,7 @@ Source: "StayDeskBridge.xml"; DestDir: "{app}"
 Source: "jre\*"; DestDir: "{app}\jre"; Flags: recursesubdirs
 
 [Registry]
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "BRIDGE_RENDER_URL"; ValueData: "wss://REPLACE-ME.onrender.com/bridge/terminal"
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "BRIDGE_RENDER_URL"; ValueData: "wss://api.martinhousemotel.com/bridge/terminal"
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "BRIDGE_SHARED_SECRET"; ValueData: "REPLACE-ME"
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "BRIDGE_TERMINAL_URL"; ValueData: "ws://REPLACE-ME:PORT/tsi/v1/payment"
 

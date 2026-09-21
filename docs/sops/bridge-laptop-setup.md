@@ -69,7 +69,7 @@ StayDeskBridge\
 - [ ] Set three Windows environment variables (System Properties → Advanced →
       Environment Variables) — these are machine-specific and are never
       committed to the repo, and are **not** part of the portable bundle:
-  - `BRIDGE_RENDER_URL` — the real `wss://<render-app>.onrender.com/bridge/terminal`
+  - `BRIDGE_RENDER_URL` — `wss://api.martinhousemotel.com/bridge/terminal` (the custom domain, not the raw `onrender.com` URL)
   - `BRIDGE_SHARED_SECRET` — the shared secret configured on the backend
   - `BRIDGE_TERMINAL_URL` — the terminal's local WebSocket address (its LAN IP)
 - [ ] From an elevated command prompt in that folder, run
