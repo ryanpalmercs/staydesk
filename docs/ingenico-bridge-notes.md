@@ -590,21 +590,10 @@ public class BridgeApplication {
 ```
 
 ### WinSW config (`staydesk-bridge.xml`)
-Registers the bridge agent as a Windows service that starts on boot.
-
-```xml
-<service>
-    <id>StayDeskBridge</id>
-    <name>StayDesk Terminal Bridge</name>
-    <description>Bridges StayDesk cloud backend to Ingenico Desk 3500</description>
-    <executable>java</executable>
-    <arguments>-jar staydesk-bridge.jar</arguments>
-    <logmode>rotate</logmode>
-    <onfailure action="restart" delay="10 sec"/>
-    <onfailure action="restart" delay="30 sec"/>
-    <onfailure action="restart" delay="60 sec"/>
-</service>
-```
+Registers the bridge agent as a Windows service that starts on boot. See
+`bridge-agent/winsw/StayDeskBridge.xml` for the real, current config (this
+section used to duplicate it inline — kept as one source of truth instead).
+Setup steps live in `docs/sops/bridge-laptop-setup.md`.
 
 ---
 
