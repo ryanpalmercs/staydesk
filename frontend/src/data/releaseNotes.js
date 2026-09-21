@@ -10,6 +10,14 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 3,
+        title: "What's New",
+        date: '2026-09-21',
+        notes: [
+            "Your name now shows in the dashboard heading and sidebar when you're logged in."
+        ]
+    },
+    {
         id: 2,
         title: "What's New",
         version: 'v1.4.2',
