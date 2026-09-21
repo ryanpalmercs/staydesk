@@ -126,20 +126,6 @@ public class ReservationService {
     }
 
     /**
-     * The tier that governs a stay's nightly rate, driven purely by total length of stay: 1-4
-     * nights pay the standard nightly rate, 5-6 nights pay the 5-night rate divided evenly across
-     * the stay, 7+ nights pay the 7-night rate divided evenly across the stay.
-     */
-    private static Rate.RateType tierForNights(long nights) {
-        if (nights >= 7) {
-            return Rate.RateType.WEEKLY_7;
-        } else if (nights >= 5) {
-            return Rate.RateType.WEEKLY_5;
-        }
-        return Rate.RateType.NIGHTLY;
-    }
-
-    /**
      * A guest with legacy pricing enabled has their flat override amount substituted for the
      * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
      * any date-range rate_overrides row (legacy guests are grandfathered off seasonal pricing
@@ -230,6 +216,20 @@ public class ReservationService {
                                     .map(Reservation::guestId)
                                     .map(this::resolveGuestEmail)
                                     .orElse(null);
+    }
+
+    /**
+     * The tier that governs a stay's nightly rate, driven purely by total length of stay: 1-4
+     * nights pay the standard nightly rate, 5-6 nights pay the 5-night rate divided evenly across
+     * the stay, 7+ nights pay the 7-night rate divided evenly across the stay.
+     */
+    private static Rate.RateType tierForNights(long nights) {
+        if (nights >= 7) {
+            return Rate.RateType.WEEKLY_7;
+        } else if (nights >= 5) {
+            return Rate.RateType.WEEKLY_5;
+        }
+        return Rate.RateType.NIGHTLY;
     }
 
     public String resolveGuestEmailForFolio(int folioId) {
