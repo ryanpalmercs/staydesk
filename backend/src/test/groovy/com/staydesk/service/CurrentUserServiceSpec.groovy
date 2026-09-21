@@ -23,7 +23,7 @@ class CurrentUserServiceSpec extends Specification {
         new Employee(id, new EncryptedString("Jane"), new EncryptedString("Doe"),
                 new EncryptedString("jane@staydesk.com"), "hash", "jdoe", 1, BigDecimal.TEN,
                 LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false,
-                LocalDateTime.now(), LocalDateTime.now(), lastSeenReleaseNotesId)
+                LocalDateTime.now(), LocalDateTime.now(), lastSeenReleaseNotesId, null)
     }
 
     private static Account account(UUID id, Integer lastSeenReleaseNotesId = null) {

@@ -30,7 +30,7 @@ class QuickBooksEmployeeSyncServiceSpec extends Specification {
         new Employee(UUID.randomUUID(), new EncryptedString("Jane"), new EncryptedString("Doe"),
                 new EncryptedString("jane@staydesk.com"), "hash123", "jdoe", 1, BigDecimal.valueOf(20),
                 LocalDate.of(2026, 1, 1), true, new ContactInfo("5551234567", "123 Main St", null, "Springfield", "MO", "65801"),
-                Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), quickbooksEmployeeId)
+                Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), null, quickbooksEmployeeId)
     }
 
     def "syncAll creates unmapped employees not found in QuickBooks and writes back the new id"() {

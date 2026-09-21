@@ -26,7 +26,7 @@ class PayrollSyncServiceSpec extends Specification {
     private static Employee employee(UUID id, String quickbooksEmployeeId) {
         new Employee(id, new EncryptedString("Jane"), new EncryptedString("Doe"), new EncryptedString("jane@staydesk.com"),
                 "hash", "jdoe", 1, BigDecimal.TEN, LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false,
-                LocalDateTime.now(), LocalDateTime.now(), quickbooksEmployeeId)
+                LocalDateTime.now(), LocalDateTime.now(), null, quickbooksEmployeeId)
     }
 
     def "syncs employees that have a QuickBooks mapping and skips those that don't"() {

@@ -90,7 +90,7 @@ public class EmployeeService {
                 new EncryptedString(createEmployeeRequest.lastName()), new EncryptedString(createEmployeeRequest.email()), emailHash,
                 createEmployeeRequest.username(), createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(),
                 createEmployeeRequest.hireDate(), true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(),
-                createEmployeeRequest.grantDoorAccess(), now, now, null));
+                createEmployeeRequest.grantDoorAccess(), now, now, null, null));
 
         if (createEmployeeRequest.grantDoorAccess()) {
             staffDoorAccessService.grantAccess(saved, createEmployeeRequest.pin());

@@ -43,7 +43,7 @@ class EmployeeServiceSpec extends Specification {
     private static Employee existingEmployee() {
         new Employee(UUID.randomUUID(), new EncryptedString("Existing"), new EncryptedString("Employee"),
                 new EncryptedString("existing@staydesk.com"), "existing-hash", "existing", 1, BigDecimal.TEN,
-                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), null)
+                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), null, null)
     }
 
     def "throws EmployeeAlreadyExistsException when the username is already taken"() {
@@ -223,7 +223,7 @@ class EmployeeServiceSpec extends Specification {
         given:
         def mapped = new Employee(UUID.randomUUID(), new EncryptedString("Existing"), new EncryptedString("Employee"),
                 new EncryptedString("existing@staydesk.com"), "existing-hash", "existing", 1, BigDecimal.TEN,
-                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), "qb-42")
+                LocalDate.now(), true, null, Employee.PayRateType.HOURLY, false, LocalDateTime.now(), LocalDateTime.now(), null, "qb-42")
         employeeRepository.findById(mapped.id()) >> Optional.of(mapped)
 
         when:
