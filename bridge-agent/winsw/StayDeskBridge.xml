@@ -2,7 +2,7 @@
   <id>StayDeskBridge</id>
   <name>StayDesk Terminal Bridge</name>
   <description>Bridges StayDesk cloud backend to the front-desk Ingenico terminal</description>
-  <executable>java</executable>
+  <executable>%BASE%\jre\bin\java.exe</executable>
   <arguments>-jar bridge-agent.jar</arguments>
   <startmode>Automatic</startmode>
   <log mode="roll-by-size">
