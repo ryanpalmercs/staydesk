@@ -112,6 +112,19 @@ public class ReservationService {
         return ChronoUnit.DAYS.between(checkInDate, checkOutDate);
     }
 
+    private static long getTotalPeriods(Rate.RateType rateType, LocalDate checkInDate, LocalDate checkOutDate) {
+        long totalPeriods = 0;
+
+        if (rateType.equals(Rate.RateType.NIGHTLY)) {
+            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
+        } else if (rateType.equals(Rate.RateType.WEEKLY_5)) {
+            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 5;
+        } else if (rateType.equals(Rate.RateType.WEEKLY_7)) {
+            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 7;
+        }
+        return totalPeriods;
+    }
+
     /**
      * A guest with legacy pricing enabled has their flat override amount substituted for the
      * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
@@ -217,99 +230,6 @@ public class ReservationService {
             return Rate.RateType.WEEKLY_5;
         }
         return Rate.RateType.NIGHTLY;
-    }
-
-    /**
-     * A guest with legacy pricing enabled has their flat override amount substituted for the
-     * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
-     * any date-range rate_overrides row (legacy guests are grandfathered off seasonal pricing
-     * entirely). The override amount is itself tiered by the guest's own legacyRateType - a
-     * WEEKLY_5/WEEKLY_7 legacy amount is a flat total for that period and gets split across nights
-     * the same way a current WEEKLY_5/WEEKLY_7 rate does, not charged in full every night.
-     * Otherwise, a Regular Guest always pays the tier's base per-night amount, skipping seasonal
-     * pricing entirely. For everyone else, an active rate_overrides row covering this date wins
-     * over the tier's base per-night amount - surge/seasonal pricing overrides the long-stay
-     * discount, not the other way around.
-     */
-    private BigDecimal resolveNightlyRateAmount(Integer guestId, Rate rate, LocalDate nightDate, long nightIndex) {
-        Optional<Guest> guest = guestId == null ? Optional.empty() : guestRepository.findById(guestId);
-
-        Optional<Guest> legacyGuest = guest.filter(Guest::legacyPricing)
-                                           .filter(g -> g.legacyPricingAmount() != null);
-
-        if (legacyGuest.isPresent()) {
-            Guest g = legacyGuest.get();
-            return tieredAmount(g.legacyPricingAmount(), g.legacyRateType(), nightIndex);
-        }
-
-        BigDecimal tieredAmount = tieredNightlyAmount(rate, nightIndex);
-
-        if (guest.map(Guest::regularGuest).orElse(false)) {
-            return tieredAmount;
-        }
-
-        return rateOverrideRepository.findActiveOverride(Rate.RateType.NIGHTLY.name(), rate.guestCount(), nightDate)
-                                     .map(RateOverride::amount)
-                                     .orElse(tieredAmount);
-    }
-
-    /**
-     * Splits a tiered rate's flat total evenly across the nights it covers using cumulative
-     * rounding - round the running total-through-this-night, then subtract the running total
-     * through the previous night - rather than rounding a single per-night amount and repeating
-     * it. The latter drifts away from the flat total by a few cents over several nights: a
-     * $362.70 WEEKLY_7 rate divided naively is $51.81 x 7 = $362.67, three cents short of the
-     * stated rate for an exact 7-night stay.
-     */
-    private BigDecimal tieredNightlyAmount(Rate rate, long nightIndex) {
-        return tieredAmount(rate.amount(), Rate.RateType.valueOf(rate.rateType()), nightIndex);
-    }
-
-    private BigDecimal tieredAmount(BigDecimal amount, Rate.RateType rateType, long nightIndex) {
-        int tierSize = switch (rateType) {
-            case NIGHTLY -> 0;
-            case WEEKLY_5 -> 5;
-            case WEEKLY_7 -> 7;
-        };
-
-        if (tierSize == 0) {
-            return amount;
-        }
-
-        BigDecimal cumulativeThroughThisNight = amount.multiply(BigDecimal.valueOf(nightIndex + 1))
-                                                       .divide(BigDecimal.valueOf(tierSize), 2, RoundingMode.HALF_UP);
-        BigDecimal cumulativeBeforeThisNight = amount.multiply(BigDecimal.valueOf(nightIndex))
-                                                     .divide(BigDecimal.valueOf(tierSize), 2, RoundingMode.HALF_UP);
-
-        return cumulativeThroughThisNight.subtract(cumulativeBeforeThisNight);
-    }
-
-    private BigDecimal sumNightlyRateAmounts(Integer guestId, Rate rate, LocalDate firstNight, long nights, long startIndex) {
-        BigDecimal total = BigDecimal.ZERO;
-
-        for (long i = 0; i < nights; i++) {
-            total = total.add(resolveNightlyRateAmount(guestId, rate, firstNight.plusDays(i), startIndex + i));
-        }
-
-        return total;
-    }
-
-    private String resolveGuestEmail(Integer guestId) {
-        if (guestId == null) {
-            return null;
-        }
-
-        return guestRepository.findById(guestId)
-                              .map(Guest::email)
-                              .map(EncryptedString::value)
-                              .orElse(null);
-    }
-
-    public String resolveGuestEmailForReservation(int reservationId) {
-        return reservationRepository.findById(reservationId)
-                                    .map(Reservation::guestId)
-                                    .map(this::resolveGuestEmail)
-                                    .orElse(null);
     }
 
     public String resolveGuestEmailForFolio(int folioId) {

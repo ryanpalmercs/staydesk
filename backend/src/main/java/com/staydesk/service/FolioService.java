@@ -132,56 +132,6 @@ public class FolioService {
                 .count();
     }
 
-    public record PerNightExtraCharge(int extraId, String extraName, BigDecimal unitPrice, int quantity) {
-    }
-
-    public record ExtraSelection(int extraId, int quantity) {
-    }
-
-    public BigDecimal priceExtras(List<ExtraSelection> selections, long nights) {
-        BigDecimal subtotal = BigDecimal.ZERO;
-
-        for (ExtraSelection selection : selections) {
-            Extra extra = extraRepository.findById(selection.extraId()).orElseThrow(ExtraNotFoundException::new);
-            BigDecimal units = BigDecimal.valueOf(selection.quantity());
-
-            if (extra.billingType() == Extra.BillingType.PER_NIGHT) {
-                units = units.multiply(BigDecimal.valueOf(nights));
-            }
-
-            subtotal = subtotal.add(extra.price().multiply(units));
-        }
-
-        return subtotal;
-    }
-
-    public List<PerNightExtraCharge> distinctPerNightExtras(int folioId) {
-        Map<Integer, FolioItem> firstItemByExtraId = new LinkedHashMap<>();
-
-        for (FolioItem item : folioItemRepository.findByFolioId(folioId)) {
-            if (item.extraId() != null) {
-                firstItemByExtraId.putIfAbsent(item.extraId(), item);
-            }
-        }
-
-        List<PerNightExtraCharge> charges = new ArrayList<>();
-
-        for (FolioItem item : firstItemByExtraId.values()) {
-            extraRepository.findById(item.extraId())
-                    .filter(extra -> extra.billingType() == Extra.BillingType.PER_NIGHT)
-                    .ifPresent(extra -> charges.add(new PerNightExtraCharge(extra.id(), extra.name(), extra.price(), item.quantity())));
-        }
-
-        return charges;
-    }
-
-    public long countRoomChargesPosted(int folioId) {
-        return folioItemRepository.findByFolioId(folioId).stream()
-                .filter(item -> item.type() == FolioItem.FolioItemType.CHARGE)
-                .filter(item -> "GUEST ROOM".equals(item.description()))
-                .count();
-    }
-
     @Transactional
     public Folio addExtra(int folioId, int extraId, int quantity) {
         Folio folio = folioRepository.findById(folioId).orElseThrow(FolioNotFoundException::new);

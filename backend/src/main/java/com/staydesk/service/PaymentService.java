@@ -349,19 +349,6 @@ public class PaymentService {
                 result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
     }
 
-    public FolioPayment chargeCardPresent(Folio folio, BigDecimal amount, String providerName, String paymentMethodId,
-                                          String description, String customerEmail) {
-        AuthResult result = providerFactory.getProvider(providerName).sale(amount, paymentMethodId, description, customerEmail);
-
-        if (!result.success()) {
-            throw new RuntimeException("Failed to charge card-present for folio " + folio.id() + ": " + result.message());
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.INCIDENT_CHARGE, providerName,
-                result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
-    }
-
     public FolioPayment chargeStoredCredential(Folio folio, ReusablePaymentCredential credential, BigDecimal amount,
                                                String description, String customerEmail) {
         AuthResult result = providerFactory.getProvider(credential.provider())
