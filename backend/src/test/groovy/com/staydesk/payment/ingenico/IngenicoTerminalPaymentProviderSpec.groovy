@@ -75,20 +75,57 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         refundResult.message() == "REFUND DECLINED"
     }
 
-    def "authorize is not yet implemented pending Elavon/Ingenico confirmation"() {
+    def "authorize returns a successful AuthResult on approval"() {
+        given:
+        def result = new TsiTransactionResult("approved", "ref-3", "AUTH456", "APPROVED", new TsiCard("************2205"))
+        bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH, null, "pre_auth", BigDecimal.valueOf(75), null) >> result
+
         when:
-        provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null)
+        def authResult = provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null)
 
         then:
-        thrown(UnsupportedOperationException)
+        authResult.success()
+        authResult.transactionId() == "ref-3"
+        authResult.cardLast4() == "2205"
     }
 
-    def "capture is not yet implemented pending Elavon/Ingenico confirmation"() {
+    def "authorize returns a failed AuthResult when the bridge is offline"() {
+        given:
+        bridgeClient.sendTransaction(*_) >> { throw new TerminalBridgeException("Terminal bridge is not connected") }
+
         when:
-        provider.capture("ref-1", BigDecimal.valueOf(75))
+        def authResult = provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null)
 
         then:
-        thrown(UnsupportedOperationException)
+        !authResult.success()
+        authResult.message() == "Terminal bridge is not connected"
+    }
+
+    def "capture reports success using the terminal's returned reference_no"() {
+        given:
+        def result = new TsiTransactionResult("approved", "ref-4", "AUTH789", "APPROVED", null)
+        bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH_COMPLETION, null, "pre_auth_completion",
+                BigDecimal.valueOf(75), "ref-3") >> result
+
+        when:
+        def captureResult = provider.capture("ref-3", BigDecimal.valueOf(75))
+
+        then:
+        captureResult.success()
+        captureResult.transactionId() == "ref-4"
+    }
+
+    def "capture reports failure with the terminal's message on decline"() {
+        given:
+        def result = new TsiTransactionResult("decline_by_host_or_card", null, null, "DECLINED", null)
+        bridgeClient.sendTransaction(*_) >> result
+
+        when:
+        def captureResult = provider.capture("ref-3", BigDecimal.valueOf(75))
+
+        then:
+        !captureResult.success()
+        captureResult.message() == "DECLINED"
     }
 
     def "createReusableCredential is a pure passthrough"() {
