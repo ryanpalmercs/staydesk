@@ -24,6 +24,10 @@ export function deleteEmployee(id) {
     return api.delete(`/admin/employees/${id}`)
 }
 
+export function activateEmployee(id) {
+    return api.put(`/admin/employees/${id}/activate`)
+}
+
 export function getEmployeeTypes() {
     return api.get('/admin/employeeTypes')
 }

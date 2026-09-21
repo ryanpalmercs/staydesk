@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { format } from 'date-fns'
 import { getRooms } from '../api/roomApi'
 import { getReservations } from '../api/reservationApi'
 import { getGuests } from '../api/guestApi'
+import { formatGuestName } from '../utils/guestName'
 
 export default function HousekeepingDashboardPage() {
     const [rooms, setRooms] = useState([])
@@ -17,7 +19,7 @@ export default function HousekeepingDashboardPage() {
             })
     }, [])
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = format(new Date(), 'yyyy-MM-dd')
     const guestsMap = Object.fromEntries(guests.map(g => [g.id, g]))
     const roomsMap = Object.fromEntries(rooms.map(r => [r.id, r]))
 
@@ -48,7 +50,7 @@ export default function HousekeepingDashboardPage() {
                     <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {todayCheckOuts.map(r => (
                             <li key={r.id} className="stat-card" style={{ padding: '0.75rem 1rem' }}>
-                                Room {roomsMap[r.roomId]?.roomNumber} — {guestsMap[r.guestId]?.firstName} {guestsMap[r.guestId]?.lastName}
+                                Room {roomsMap[r.roomId]?.roomNumber} — {formatGuestName(guestsMap[r.guestId])}
                             </li>
                         ))}
                     </ul>

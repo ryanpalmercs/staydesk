@@ -1,29 +1,34 @@
 import { useEffect, useRef, useState } from "react"
-import { createReservation, getReservationEstimate, updateReservation, createMultiRoomReservation } from "../api/reservationApi"
-import { getRoomTypes } from "../api/roomTypeApi"
+import { assignRoom, createReservation, createMultiRoomReservation, getCheckInEstimate, getReservationEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
+import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
+import { getRoom } from "../api/roomApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
+import { formatGuestName } from "../utils/guestName"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
+import { getFeatureFlags } from "../api/featureFlagsApi"
 import { getExtras } from "../api/extrasApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
+import PaymentMethodStep from "./PaymentMethodStep"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { CircleMinus, CirclePlus, Trash2 } from "lucide-react"
 import Modal from "./Modal"
-
+import AssignRoomModal from "./AssignRoomModal"
+import MoveRoomModal from "./MoveRoomModal"
 
 function Stepper({ label, value, min, max, onChange }) {
     return (
         <div flex items-center justify-center>
             <label className="block text-sm text-muted mb-1">{label}</label>
             <div className="flex items-center justify-center gap-3">
-                <button type="button stepper" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
+                <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Decrease ${label}`}>
                     <CircleMinus size={18} />
                 </button>
                 <span className="w-6 text-center">{value}</span>
-                <button type="button stepper" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
+                <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}
                     className="w-8 h-8 flex items-center justify-center p-0 color-tan" aria-label={`Increase ${label}`}>
                     <CirclePlus size={18} />
                 </button>
@@ -37,6 +42,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const canAddExtras = isEditing && reservation.status === 'CHECKED_IN'
 
     const [roomTypes, setRoomTypes] = useState([])
+    const [unavailableRoomTypeIds, setUnavailableRoomTypeIds] = useState([])
+    const [multiRoomBookingEnabled, setMultiRoomBookingEnabled] = useState(false)
     const [guests, setGuests] = useState([])
     const [guestFormError, setGuestFormError] = useState(null)
     const [creatingGuest, setCreatingGuest] = useState(false)
@@ -48,7 +55,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         checkInDate: reservation?.checkInDate ?? '',
         checkOutDate: reservation?.checkOutDate ?? '',
         status: reservation?.status ?? 'CONFIRMED',
-        channel: null
+        channel: reservation?.channel ?? null
     })
 
     const [guestForm, setGuestForm] = useState({
@@ -56,7 +63,8 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         lastName: '',
         email: '',
         phoneNumber: '',
-        smsConsent: false
+        smsConsent: false,
+        guestType: 'INDIVIDUAL'
     })
     const initialFormRef = useRef(form)
     const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -65,10 +73,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [showExtras, setShowExtras] = useState(false)
     const [folioId, setFolioId] = useState(null)
+    const [assignedRoom, setAssignedRoom] = useState(null)
+    const [dateLeftInset, setDateLeftInset] = useState(0)
     const [extras, setExtras] = useState([])
     const [selectedExtraId, setSelectedExtraId] = useState('')
     const [extraQuantity, setExtraQuantity] = useState(1)
     const [extraMessage, setExtraMessage] = useState(null)
+    const [stagedExtras, setStagedExtras] = useState([])
 
     const [step, setStep] = useState(isEditing ? 'form' : 'choice')
     const [guestStepOrigin, setGuestStepOrigin] = useState('choice')
@@ -77,25 +88,34 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [pendingForm, setPendingForm] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet'
+    const [payTimingChoice, setPayTimingChoice] = useState(null)
+    const [payNowReservationId, setPayNowReservationId] = useState(null)
+    const [payNowReservation, setPayNowReservation] = useState(null)
+    const [payNowAmount, setPayNowAmount] = useState(null)
+    const [selectedRoomId, setSelectedRoomId] = useState('')
+
+    const isFutureWalkIn = form.channel === 'WALK_IN' && form.checkInDate
+        ? differenceInCalendarDays(parseISO(form.checkInDate), new Date()) > 0
+        : false
 
     const selectedGuest = guests.find(g => g.id === Number(form.guestId))
     const flaggedMatch = selectedGuest?.flagged ? selectedGuest : null
 
     const newGuestFlaggedMatch = guests.find(g => g.flagged && (
-        (guestForm.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
+        (guestForm.email && g.email && g.email.toLowerCase() === guestForm.email.toLowerCase()) ||
         (guestForm.phoneNumber && g.phoneNumber === guestForm.phoneNumber)
     ))
 
     const visibleGuests = [...guests]
-        .filter(g => `${g.firstName} ${g.lastName}`.toLowerCase().includes(guestSearchQuery.toLowerCase()))
-        .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+        .filter(g => formatGuestName(g).toLowerCase().includes(guestSearchQuery.toLowerCase()))
+        .sort((a, b) => formatGuestName(a).localeCompare(formatGuestName(b)))
 
     const totalNights = form.checkInDate && form.checkOutDate
         ? differenceInCalendarDays(parseISO(form.checkOutDate), parseISO(form.checkInDate))
         : 0
 
-    const rateType = totalNights > 0 && totalNights % 7 === 0 ? 'WEEKLY_7'
-        : totalNights > 0 && totalNights % 5 === 0 ? 'WEEKLY_5'
+    const rateType = totalNights >= 7 ? 'WEEKLY_7'
+        : totalNights >= 5 ? 'WEEKLY_5'
             : 'NIGHTLY'
     const maxGuestCount = 4
     const guestCount = form.adults + form.children
@@ -126,8 +146,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         getRoomTypes().then(res => setRoomTypes(res.data ?? [])),
             getGuests().then(res => setGuests(res.data ?? []))
 
+        getFeatureFlags().then(res => setMultiRoomBookingEnabled(res.data.multiRoomBookingEnabled)).catch(() => setMultiRoomBookingEnabled(false))
+
         if (canAddExtras) {
             getFolioByReservationId(reservation.id).then(res => setFolioId(res.data.id))
+        }
+
+        if (canAddExtras || !isEditing) {
             getExtras().then(res => setExtras(res.data ?? []))
         }
 
@@ -135,6 +160,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             getPropertySetting('payment_provider').then(res => {
                 setProvider(res.data.value)
             })
+        }
+
+        if (isEditing && reservation.roomId != null) {
+            getRoom(reservation.roomId).then(res => setAssignedRoom(res.data)).catch(() => setAssignedRoom(null))
         }
     }, [])
 
@@ -151,7 +180,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
         let cancelled = false
-        getReservationEstimate({ rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate })
+        getReservationEstimateWithExtras({
+            rateType, guestCount, checkInDate: form.checkInDate, checkOutDate: form.checkOutDate,
+            guestId: form.guestId || undefined,
+            extras: stagedExtras.map(item => ({ extraId: item.extraId, quantity: item.quantity }))
+        })
             .then(res => {
                 if (!cancelled) {
                     setEstimate(res.data)
@@ -163,21 +196,56 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 }
             })
         return () => { cancelled = true }
-    }, [rateType, guestCount, form.checkInDate, form.checkOutDate])
+    }, [rateType, guestCount, form.checkInDate, form.checkOutDate, form.guestId, stagedExtras])
+
+    useEffect(() => {
+        if (!form.checkInDate || !form.checkOutDate) {
+            setUnavailableRoomTypeIds([])
+            return
+        }
+        let cancelled = false
+        getUnavailableRoomTypeIds(form.checkInDate, form.checkOutDate, reservation?.id)
+            .then(res => { if (!cancelled) setUnavailableRoomTypeIds(res.data ?? []) })
+            .catch(() => { if (!cancelled) setUnavailableRoomTypeIds([]) })
+        return () => { cancelled = true }
+    }, [form.checkInDate, form.checkOutDate])
 
     async function handleAddExtra() {
-        if (!selectedExtraId || !folioId) return
+        if (!selectedExtraId) return
 
-        setExtraMessage(null)
+        if (canAddExtras) {
+            if (!folioId) return
 
-        try {
-            await addFolioItem(folioId, Number(selectedExtraId), Number(extraQuantity))
-            setExtraMessage('Added.')
-            setSelectedExtraId('')
-            setExtraQuantity(1)
-        } catch (err) {
-            setExtraMessage(err.response?.status === 409 ? 'Folio is closed.' : 'Failed to add item.')
+            setExtraMessage(null)
+
+            try {
+                await addFolioItem(folioId, Number(selectedExtraId), Number(extraQuantity))
+                setExtraMessage('Added.')
+                setSelectedExtraId('')
+                setExtraQuantity(1)
+            } catch (err) {
+                setExtraMessage(err.response?.status === 409 ? 'Folio is closed.' : 'Failed to add item.')
+            }
+            return
         }
+
+        const extra = extras.find(e => e.id === Number(selectedExtraId))
+        if (!extra) return
+
+        setStagedExtras(prev => [...prev, {
+            extraId: extra.id, name: extra.name, price: extra.price, billingType: extra.billingType,
+            quantity: Number(extraQuantity)
+        }])
+        setSelectedExtraId('')
+        setExtraQuantity(1)
+    }
+
+    function removeStagedExtra(index) {
+        setStagedExtras(prev => prev.filter((_, i) => i !== index))
+    }
+
+    function stagedExtraSelections() {
+        return stagedExtras.map(item => ({ extraId: item.extraId, quantity: item.quantity }))
     }
 
     function handleChange(e) {
@@ -198,11 +266,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             const guestsRes = await getGuests()
             setGuests(guestsRes.data)
             setForm(f => ({ ...f, guestId: res.data.id }))
-            setGuestForm({ firstName: '', lastName: '', email: '', phoneNumber: '', smsConsent: false })
+            setGuestForm({ firstName: '', lastName: '', email: '', phoneNumber: '', smsConsent: false, guestType: 'INDIVIDUAL' })
             setStep('form')
         } catch (err) {
             if (err.response?.status === 400) {
-                setGuestFormError('Phone number must be 10 digits.')
+                setGuestFormError('Please check the fields — phone must be 10 digits, and last name is required for individuals.')
             } else if (err.response?.status === 409) {
                 setGuestFormError('A guest with that email already exists.')
             } else {
@@ -217,9 +285,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         setGuestForm({
             firstName: selectedGuest.firstName,
             lastName: selectedGuest.lastName,
-            email: selectedGuest.email,
+            email: selectedGuest.email ?? '',
             phoneNumber: selectedGuest.phoneNumber,
-            smsConsent: selectedGuest.smsConsent
+            smsConsent: selectedGuest.smsConsent,
+            guestType: selectedGuest.guestType ?? 'INDIVIDUAL'
         })
         setGuestFormError(null)
         setEditingGuestInfo(true)
@@ -261,13 +330,18 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        if (isEditing) {
+        if (isEditing || !multiRoomBookingEnabled) {
             if (!form.roomTypeId) {
                 setError('Please select a room type.')
                 return
             }
         } else if (roomLines.some(l => !l.roomTypeId)) {
             setError('Please select a room type for each room.')
+            return
+        }
+
+        if (unavailableRoomTypeIds.includes(Number(form.roomTypeId))) {
+            setError('No room of this type is available for the selected dates.')
             return
         }
 
@@ -296,7 +370,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        const multiRoom = isMultiRoom(roomLines)
+        const multiRoom = multiRoomBookingEnabled && isMultiRoom(roomLines)
         const channel = isFutureWalkIn ? 'PHONE' : form.channel
 
         const basePayload = {
@@ -308,12 +382,15 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             channel
         }
 
+        // Multi-room booking is feature-flagged off by default (not yet integrated with the
+        // assign-room/pay-timing flow below) - see #{{multi-room-pay-timing-followup}}. While
+        // disabled, this branch is unreachable since roomLines never grows past one line.
         if (multiRoom) {
             const payload = { ...basePayload, rooms: roomLines.map(l => ({ roomTypeId: Number(l.roomTypeId), quantity: Number(l.quantity) })) }
 
             if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
                 try {
-                    await createMultiRoomReservation({ ...payload, roomPaymentMethodId: null })
+                    await createMultiRoomReservation({ ...payload, roomPaymentMethodId: null, extras: stagedExtraSelections() })
                     onSaved()
                 } catch (err) {
                     setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
@@ -330,35 +407,52 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        const payload = { ...basePayload, roomTypeId: Number(roomLines[0].roomTypeId) }
+        const payload = { ...basePayload, roomTypeId: Number(form.roomTypeId) }
 
         if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
             try {
-                const res = await createReservation({ ...payload, roomPaymentMethodId: null })
-                onSaved(res.data)
+                const res = await createReservation({ ...payload, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                onSaved(res.data.id)
             } catch (err) {
                 setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
             }
             return
         }
 
-        if (!paymentReady) {
-            setError('Payment provider is not connected. Check Settings.')
-            return
-        }
+        // A future-dated walk-in or any phone booking has no guest present yet, so staff
+        // can optionally lock in a specific room before working through payment timing.
         setPendingForm({ ...payload, multiRoom: false })
-        setStep('payment')
+        setPayTimingChoice(null)
+        setSelectedRoomId('')
+        setStep('assign-room')
+    }
+
+
+    // The room (if any) was picked earlier in the assign-room step, before the reservation itself
+    // existed - assignRoom runs now that it does. A room-assignment failure here (e.g. someone else
+    // just took it) doesn't block finishing: the reservation is already secured either way, and the
+    // room can still be assigned later from the reservation list or calendar.
+    async function completeReservation(created) {
+        if (selectedRoomId) {
+            try {
+                await assignRoom(created.id, Number(selectedRoomId))
+            } catch (err) {
+                console.error('Failed to assign room:', err)
+            }
+        }
+        onSaved()
     }
 
     async function handleCapture(paymentMethodId) {
         try {
             const { multiRoom, ...payload } = pendingForm
             if (multiRoom) {
-                await createMultiRoomReservation({ ...payload, roomPaymentMethodId: paymentMethodId })
+                await createMultiRoomReservation({ ...payload, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
+                onSaved()
             } else {
-                await createReservation({ ...payload, roomPaymentMethodId: paymentMethodId })
+                const res = await createReservation({ ...payload, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
+                completeReservation(res.data)
             }
-            onSaved()
         } catch (err) {
             setStep('form')
             if (err.response?.status === 400) {
@@ -369,15 +463,85 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
     }
 
+    async function handlePayNowChosen() {
+        if (form.channel === 'WALK_IN') {
+            try {
+                const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                setPayNowReservationId(res.data.id)
+                setPayNowReservation(res.data)
+                const estimateRes = await getCheckInEstimate(res.data.id)
+                setPayNowAmount(estimateRes.data.total)
+                setStep('pay-now')
+            } catch (err) {
+                setStep('form')
+                setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+            }
+            return
+        }
+
+        // PHONE: paying now still means collecting a card-not-present token before creating,
+        // same as every phone booking did before this choice existed.
+        if (!paymentReady) {
+            setStep('form')
+            setError('Payment provider is not connected. Check Settings.')
+            return
+        }
+        setStep('payment')
+    }
+
+    async function handlePayLaterChosen() {
+        try {
+            // No charge now; the room total is collected via the card-present terminal once the
+            // guest actually arrives and checks in.
+            const res = await createReservation({ ...pendingForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+            completeReservation(res.data)
+        } catch (err) {
+            setStep('form')
+            setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+        }
+    }
+
+    // Its own separate modal, not a step inside this one - the reservation form closes, this
+    // opens in its place, and picking a room (or skipping) hands control back for pay-timing to
+    // open next, rather than nesting one dialog inside another.
+    if (step === 'assign-room') {
+        return (
+            <AssignRoomModal
+                roomTypeId={form.roomTypeId}
+                checkInDate={form.checkInDate}
+                checkOutDate={form.checkOutDate}
+                onSaved={roomId => { setSelectedRoomId(String(roomId)); setStep('pay-timing') }}
+                onClose={() => { setSelectedRoomId(''); setStep('pay-timing') }}
+                onBack={() => setStep('form')}
+            />
+        )
+    }
+
+    // "Change Room" on an existing reservation - same "separate modal, not nested" treatment as
+    // the booking flow's own room picker. A standalone action, not bundled into the rest of the
+    // edit form's save: closes the whole edit modal on success so the parent refetches fresh data,
+    // same as the Move/Assign Room entry points elsewhere in the app.
+    if (step === 'change-room') {
+        return (
+            <MoveRoomModal
+                reservation={reservation}
+                onSaved={onSaved}
+                onClose={() => setStep('form')}
+            />
+        )
+    }
+
     return (
         <Modal onClose={onClose} size="reservation" scrollable padded={false} isDirty={isDirty}>
             <h2 className="text-lg text-black font-semibold px-6 pt-6 pb-4">
                 {step === 'payment' ? 'Card Details'
-                    : step === 'choice' ? 'New or Returning Guest?'
-                        : step === 'guestList' ? 'Select Guest'
-                            : step === 'newGuest' ? 'New Guest'
-                                : step === 'confirmGuest' ? 'Confirm Guest Information'
-                                    : isEditing ? `Edit Reservation for ${selectedGuest ? `${selectedGuest.firstName} ${selectedGuest.lastName}` : ''}` : `New Reservation for ${selectedGuest ? `${selectedGuest.firstName} ${selectedGuest.lastName}` : ''}`}
+                    : step === 'pay-now' ? 'Charge for Stay'
+                        : step === 'pay-timing' ? 'How Should This Stay Be Paid?'
+                            : step === 'choice' ? 'New or Returning Guest?'
+                                : step === 'guestList' ? 'Select Guest'
+                                    : step === 'newGuest' ? 'New Guest'
+                                        : step === 'confirmGuest' ? 'Confirm Guest Information'
+                                            : isEditing ? `Edit Reservation for ${formatGuestName(selectedGuest)}` : `New Reservation for ${formatGuestName(selectedGuest)}`}
             </h2>
 
             {step === 'choice' && (
@@ -419,7 +583,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                 onClick={() => { setForm(f => ({ ...f, guestId: g.id })); setStep('confirmGuest') }}
                                 className="filter-input flex justify-between items-center text-left hover:border-green"
                             >
-                                <span>{g.firstName} {g.lastName}</span>
+                                <span>{formatGuestName(g)}</span>
                                 {g.flagged && <span className="text-xs text-error font-medium">Flagged</span>}
                             </button>
                         ))}
@@ -438,11 +602,21 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             {step === 'newGuest' && (
                 <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">
                     <form onSubmit={handleCreateGuest} className="flex flex-col gap-4">
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'INDIVIDUAL' })} className={`filter-btn${guestForm.guestType === 'INDIVIDUAL' ? ' active' : ''}`}>Individual</button>
+                            <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'BUSINESS', lastName: '' })} className={`filter-btn${guestForm.guestType === 'BUSINESS' ? ' active' : ''}`}>Business Entity</button>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
-                            <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
-                            <input name="email" placeholder="Email" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" required />
-                            <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
+                            {guestForm.guestType === 'BUSINESS' ? (
+                                <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0 sm:col-span-2" required />
+                            ) : (
+                                <>
+                                    <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
+                                    <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
+                                </>
+                            )}
+                            <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" />
+                            <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
                         </div>
 
                         <label className="flex items-start gap-2 text-sm text-muted">
@@ -485,11 +659,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         <div className="flex flex-col gap-4">
                             <div>
                                 <label className="block text-sm text-muted mb-1">Name</label>
-                                <p className="text-sm text-black">{selectedGuest.firstName} {selectedGuest.lastName}</p>
+                                <p className="text-sm text-black">{formatGuestName(selectedGuest)}</p>
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Email</label>
-                                <p className="text-sm text-black">{selectedGuest.email}</p>
+                                <p className="text-sm text-black">{selectedGuest.email || <span className="text-muted">No email on file</span>}</p>
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Phone</label>
@@ -508,11 +682,21 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         </div>
                     ) : (
                         <form onSubmit={handleUpdateGuestInfo} className="flex flex-col gap-4">
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'INDIVIDUAL' })} className={`filter-btn${guestForm.guestType === 'INDIVIDUAL' ? ' active' : ''}`}>Individual</button>
+                                <button type="button" onClick={() => setGuestForm({ ...guestForm, guestType: 'BUSINESS', lastName: '' })} className={`filter-btn${guestForm.guestType === 'BUSINESS' ? ' active' : ''}`}>Business Entity</button>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input" required />
-                                <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input" required />
-                                <input name="email" placeholder="Email" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input" required />
-                                <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input" required />
+                                {guestForm.guestType === 'BUSINESS' ? (
+                                    <input name="firstName" placeholder="Business name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0 sm:col-span-2" required />
+                                ) : (
+                                    <>
+                                        <input name="firstName" placeholder="First name" value={guestForm.firstName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
+                                        <input name="lastName" placeholder="Last name" value={guestForm.lastName} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
+                                    </>
+                                )}
+                                <input name="email" placeholder="Email (optional)" value={guestForm.email} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" />
+                                <input name="phoneNumber" placeholder="Phone (10 digits)" value={guestForm.phoneNumber} onChange={handleGuestFieldChange} className="filter-input w-full min-w-0" required />
                             </div>
 
                             <label className="flex items-start gap-2 text-sm text-muted">
@@ -549,46 +733,47 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
             {step === 'form' && (
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-                    <div className="flex flex-col gap-4 overflow-y-auto px-6 flex-1 min-h-0">
-                        <div className="flex flex-col gap-2">
-                            <div className="flex flex-col sm:flex-row sm:justify-start gap-4 sm:gap-10">
-                                <div>
-                                    <label className="block text-sm text-muted mb-1">How is this being booked?</label>
-                                    <div className="flex justify-left gap-2">
-                                        <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
-                                        <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <Stepper
-                                        label="Adults"
-                                        value={form.adults}
-                                        min={1}
-                                        max={maxGuestCount - form.children}
-                                        onChange={adults => setForm(f => ({ ...f, adults }))}
-                                    />
-                                    <Stepper
-                                        label="Children"
-                                        value={form.children}
-                                        min={0}
-                                        max={maxGuestCount - form.adults}
-                                        onChange={children => setForm(f => ({ ...f, children }))}
-                                    />
+                    <div className="flex flex-col gap-2 overflow-y-auto px-6 pb-4 flex-1 min-h-0">
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-10" style={{ paddingLeft: dateLeftInset }}>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">How is this being booked?</label>
+                                <div className="flex justify-left gap-2">
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'PHONE' }))} className={`filter-btn${form.channel === 'PHONE' ? ' active' : ''}`}>Phone</button>
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, channel: 'WALK_IN' }))} className={`filter-btn${form.channel === 'WALK_IN' ? ' active' : ''}`}>Walk-In</button>
                                 </div>
                             </div>
-                            {isEditing ? (
-                                <div>
-                                    <label className="block text-sm text-muted mb-1">Room Type</label>
-                                    <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input" required>
-                                        <option value="">Select a room type...</option>
-                                        {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
-                                            <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            ) : (
-                                <div>
-                                    <label className="block text-sm text-muted mb-1">Rooms</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Stepper
+                                    label="Adults"
+                                    value={form.adults}
+                                    min={1}
+                                    max={maxGuestCount - form.children}
+                                    onChange={adults => setForm(f => ({ ...f, adults }))}
+                                />
+                                <Stepper
+                                    label="Children"
+                                    value={form.children}
+                                    min={0}
+                                    max={maxGuestCount - form.adults}
+                                    onChange={children => setForm(f => ({ ...f, children }))}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">{multiRoomBookingEnabled && !isEditing ? 'Rooms' : 'Room Type'}</label>
+                                {isEditing ? (
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-sm text-black">
+                                            {roomTypes.find(rt => rt.id === Number(form.roomTypeId))?.name.replace('_', ' ') ?? '—'}
+                                            {assignedRoom && ` — Room ${assignedRoom.roomNumber}`}
+                                        </p>
+                                        {(reservation.status === 'CONFIRMED' || reservation.status === 'CHECKED_IN') && (
+                                            <button type="button" onClick={() => setStep('change-room')} className="text-sm font-medium text-green hover:text-black self-start">
+                                                Change Room
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : multiRoomBookingEnabled ? (
                                     <div className="flex flex-col gap-2">
                                         {roomLines.map((line, index) => (
                                             <div key={index} className="flex gap-2 items-center">
@@ -623,55 +808,92 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                                 )}
                                             </div>
                                         ))}
+                                        <button type="button" onClick={addRoomLine} className="btn btn-secondary text-sm mt-2">
+                                            + Add another room type
+                                        </button>
                                     </div>
-                                    <button type="button" onClick={addRoomLine} className="btn btn-secondary text-sm mt-2">
-                                        + Add another room type
-                                    </button>
-                                </div>
-                            )}
+                                ) : (
+                                    <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input w-full sm:w-56" required>
+                                        <option value="">Select a room type...</option>
+                                        {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
+                                            <option key={rt.id} value={rt.id} disabled={unavailableRoomTypeIds.includes(rt.id)}>
+                                                {rt.name.replace('_', ' ')}{unavailableRoomTypeIds.includes(rt.id) ? ' (Unavailable)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
                         </div>
                         <div>
-                            <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                            <div style={{ paddingLeft: dateLeftInset }}>
+                                <label className="block text-sm text-muted mb-1">Check-in / Check-out</label>
+                            </div>
                             <ReservationDatePicker
                                 roomTypeId={form.roomTypeId}
                                 checkInDate={form.checkInDate}
                                 checkOutDate={form.checkOutDate}
                                 onRangeSelected={({ checkInDate, checkOutDate }) => setForm(f => ({ ...f, checkInDate, checkOutDate }))}
+                                excludeReservationId={reservation?.id}
+                                onLeftInsetChange={setDateLeftInset}
                             />
                         </div>
 
                         {isEditing && (
-                            <div>
-                                <label className="block text-sm text-muted mb-1">Status</label>
-                                <div className="flex justify-center">
-                                    <select name="status" value={form.status} onChange={handleChange} className="filter-input" >
+                            <div className="flex items-end justify-between gap-4" style={{ paddingLeft: dateLeftInset, paddingRight: dateLeftInset }}>
+                                <div>
+                                    <label className="block text-sm text-muted mb-1">Status</label>
+                                    <select name="status" value={form.status} onChange={handleChange} className="filter-input">
                                         <option value="CONFIRMED">Confirmed</option>
                                         <option value="CANCELLED">Cancelled</option>
                                     </select>
                                 </div>
+                                {canAddExtras && (
+                                    <button type="button" onClick={() => setShowExtras(!showExtras)} className="btn btn-secondary !py-2 !px-3 !text-sm">
+                                        {showExtras ? 'Hide Extras' : 'Add Extras'}
+                                    </button>
+                                )}
                             </div>
                         )}
 
-                        {canAddExtras && (
+                        {!isEditing && (
                             <div>
                                 <button type="button" onClick={() => setShowExtras(!showExtras)} className="text-sm font-medium text-green hover:text-black">
                                     {showExtras ? 'Hide Extras' : 'Add Extras'}
                                 </button>
+                            </div>
+                        )}
 
-                                {showExtras && (
-                                    <div className="flex gap-2 items-end mt-2">
-                                        <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
-                                            <option value="">Select an extra...</option>
-                                            {extras.map(extra => (
-                                                <option key={extra.id} value={extra.id}>{extra.name} (${extra.price.toFixed(2)})</option>
-                                            ))}
-                                        </select>
-                                        <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
-                                        <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
-                                    </div>
+                        {(canAddExtras || !isEditing) && showExtras && (
+                            <div className="flex flex-col gap-2">
+                                <div className="flex gap-2 items-end">
+                                    <select value={selectedExtraId} onChange={e => setSelectedExtraId(e.target.value)} className="filter-input flex-1">
+                                        <option value="">Select an extra...</option>
+                                        {extras.map(extra => (
+                                            <option key={extra.id} value={extra.id}>
+                                                {extra.name} (${extra.price.toFixed(2)}{extra.billingType === 'PER_NIGHT' ? '/night' : ''})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input type="number" min="1" value={extraQuantity} onChange={e => setExtraQuantity(e.target.value)} className="filter-input w-20" />
+                                    <button type="button" onClick={handleAddExtra} className="btn btn-secondary">Add</button>
+                                </div>
+
+                                {canAddExtras && extraMessage && <p className="text-sm text-muted">{extraMessage}</p>}
+
+                                {!canAddExtras && stagedExtras.length > 0 && (
+                                    <ul className="flex flex-col gap-1">
+                                        {stagedExtras.map((item, i) => (
+                                            <li key={i} className="flex justify-between items-center text-sm text-black">
+                                                <span>
+                                                    {item.name} x{item.quantity} (${item.price.toFixed(2)}{item.billingType === 'PER_NIGHT' ? '/night' : ''})
+                                                </span>
+                                                <button type="button" onClick={() => removeStagedExtra(i)} className="text-xs text-error hover:underline">
+                                                    Remove
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
-
-                                {extraMessage && <p className="text-sm text-muted mt-1">{extraMessage}</p>}
                             </div>
                         )}
 
@@ -696,7 +918,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     Cancel
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={isEditing && !isDirty}>
-                                    {isEditing ? 'Save' : 'Create'}
+                                    {isEditing ? 'Save' : 'Continue'}
                                 </button>
                             </div>
                         </div>
@@ -704,12 +926,81 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 </form>
             )}
 
-            {step === 'payment' && (
-                <div className="px-6 pb-6 overflow-y-auto">
-                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('form')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
+            {step === 'pay-timing' && (
+                <div className="flex flex-col flex-1 min-h-0 px-6 pb-6 gap-4">
+                    <p className="text-sm text-muted">
+                        {isFutureWalkIn
+                            ? `Check-in is ${differenceInCalendarDays(parseISO(form.checkInDate), new Date())} days away — there's no guest here yet to charge.`
+                            : "The guest isn't present to hand over a card right now."}
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setPayTimingChoice(payTimingChoice === 'now' ? null : 'now')}
+                            className={`bg-warm-white rounded flex-1 flex flex-col gap-1 p-4 text-left ${payTimingChoice === 'now' ? 'border-2 border-black' : 'border-2 border-tan'}`}
+                        >
+                            <span className="font-semibold text-black">Pay Now</span>
+                            <p className="text-sm text-muted">
+                                {isFutureWalkIn
+                                    ? "Charge the full stay today. Room assignment and the door code still happen when the guest actually arrives."
+                                    : "Collect the guest's card over the phone now and charge the full stay today."}
+                            </p>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPayTimingChoice(payTimingChoice === 'later' ? null : 'later')}
+                            className={`bg-warm-white rounded flex-1 flex flex-col gap-1 p-4 text-left ${payTimingChoice === 'later' ? 'border-2 border-black' : 'border-2 border-tan'}`}
+                        >
+                            <span className="font-semibold text-black">{isFutureWalkIn ? 'Pay at Check-In' : 'Pay Later (at Check-In)'}</span>
+                            <p className="text-sm text-muted">
+                                No charge now. The full stay will be charged via the card-present terminal when the guest actually arrives and checks in.
+                            </p>
+                        </button>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                        <button type="button" onClick={() => setStep('assign-room')} className="btn btn-secondary">
+                            Back
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => payTimingChoice === 'now' ? handlePayNowChosen() : handlePayLaterChosen()}
+                            className="btn btn-primary"
+                            disabled={payTimingChoice == null}
+                        >
+                            OK
+                        </button>
+                    </div>
                 </div>
             )}
 
+            {step === 'payment' && (
+                <div className="px-6 pb-6 overflow-y-auto">
+                    <AcceptJsCardForm onCapture={handleCapture} onCancel={() => setStep('pay-timing')} submitLabel="Confirm & Reserve" amount={estimate?.total} label="Estimated Total" />
+                </div>
+            )}
+
+            {step === 'pay-now' && (
+                <div className="px-6 pb-6 overflow-y-auto">
+                    <PaymentMethodStep
+                        amount={payNowAmount}
+                        amountLabel="Total Charge"
+                        description="Charge the full stay for this booking now. Room assignment and the door code still happen when the guest actually arrives."
+                        dual={false}
+                        submitLabel="Charge"
+                        onSubmitToken={async (roomToken) => {
+                            await payFullStayNow(payNowReservationId, roomToken)
+                            completeReservation(payNowReservation)
+                        }}
+                        onSubmitTerminal={async (deviceId) => {
+                            await payFullStayNowTerminal(payNowReservationId, deviceId)
+                            completeReservation(payNowReservation)
+                        }}
+                        onCancel={() => completeReservation(payNowReservation)}
+                        terminalErrorMessage="Failed to charge card. It may have been declined on the terminal."
+                        recordOnlyErrorMessage="Failed to charge card."
+                    />
+                </div>
+            )}
         </Modal>
     )
 }

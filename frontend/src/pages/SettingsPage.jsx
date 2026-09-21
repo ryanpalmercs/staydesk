@@ -4,9 +4,11 @@ import { updatePropertySetting, getPropertySettings } from "../api/settingsApi"
 import { getRoomTypes, updateRoomType } from "../api/roomTypeApi"
 import { getRooms, updateRoom } from "../api/roomApi"
 import { getRates, updateRate } from "../api/rateApi"
+import { getRateOverrides, createRateOverride, deleteRateOverride } from "../api/rateOverrideApi"
 import { displayPrice, formatPrice, sanitizePrice } from "../utils/price"
 import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
+import { syncBacklogFolios } from "../api/reservationApi"
 import { useAuth } from "../contexts/AuthContext"
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
@@ -38,6 +40,28 @@ function RoomLockRow({ room, locks, onChange }) {
                     </option>
                 ))}
             </select>
+        </div>
+    )
+}
+
+function lastSurgedNight(endDate) {
+    const d = new Date(endDate + 'T00:00:00')
+    d.setDate(d.getDate() - 1)
+    return d.toISOString().slice(0, 10)
+}
+
+function RateOverrideRow({ rateOverride, onDelete, canManage }) {
+    return (
+        <div className="flex items-center gap-3">
+            <span className="text-sm text-black flex-1">
+                {rateOverride.label} — {rateOverride.startDate} through {lastSurgedNight(rateOverride.endDate)} (back to normal {rateOverride.endDate}), {rateOverride.guestCount} guest{rateOverride.guestCount === 1 ? '' : 's'}
+            </span>
+            <span className="text-sm text-black w-24">{displayPrice(rateOverride.amount)}</span>
+            {canManage && (
+                <button type="button" className="text-sm font-medium text-muted hover:text-green" onClick={() => onDelete(rateOverride.id)}>
+                    Delete
+                </button>
+            )}
         </div>
     )
 }
@@ -83,6 +107,10 @@ function SettingsPage() {
     const [roomTypesSaving, setRoomTypesSaving] = useState(false)
     const [roomTypesError, setRoomTypesError] = useState(null)
     const [ratesSaving, setRatesSaving] = useState(false)
+    const [rateOverrides, setRateOverrides] = useState([])
+    const [overrideForm, setOverrideForm] = useState({ guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
+    const [overrideCreating, setOverrideCreating] = useState(false)
+    const [overrideError, setOverrideError] = useState(null)
     const confirmationRef = useRef(null)
     const checkInLinkRef = useRef(null)
     const checkInCompleteRef = useRef(null)
@@ -93,7 +121,10 @@ function SettingsPage() {
     const [pairForm, setPairForm] = useState({ pairingCode: '', friendlyName: '', location: '' })
     const [pairing, setPairing] = useState(false)
     const [pairError, setPairError] = useState(null)
-    const { isSystemAdmin } = useAuth()
+    const [folioSyncing, setFolioSyncing] = useState(false)
+    const [folioSyncResult, setFolioSyncResult] = useState(null)
+    const { isSystemAdmin, role } = useAuth()
+    const isAdmin = role === 'ADMIN'
     const [lockRooms, setLockRooms] = useState([])
     const [sifelyLocks, setSifelyLocks] = useState([])
     const [lockMappingLoading, setLockMappingLoading] = useState(true)
@@ -103,7 +134,7 @@ function SettingsPage() {
     useEffect(() => {
         getSifelySettings()
         loadPropertySettings()
-        getRoomTypes().then(res => {
+        getRoomTypes(true).then(res => {
             const data = res.data ?? []
             setRoomTypes(data)
             originalRoomTypes.current = data
@@ -114,6 +145,7 @@ function SettingsPage() {
             originalRates.current = data
         })
         getPosDevices().then(res => setPosDevices(res.data ?? []))
+        getRateOverrides().then(res => setRateOverrides(res.data ?? []))
     }, [])
 
     useEffect(() => {
@@ -144,7 +176,7 @@ function SettingsPage() {
         const dirty = lockRooms.filter(r =>
             r.sifelyLockId !== originalLockRooms.current.find(o => o.id === r.id)?.sifelyLockId)
 
-        const responses = await Promise.all(dirty.map(r => updateRoom(r.id, r)))
+        const responses = await Promise.all(dirty.map(r => updateRoom(r.id, { sifelyLockId: r.sifelyLockId })))
         const updated = responses.map(r => r.data)
         setLockRooms(prev => prev.map(r => updated.find(u => u.id === r.id) ?? r))
         originalLockRooms.current = originalLockRooms.current.map(o => updated.find(u => u.id === o.id) ?? o)
@@ -203,6 +235,40 @@ function SettingsPage() {
         setRatesSaving(false)
     }
 
+    function handleOverrideFieldChange(e) {
+        setOverrideForm({ ...overrideForm, [e.target.name]: e.target.value })
+    }
+
+    async function handleCreateOverride(e) {
+        e.preventDefault()
+        setOverrideError(null)
+        setOverrideCreating(true)
+
+        try {
+            const res = await createRateOverride({
+                rateType: 'NIGHTLY',
+                guestCount: Number(overrideForm.guestCount),
+                startDate: overrideForm.startDate,
+                endDate: overrideForm.endDate,
+                amount: sanitizePrice(overrideForm.amount),
+                label: overrideForm.label
+            })
+            setRateOverrides(prev => [...prev, res.data])
+            setOverrideForm({ guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
+        } catch (err) {
+            setOverrideError(err.response?.status === 409
+                ? 'This date range overlaps an existing override for that guest count.'
+                : 'Failed to save. Check the dates and amount.')
+        }
+
+        setOverrideCreating(false)
+    }
+
+    async function handleDeleteOverride(id) {
+        await deleteRateOverride(id)
+        setRateOverrides(prev => prev.filter(o => o.id !== id))
+    }
+
     async function handlePairDevice(e) {
         e.preventDefault()
         setPairError(null)
@@ -222,12 +288,26 @@ function SettingsPage() {
         setPosDevices(prev => prev.filter(d => d.id !== id))
     }
 
+    async function handleSyncFolios() {
+        setFolioSyncing(true)
+        setFolioSyncResult(null)
+        try {
+            const res = await syncBacklogFolios()
+            setFolioSyncResult(res.data)
+        } catch (err) {
+            setFolioSyncResult({ error: true })
+        }
+        setFolioSyncing(false)
+    }
+
     const sortedLockRooms = [...lockRooms].sort((a, b) => a.roomNumber - b.roomNumber)
 
     const sortedRates = [...rates].sort((a, b) => {
         const typeDiff = RATE_TYPE_ORDER.indexOf(a.rateType) - RATE_TYPE_ORDER.indexOf(b.rateType)
         return typeDiff !== 0 ? typeDiff : a.guestCount - b.guestCount
     })
+
+    const sortedRateOverrides = [...rateOverrides].sort((a, b) => a.startDate.localeCompare(b.startDate))
 
     async function getSifelySettings() {
         setSifelyLoading(true)
@@ -506,6 +586,25 @@ function SettingsPage() {
                 </div>
 
                 <div className="feat-card">
+                    <h3>Backlog Folio Sync</h3>
+                    <p>Backlog check-ins are recorded without a folio charge, since staff already collected payment some other way. This posts the missing room charge to each one's folio (no payment is ever touched) — safe to run any time, reservations already caught up are left alone.</p>
+                    <button className="btn-primary mt-4" onClick={handleSyncFolios} disabled={folioSyncing}>
+                        {folioSyncing ? 'Syncing...' : 'Sync Folios'}
+                    </button>
+                    {folioSyncResult && (
+                        folioSyncResult.error ? (
+                            <p className="text-sm text-error mt-2">Sync failed. Try again.</p>
+                        ) : (
+                            <p className="text-sm text-muted mt-2">
+                                {folioSyncResult.syncedCount === 0
+                                    ? 'All folios are already in sync.'
+                                    : `Synced ${folioSyncResult.syncedCount} folio${folioSyncResult.syncedCount === 1 ? '' : 's'}: ${folioSyncResult.confirmationCodes.join(', ')}`}
+                            </p>
+                        )
+                    )}
+                </div>
+
+                <div className="feat-card">
                     <h3>Terminals</h3>
                     <p>Pair a card-present terminal using the pairing code shown on its screen.</p>
 
@@ -539,6 +638,50 @@ function SettingsPage() {
                     <button className="btn-primary mt-4" onClick={handleSaveRates} disabled={!ratesDirty || ratesSaving}>
                         {ratesSaving ? 'Saving...' : 'Save'}
                     </button>
+                </div>
+
+                <div className="feat-card lg:col-span-2">
+                    <h3>Rate Overrides</h3>
+                    <p>Set a different NIGHTLY rate for a date range — holidays, peak weekends, events.</p>
+
+                    <div className="flex flex-col gap-3 mt-4">
+                        {sortedRateOverrides.map(rateOverride => (
+                            <RateOverrideRow key={rateOverride.id} rateOverride={rateOverride} onDelete={handleDeleteOverride} canManage={isAdmin} />
+                        ))}
+                        {sortedRateOverrides.length === 0 && <p className="text-muted text-sm">No overrides set.</p>}
+                    </div>
+
+                    {isAdmin && (
+                        <form onSubmit={handleCreateOverride} className="grid grid-cols-1 sm:grid-cols-5 gap-2 mt-4 items-end">
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Label</label>
+                                <input name="label" value={overrideForm.label} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Guests</label>
+                                <input type="number" name="guestCount" min="1" value={overrideForm.guestCount} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">First surged night</label>
+                                <input type="date" name="startDate" value={overrideForm.startDate} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Back to normal</label>
+                                <input type="date" name="endDate" value={overrideForm.endDate} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Amount</label>
+                                <input type="text" name="amount" value={overrideForm.amount} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
+                            </div>
+                            <p className="text-xs text-muted sm:col-span-5 -mt-1">
+                                "Back to normal" is the checkout-style date pricing reverts on — that night itself is not surged.
+                            </p>
+                            {overrideError && <p className="text-sm text-error sm:col-span-5">{overrideError}</p>}
+                            <button type="submit" className="btn-primary sm:col-span-5 justify-self-start" disabled={overrideCreating}>
+                                {overrideCreating ? 'Saving...' : 'Add Override'}
+                            </button>
+                        </form>
+                    )}
                 </div>
 
             </div>

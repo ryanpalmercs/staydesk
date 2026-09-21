@@ -1,0 +1,3 @@
+ALTER TABLE guests
+    ADD COLUMN IF NOT EXISTS legacy_pricing BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS legacy_pricing_amount DECIMAL(8, 2);

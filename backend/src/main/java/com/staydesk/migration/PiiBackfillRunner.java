@@ -5,6 +5,7 @@ import com.staydesk.model.ContactInfo;
 import com.staydesk.model.EncryptedString;
 import com.staydesk.model.Employee;
 import com.staydesk.model.Guest;
+import com.staydesk.model.Rate;
 import com.staydesk.repository.EmployeeRepository;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.security.PiiCipher;
@@ -25,9 +26,15 @@ import java.util.UUID;
 
 /**
  * One-time backfill for issue #70: encrypts guest/employee PII columns that predate the
- * EncryptedString converters. Reads raw plaintext directly via JdbcTemplate (the normal
- * repositories now assume ciphertext and would fail to decrypt these rows), then re-saves
- * through the repositories so the Writer converters encrypt on the way back in.
+ * EncryptedString converters. Reads raw column values directly via JdbcTemplate (the normal
+ * repositories now assume ciphertext and would fail to decrypt legacy plaintext rows), then
+ * re-saves through the repositories so the Writer converters encrypt on the way back in.
+ * Each field is resolved to plaintext via {@link #resolvePlaintext}, which tries decrypting the
+ * raw value first and falls back to treating it as legacy plaintext only if that fails - this
+ * keeps re-running safe even against a table with a mix of legacy and already-encrypted rows,
+ * since blindly re-encrypting an already-encrypted value would double-encrypt it (silently,
+ * with no exception - the outer layer decrypts fine on normal reads, it just leaves ciphertext
+ * as the "plaintext").
  * Run once with pii.backfill.enabled=true, confirm the app reads guests/employees normally
  * afterward, then unset the flag (or delete this class).
  */
@@ -59,8 +66,9 @@ public class PiiBackfillRunner implements CommandLineRunner {
 
     private void backfillGuests() {
         List<Guest> plaintextGuests = jdbcTemplate.query("""
-                SELECT id, first_name, last_name, email, phone_number, flagged, flag_reason, flagged_date,
-                       flagged_by, legal_hold, created_at, updated_at
+                SELECT id, first_name, last_name, email, phone_number, sms_consent, flagged, flag_reason, flagged_date,
+                       flagged_by, legal_hold, legacy_pricing, legacy_pricing_amount, legacy_rate_type, regular_guest,
+                       guest_type, created_at, updated_at
                 FROM guests
                 """, this::mapPlaintextGuest);
 
@@ -74,22 +82,27 @@ public class PiiBackfillRunner implements CommandLineRunner {
     }
 
     private Guest mapPlaintextGuest(ResultSet rs, int rowNum) throws SQLException {
-        String email = rs.getString("email");
+        String email = resolvePlaintext(rs.getString("email"));
         UUID flaggedBy = rs.getObject("flagged_by", UUID.class);
 
         return new Guest(
                 rs.getInt("id"),
-                new EncryptedString(rs.getString("first_name")),
-                new EncryptedString(rs.getString("last_name")),
+                new EncryptedString(resolvePlaintext(rs.getString("first_name"))),
+                new EncryptedString(resolvePlaintext(rs.getString("last_name"))),
                 new EncryptedString(email),
                 piiCipher.hash(email.strip().toLowerCase()),
-                new EncryptedString(rs.getString("phone_number")),
+                new EncryptedString(resolvePlaintext(rs.getString("phone_number"))),
                 rs.getBoolean("sms_consent"),
                 rs.getBoolean("flagged"),
                 rs.getString("flag_reason"),
                 toLocalDateTime(rs.getTimestamp("flagged_date")),
                 flaggedBy,
                 rs.getBoolean("legal_hold"),
+                rs.getBoolean("legacy_pricing"),
+                rs.getBigDecimal("legacy_pricing_amount"),
+                Rate.RateType.valueOf(rs.getString("legacy_rate_type")),
+                rs.getBoolean("regular_guest"),
+                Guest.GuestType.valueOf(rs.getString("guest_type")),
                 toLocalDateTime(rs.getTimestamp("created_at")),
                 toLocalDateTime(rs.getTimestamp("updated_at"))
         );
@@ -98,7 +111,7 @@ public class PiiBackfillRunner implements CommandLineRunner {
     private void backfillEmployees() {
         List<Employee> plaintextEmployees = jdbcTemplate.query("""
                 SELECT id, first_name, last_name, email, username, employee_type_id, pay_rate, hire_date, active,
-                       contact_info, pay_rate_type, door_access_enabled, created_at, updated_at
+                       contact_info, pay_rate_type, door_access_enabled, created_at, updated_at, last_seen_release_notes_id
                 FROM employees
                 """, this::mapPlaintextEmployee);
 
@@ -112,19 +125,19 @@ public class PiiBackfillRunner implements CommandLineRunner {
     }
 
     private Employee mapPlaintextEmployee(ResultSet rs, int rowNum) throws SQLException {
-        String email = rs.getString("email");
+        String email = resolvePlaintext(rs.getString("email"));
         String rawContactInfo = rs.getString("contact_info");
         ContactInfo contactInfo;
         try {
-            contactInfo = rawContactInfo == null ? null : objectMapper.readValue(rawContactInfo, ContactInfo.class);
+            contactInfo = rawContactInfo == null ? null : objectMapper.readValue(resolvePlaintext(rawContactInfo), ContactInfo.class);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse existing contact_info during backfill", e);
         }
 
         return new Employee(
                 rs.getObject("id", UUID.class),
-                new EncryptedString(rs.getString("first_name")),
-                new EncryptedString(rs.getString("last_name")),
+                new EncryptedString(resolvePlaintext(rs.getString("first_name"))),
+                new EncryptedString(resolvePlaintext(rs.getString("last_name"))),
                 new EncryptedString(email),
                 piiCipher.hash(email.strip().toLowerCase()),
                 rs.getString("username"),
@@ -136,8 +149,20 @@ public class PiiBackfillRunner implements CommandLineRunner {
                 Employee.PayRateType.valueOf(rs.getString("pay_rate_type")),
                 rs.getBoolean("door_access_enabled"),
                 toLocalDateTime(rs.getTimestamp("created_at")),
-                toLocalDateTime(rs.getTimestamp("updated_at"))
+                toLocalDateTime(rs.getTimestamp("updated_at")),
+                (Integer) rs.getObject("last_seen_release_notes_id")
         );
+    }
+
+    private String resolvePlaintext(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return piiCipher.decrypt(raw);
+        } catch (Exception e) {
+            return raw;
+        }
     }
 
     private static LocalDateTime toLocalDateTime(Timestamp timestamp) {

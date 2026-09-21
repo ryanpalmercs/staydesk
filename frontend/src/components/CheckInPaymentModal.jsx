@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react"
 import { getPropertySetting } from "../api/settingsApi"
-import { getAvailableRoomsForCheckIn, getReservationEstimate } from "../api/reservationApi"
-import { getFolioPayments, settleWalkInStay, settleWalkInStayTerminal } from "../api/folioApi"
+import { getAvailableRoomsForCheckIn, getCheckInEstimate } from "../api/reservationApi"
 import DoorCode from "./DoorCode"
 import Modal from "./Modal"
-import ConfirmDialog from "./ConfirmDialog"
 import PaymentMethodStep from "./PaymentMethodStep"
 
 function RoomPicker({ reservationId, onRoomChosen, onClose }) {
@@ -63,6 +61,38 @@ function RoomPicker({ reservationId, onRoomChosen, onClose }) {
     )
 }
 
+function formatDate(str) {
+    return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function daysUntil(dateString) {
+    const now = new Date()
+    const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const diffMs = new Date(dateString + 'T00:00:00') - new Date(todayString + 'T00:00:00')
+    return Math.round(diffMs / 86400000)
+}
+
+function FutureCheckInWarning({ checkInDate, daysOut, showChargeWarning, onCancel, onConfirm }) {
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="rounded-md border border-error/40 bg-error/5 p-4">
+                <p className="text-sm font-semibold text-error mb-2">
+                    This reservation isn't due to check in until {formatDate(checkInDate)} ({daysOut} day{daysOut === 1 ? '' : 's'} from now).
+                </p>
+                <p className="text-sm text-error mb-2">Checking in now will immediately:</p>
+                <ul className="text-sm text-error list-disc list-inside space-y-1">
+                    <li>Assign a room to this guest</li>
+                    {showChargeWarning && <li>Charge the full stay to their card</li>}
+                </ul>
+            </div>
+            <div className="flex justify-end gap-3 mt-2">
+                <button type="button" onClick={onCancel} className="btn btn-secondary">Cancel</button>
+                <button type="button" onClick={onConfirm} className="btn btn-primary">Check In Anyway</button>
+            </div>
+        </div>
+    )
+}
+
 function DoorAccessFailedNotice({ onClose }) {
     return (
         <div className="flex flex-col gap-4">
@@ -81,46 +111,35 @@ function DoorAccessFailedNotice({ onClose }) {
     )
 }
 
-function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose, onCancelReservation }) {
-    const reservationChannel = reservation.channel
-    const isWalkIn = reservationChannel === 'WALK_IN'
+function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmTerminal, onClose }) {
+    const daysOut = daysUntil(reservation.checkInDate)
+    const isFutureCheckIn = daysOut > 0
 
-    const [step, setStep] = useState(isWalkIn ? 'checking' : 'room')
+    const [step, setStep] = useState(isFutureCheckIn ? 'future-warning' : 'room')
     const [selectedRoomId, setSelectedRoomId] = useState(null)
     const [incidentalsHoldAmount, setIncidentalsHoldAmount] = useState(null)
     const [stayTotal, setStayTotal] = useState(null)
-    const [confirmingCancel, setConfirmingCancel] = useState(false)
+    const [roomChargeDue, setRoomChargeDue] = useState(false)
 
     useEffect(() => {
         getPropertySetting('incidentals_hold_amount').then(res => {
             setIncidentalsHoldAmount(res.data.value)
         })
 
-        if (isWalkIn) {
-            getReservationEstimate({
-                rateType: reservation.rateType,
-                guestCount: reservation.guestCount,
-                checkInDate: reservation.checkInDate,
-                checkOutDate: reservation.checkOutDate
-            }).then(res => setStayTotal(res.data.total)).catch(() => setStayTotal(null))
-
-            getFolioPayments(reservation.folioId).then(res => {
-                const settled = (res.data ?? []).some(p => p.kind === 'ROOM' && p.status === 'CAPTURED')
-                setStep(settled ? 'room' : 'settle')
-            }).catch(() => setStep('settle'))
-        }
+        getCheckInEstimate(reservationId).then(res => {
+            setStayTotal(res.data.total)
+            setRoomChargeDue(res.data.roomChargeDue)
+        }).catch(() => setStayTotal(null))
     }, [])
 
-    const chargeAmount = incidentalsHoldAmount
-    const chargeLabel = 'Incidentals Hold'
+    const chargeAmount = roomChargeDue
+        ? (stayTotal != null && incidentalsHoldAmount != null ? stayTotal + parseFloat(incidentalsHoldAmount) : null)
+        : incidentalsHoldAmount
+    const chargeLabel = roomChargeDue ? 'Total Charge' : 'Incidentals Hold'
 
     function handleRoomChosen(roomId) {
         setSelectedRoomId(roomId)
         setStep('payment')
-    }
-
-    function handleSettled() {
-        setStep('room')
     }
 
     function handleCheckedIn(doorAccessStatus) {
@@ -133,71 +152,48 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
         }
     }
 
-    function handleCancelClick() {
-        if (isWalkIn) {
-            setConfirmingCancel(true)
-            return
-        }
-        onClose()
-    }
-
-    async function confirmCancelReservation() {
-        setConfirmingCancel(false)
-        await onCancelReservation()
-        onClose()
+    function handleFutureWarningConfirmed() {
+        setStep('room')
     }
 
     return (
         <Modal onClose={onClose} size="md">
             <h2 className="text-lg text-black font-semibold mb-4">
-                {step === 'checking' ? 'Loading...' : step === 'settle' ? 'Charge for Stay' : step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
+                {step === 'future-warning' ? 'Confirm Early Check-In' : step === 'room' ? 'Assign a Room' : step === 'code' ? 'Door Code' : 'Card for Incidentals'}
             </h2>
 
-            {step === 'checking' && (
-                <p className="text-sm text-muted">Loading...</p>
+            {step === 'future-warning' && (
+                <FutureCheckInWarning
+                    checkInDate={reservation.checkInDate}
+                    daysOut={daysOut}
+                    showChargeWarning={roomChargeDue}
+                    onCancel={onClose}
+                    onConfirm={handleFutureWarningConfirmed}
+                />
             )}
 
             {step === 'room' && (
-                <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={handleCancelClick} />
-            )}
-
-            {step === 'settle' && (
-                <PaymentMethodStep
-                    amount={stayTotal}
-                    amountLabel="Total Charge"
-                    description="Charge the full stay for this booking now, before continuing."
-                    dual={false}
-                    submitLabel="Charge"
-                    onSubmitToken={async (roomToken) => {
-                        await settleWalkInStay(reservation.folioId, roomToken)
-                        handleSettled()
-                    }}
-                    onSubmitTerminal={async (deviceId) => {
-                        await settleWalkInStayTerminal(reservation.folioId, deviceId)
-                        handleSettled()
-                    }}
-                    onCancel={handleCancelClick}
-                    terminalErrorMessage="Failed to charge card. It may have been declined on the terminal."
-                    recordOnlyErrorMessage="Failed to charge card."
-                />
+                <RoomPicker reservationId={reservationId} onRoomChosen={handleRoomChosen} onClose={onClose} />
             )}
 
             {step === 'payment' && (
                 <PaymentMethodStep
                     amount={chargeAmount}
                     amountLabel={chargeLabel}
-                    description="We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."
-                    dual={false}
+                    description={roomChargeDue
+                        ? "We'll charge the full stay now, then place a small hold for incidentals."
+                        : "We'll place a hold on this card as an incidentals buffer. It won't be charged unless needed at checkout."}
+                    dual={roomChargeDue}
                     submitLabel="Check In"
-                    onSubmitToken={async (incidentalsToken) => {
-                        const doorAccessStatus = await onConfirm(selectedRoomId, incidentalsToken)
+                    onSubmitToken={async (incidentalsToken, roomToken) => {
+                        const doorAccessStatus = await onConfirm(selectedRoomId, incidentalsToken, roomToken)
                         handleCheckedIn(doorAccessStatus)
                     }}
                     onSubmitTerminal={async (deviceId) => {
                         const doorAccessStatus = await onConfirmTerminal(selectedRoomId, deviceId)
                         handleCheckedIn(doorAccessStatus)
                     }}
-                    onCancel={handleCancelClick}
+                    onCancel={onClose}
                     terminalErrorMessage="Failed to check in. The card may have been declined on the terminal."
                     recordOnlyErrorMessage="Failed to check in."
                 />
@@ -215,16 +211,6 @@ function CheckInPaymentModal({ reservationId, reservation, onConfirm, onConfirmT
 
             {step === 'door-failed' && (
                 <DoorAccessFailedNotice onClose={onClose} />
-            )}
-
-            {confirmingCancel && (
-                <ConfirmDialog
-                    message="Cancel this walk-in reservation? It will be marked as cancelled."
-                    cancelLabel="Keep Going"
-                    confirmLabel="Yes, Cancel"
-                    onCancel={() => setConfirmingCancel(false)}
-                    onConfirm={confirmCancelReservation}
-                />
             )}
         </Modal>
     )

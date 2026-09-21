@@ -6,7 +6,11 @@ import com.staydesk.exception.FolioNotFoundException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.model.FolioPayment;
 import com.staydesk.model.Reservation;
+import com.staydesk.model.request.AddCardOnFileRequest;
+import com.staydesk.model.request.AddCardOnFileTerminalRequest;
 import com.staydesk.model.request.AddFolioItemRequest;
+import com.staydesk.model.request.ChargeExtraRequest;
+import com.staydesk.model.request.ChargeExtraTerminalRequest;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioItem;
 import com.staydesk.model.request.SettleStayRequest;
@@ -103,6 +107,69 @@ public class FolioController {
         } catch (FolioClosedException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
+    }
+
+    @GetMapping("{id}/capture-preview")
+    public ResponseEntity<PaymentService.CapturePreview> capturePreview(@PathVariable Integer id) {
+        try {
+            Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+            return ResponseEntity.ok(paymentService.previewCapture(folio));
+        } catch (FolioNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("{id}/items/charge")
+    public ResponseEntity<FolioPayment> chargeExtra(@PathVariable Integer id, @RequestBody ChargeExtraRequest request) {
+        LOGGER.info("Charging extra of {} to card on file for folio {}", request.amount(), id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+        String customerEmail = reservationService.resolveGuestEmailForReservation(request.reservationId());
+
+        FolioPayment payment = paymentService.chargeExtraToCardOnFile(folio, request.amount(), request.description(), customerEmail);
+        return ResponseEntity.ok(payment);
+    }
+
+    @PostMapping("{id}/items/charge/terminal")
+    public ResponseEntity<FolioPayment> chargeExtraTerminal(@PathVariable Integer id, @RequestBody ChargeExtraTerminalRequest request) {
+        LOGGER.info("Charging extra of {} via terminal for folio {}", request.amount(), id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+        String customerEmail = reservationService.resolveGuestEmailForReservation(request.reservationId());
+
+        FolioPayment payment = paymentService.chargeExtraTerminal(folio, request.amount(), request.description(),
+                request.posDeviceId(), customerEmail);
+        return ResponseEntity.ok(payment);
+    }
+
+    @PostMapping("{id}/card-on-file")
+    public ResponseEntity<Void> addCardOnFile(@PathVariable Integer id, @RequestBody AddCardOnFileRequest request) {
+        LOGGER.info("Adding card on file for folio {}", id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+
+        if (folio.status() != Folio.FolioStatus.OPEN) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+
+        String customerEmail = reservationService.resolveGuestEmailForReservation(request.reservationId());
+        paymentService.addCardOnFile(folio, request.reservationId(), request.paymentMethodId(), customerEmail);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("{id}/card-on-file/terminal")
+    public ResponseEntity<Void> addCardOnFileTerminal(@PathVariable Integer id, @RequestBody AddCardOnFileTerminalRequest request) {
+        LOGGER.info("Adding card on file via terminal for folio {}", id);
+
+        Folio folio = folioRepository.findById(id).orElseThrow(FolioNotFoundException::new);
+
+        if (folio.status() != Folio.FolioStatus.OPEN) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+
+        String customerEmail = reservationService.resolveGuestEmailForReservation(request.reservationId());
+        paymentService.addCardOnFileTerminal(folio, request.reservationId(), request.posDeviceId(), customerEmail);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("{id}/pay")

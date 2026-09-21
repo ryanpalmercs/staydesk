@@ -39,3 +39,23 @@ export function settleWalkInStay(folioId, roomPaymentMethodId) {
 export function settleWalkInStayTerminal(folioId, posDeviceId) {
     return api.post(`/folios/${folioId}/settle-stay/terminal`, { posDeviceId })
 }
+
+export function getCapturePreview(folioId) {
+    return api.get(`/folios/${folioId}/capture-preview`)
+}
+
+export function chargeExtra(folioId, reservationId, amount, description) {
+    return api.post(`/folios/${folioId}/items/charge`, { reservationId, amount, description })
+}
+
+export function chargeExtraTerminal(folioId, reservationId, amount, description, posDeviceId = null) {
+    return api.post(`/folios/${folioId}/items/charge/terminal`, { reservationId, amount, description, posDeviceId })
+}
+
+export function addCardOnFile(folioId, reservationId, paymentMethodId) {
+    return api.post(`/folios/${folioId}/card-on-file`, { reservationId, paymentMethodId })
+}
+
+export function addCardOnFileTerminal(folioId, reservationId, posDeviceId = null) {
+    return api.post(`/folios/${folioId}/card-on-file/terminal`, { reservationId, posDeviceId })
+}

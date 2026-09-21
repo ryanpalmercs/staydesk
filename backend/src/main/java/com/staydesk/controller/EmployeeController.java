@@ -100,6 +100,14 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("employees/{id}/activate")
+    public ResponseEntity<Void> activateEmployee(@PathVariable UUID id) {
+        LOGGER.info("Activating employee with id: {}", id);
+
+        employeeService.activateEmployee(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("employeeTypes")
     public List<EmployeeType> getEmployeeTypes() {
         LOGGER.info("Getting employee types");

@@ -26,13 +26,13 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
         throw new UnsupportedOperationException(
                 "IngenicoTerminalPaymentProvider.authorize() is pending confirmation of pre_auth support on the Desk 3500 - see docs/ingenico-bridge-notes.md");
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
         try {
             TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, null,
                     "sale", amount, null);
@@ -93,7 +93,7 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
-                                             String description) {
+                                             String description, String customerEmail) {
         throw new UnsupportedOperationException(
                 "IngenicoTerminalPaymentProvider does not support stored-credential charges - no card data is available locally for a card-present terminal flow");
     }
