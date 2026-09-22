@@ -1,6 +1,7 @@
 package com.staydesk.controller;
 
 import com.staydesk.model.RoomType;
+import com.staydesk.model.dto.RoomTypeAvailabilityDto;
 import com.staydesk.model.request.UpdateRoomTypeRequest;
 import com.staydesk.repository.RoomTypeAvailabilityRepository;
 import com.staydesk.repository.RoomTypeRepository;
@@ -59,6 +60,11 @@ public class RoomTypeController {
     public List<Integer> getUnavailableRoomTypeIds(@RequestParam LocalDate checkIn, @RequestParam LocalDate checkOut,
                                                     @RequestParam(required = false) Integer excludeReservationId) {
         return reservationService.getUnavailableRoomTypeIds(checkIn, checkOut, excludeReservationId);
+    }
+
+    @GetMapping("availability-grid")
+    public List<RoomTypeAvailabilityDto> getAvailabilityGrid(@RequestParam LocalDate startDate, @RequestParam LocalDate endDate) {
+        return roomTypeAvailabilityRepository.getAvailabilityGrid(startDate, endDate);
     }
 
     @PutMapping("{id}")

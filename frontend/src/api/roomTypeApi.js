@@ -15,3 +15,7 @@ export function getUnavailableRoomTypeIds(checkIn, checkOut, excludeReservationI
 export function updateRoomType(id, roomType) {
     return api.put(`/room-types/${id}`, roomType)
 }
+
+export function getRoomTypeAvailabilityGrid(startDate, endDate) {
+    return api.get('/room-types/availability-grid', { params: { startDate, endDate } })
+}

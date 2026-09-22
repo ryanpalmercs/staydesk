@@ -1,5 +1,6 @@
 package com.staydesk.repository;
 
+import com.staydesk.model.dto.RoomTypeAvailabilityDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,6 +14,30 @@ public class RoomTypeAvailabilityRepository {
 
     public RoomTypeAvailabilityRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public List<RoomTypeAvailabilityDto> getAvailabilityGrid(LocalDate startDate, LocalDate endDate) {
+        String sql = """
+                SELECT rt.id AS room_type_id, gs.day::date AS day,
+                       rt.available_count - (
+                           SELECT COUNT(*) FROM reservations r LEFT JOIN guests g ON g.id = r.guest_id
+                           WHERE r.room_type_id = rt.id
+                             AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
+                             AND r.check_in_date <= gs.day::date
+                             AND (r.check_out_date > gs.day::date OR (r.status = 'CHECKED_IN' AND COALESCE(g.regular_guest, false)))
+                       ) AS available_count
+                FROM room_types rt
+                CROSS JOIN generate_series(?::date, ?::date - INTERVAL '1 day', INTERVAL '1 day') AS gs(day)
+                WHERE EXISTS (SELECT 1 FROM rooms rm WHERE rm.room_type_id = rt.id)
+                ORDER BY rt.id, gs.day
+                """;
+
+        return jdbcTemplate.query(sql,
+                (rs, rowNum) -> new RoomTypeAvailabilityDto(
+                        rs.getInt("room_type_id"),
+                        rs.getDate("day").toLocalDate(),
+                        rs.getInt("available_count")),
+                startDate, endDate);
     }
 
     public List<LocalDate> getFullyBookedDates(int roomTypeId, Integer excludeReservationId) {
