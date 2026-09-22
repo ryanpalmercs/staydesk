@@ -89,7 +89,9 @@ describe('FolioModal - open folio, adding extras', () => {
         await user.click(screen.getByRole('button', { name: 'Add' }))
 
         expect(await screen.findByText('No card on file for this amount — collect it now so the folio stays accurate.')).toBeInTheDocument()
-        expect(screen.getByText('Record Charge (No Terminal)')).toBeInTheDocument()
+        // TerminalOrRecordOnlyStep does its own async getPosDevices/getPosDeviceConfig fetch
+        // before it can pick a form to render, so this needs to be a find, not a get.
+        expect(await screen.findByText('Record Charge (No Terminal)')).toBeInTheDocument()
     })
 
     it('shows a generic error when addFolioItem fails for a reason other than a closed folio', async () => {
