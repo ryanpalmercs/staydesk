@@ -32,22 +32,21 @@ describe('ChangeRoleModal', () => {
         expect(screen.getByRole('combobox')).toHaveValue('2')
     })
 
-    // Note: the component's Submit button uses disabled={isDirty} - every other modal in this
-    // codebase (RoomModal, EmployeeModal, GuestEditModal, IncidentChargeRequestModal) uses
-    // disabled={!isDirty} instead. As written, picking a different role makes the form dirty,
-    // which immediately re-disables Submit - so a role change can never actually be submitted
-    // through this modal's UI. Documenting the current (likely unintended) behavior here rather
-    // than silently changing app logic in a test-coverage-only change; flagged separately in the
-    // PR description for Ryan to confirm and fix.
-    it('disables Submit once a different role is selected, so the change is never actually submitted', async () => {
+    it('disables Submit until a different role is selected, then submits the new role', async () => {
         const user = userEvent.setup()
-        render(<ChangeRoleModal employee={{ id: 5, employeeTypeId: 1 }} onSaved={vi.fn()} onClose={vi.fn()} />)
+        const onSaved = vi.fn()
+        render(<ChangeRoleModal employee={{ id: 5, employeeTypeId: 1 }} onSaved={onSaved} onClose={vi.fn()} />)
 
         await screen.findByRole('option', { name: 'Front Desk' })
-        await user.selectOptions(screen.getByRole('combobox'), '2')
-
         expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled()
-        expect(updateEmployeeRole).not.toHaveBeenCalled()
+
+        await user.selectOptions(screen.getByRole('combobox'), '2')
+        expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled()
+
+        await user.click(screen.getByRole('button', { name: 'Submit' }))
+
+        expect(updateEmployeeRole).toHaveBeenCalledWith(5, { employeeTypeId: '2' })
+        expect(onSaved).toHaveBeenCalledTimes(1)
     })
 
     it('calls onClose when Cancel is clicked', async () => {
