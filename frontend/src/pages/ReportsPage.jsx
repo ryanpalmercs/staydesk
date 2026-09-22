@@ -235,6 +235,50 @@ function ReportsPage() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Terminal transactions - placeholder metrics pending sign-off, see #206 */}
+                    <div className="report-section">
+                        <h2>Terminal Transactions <span className="report-section-badge">Placeholder</span></h2>
+                        <p className="report-section-note">
+                            These metrics (transaction count and completed volume) are a minimal starting point and
+                            have not been confirmed as the final set to report on.
+                        </p>
+                        <div className="report-cards">
+                            <div className="report-card">
+                                <span className="report-card-label">Transactions</span>
+                                <span className="report-card-value">{report.terminalTransactionCount}</span>
+                            </div>
+                            <div className="report-card">
+                                <span className="report-card-label">Completed Volume</span>
+                                <span className="report-card-value">{displayPrice(report.terminalTransactionVolume)}</span>
+                            </div>
+                        </div>
+                        <table className="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Operation</th>
+                                    <th>Status</th>
+                                    <th>Count</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {report.terminalTransactionBreakdown.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4}>No terminal transactions in this period.</td>
+                                    </tr>
+                                )}
+                                {report.terminalTransactionBreakdown.map(row => (
+                                    <tr key={`${row.operation}-${row.status}`}>
+                                        <td>{row.operation}</td>
+                                        <td>{row.status}</td>
+                                        <td>{row.transactionCount}</td>
+                                        <td>{displayPrice(row.totalAmount)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </>
             )}
         </div>
