@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation, checkInTerminal } from "../api/reservationApi"
+import { getReservations, deleteReservation, checkIn, checkOut, cancelReservation, checkInTerminal, getUnsettledReservations } from "../api/reservationApi"
 import { getRooms } from "../api/roomApi"
 import { getRoomTypes } from "../api/roomTypeApi"
 import ReservationModal from "../components/ReservationModal"
@@ -30,6 +30,7 @@ function ReservationsPage() {
     const [selectedReservation, setSelectedReservation] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [reviewFolioId, setReviewFolioId] = useState(null)
+    const [reviewReservationId, setReviewReservationId] = useState(null)
     const [doorCodeTarget, setDoorCodeTarget] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', roomId: '', guestName: '', confirmationCode: '', status: '' })
@@ -37,6 +38,7 @@ function ReservationsPage() {
     const [sortKey, setSortKey] = useState('checkInDate')
     const [sortDir, setSortDir] = useState('desc')
     const [cancelTarget, setCancelTarget] = useState(null)
+    const [unsettledIds, setUnsettledIds] = useState(new Set())
     const [extendTarget, setExtendTarget] = useState(null)
     const [assignRoomTarget, setAssignRoomTarget] = useState(null)
     const [moveRoomTarget, setMoveRoomTarget] = useState(null)
@@ -61,8 +63,9 @@ function ReservationsPage() {
 
     async function fetchReservations() {
         setLoading(true)
-        const res = await getReservations()
+        const [res, unsettledRes] = await Promise.all([getReservations(), getUnsettledReservations()])
         setReservations(res.data)
+        setUnsettledIds(new Set(unsettledRes.data.map(r => r.id)))
         setLoading(false)
     }
 
@@ -94,12 +97,12 @@ function ReservationsPage() {
         }
     }
 
-    async function handleSaved(newWalkInId) {
+    async function handleSaved(newWalkIn) {
         setModalOpen(false)
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
-        if (newWalkInId != null) {
-            openCheckIn(newWalkInId)
+        if (newWalkIn != null) {
+            openCheckIn(newWalkIn.id)
         }
     }
 
@@ -127,6 +130,7 @@ function ReservationsPage() {
         try {
             const folioRes = await getFolioByReservationId(id)
             setReviewFolioId(folioRes.data.id)
+            setReviewReservationId(id)
         } catch (err) {
             setError('Failed to load folio.')
         }
@@ -138,6 +142,7 @@ function ReservationsPage() {
             await fetchReservations()
             const folioRes = await getFolioByReservationId(id)
             setReviewFolioId(folioRes.data.id)
+            setReviewReservationId(id)
         } catch (err) {
             if (err.response?.status === 409) {
                 setError('Guest is already checked out')
@@ -270,7 +275,12 @@ function ReservationsPage() {
                         const room = roomMap[res.roomId]
                         const roomType = roomTypeMap[res.roomTypeId]
                         return (
-                            <div key={res.id} className="feat-card">
+                            <div key={res.id} className="feat-card relative">
+                                {unsettledIds.has(res.id) && (
+                                    <span className="absolute top-3 left-1/2 -translate-x-1/2 inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                                        Payment needed
+                                    </span>
+                                )}
                                 <div className="flex items-start justify-between gap-4 mb-2">
                                     <span className="font-semibold text-black">
                                         {guest ? formatGuestName(guest) : res.guestId}
@@ -283,6 +293,8 @@ function ReservationsPage() {
                                     {res.confirmationCode && <span>Conf# {res.confirmationCode}</span>}
                                 </div>
                                 <div className="flex gap-4 justify-end">
+                                    {/* No "pay now" action here yet - settleWalkInStay/settleWalkInStayTerminal are
+                                        backend-only until #355 builds a real standalone entry point for them. */}
                                     {res.status === 'CONFIRMED' && res.roomId == null && (
                                         <button onClick={() => setAssignRoomTarget(res)} className="text-sm font-medium text-muted hover:text-green">Assign Room</button>
                                     )}
@@ -322,7 +334,7 @@ function ReservationsPage() {
             )}
 
             {reviewFolioId != null && (
-                <FolioModal folioId={reviewFolioId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
+                <FolioModal folioId={reviewFolioId} reservationId={reviewReservationId} onClose={() => setReviewFolioId(null)} onPaid={fetchReservations} />
             )}
 
             {doorCodeTarget != null && (
@@ -368,7 +380,7 @@ function ReservationsPage() {
                 />
             )}
 
-            {checkInTarget != null && (
+            {checkInTarget != null && reservations.find(r => r.id === checkInTarget) && (
                 <CheckInPaymentModal
                     reservationId={checkInTarget}
                     reservation={reservations.find(r => r.id === checkInTarget)}

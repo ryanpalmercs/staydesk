@@ -27,7 +27,8 @@ public class PaymentCredentialService {
         this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
     }
 
-    public void captureCheckInCredential(Folio folio, String providerName, FolioPayment incidentalsHold) {
+    public void captureCheckInCredential(Folio folio, int reservationId, String providerName,
+                                         FolioPayment incidentalsHold) {
         try {
             PaymentProvider provider = providerFactory.getProvider(providerName);
             ReusableCredentialResult result = provider.createReusableCredential(
@@ -39,7 +40,7 @@ public class PaymentCredentialService {
             }
 
             LocalDateTime now = LocalDateTime.now();
-            reusablePaymentCredentialRepository.save(new ReusablePaymentCredential(0, folio.id(), folio.reservationId(),
+            reusablePaymentCredentialRepository.save(new ReusablePaymentCredential(0, folio.id(), reservationId,
                     providerName, result.providerCustomerId(), result.providerToken(), result.cardLast4(),
                     false, null, null, now, now));
         } catch (Exception e) {

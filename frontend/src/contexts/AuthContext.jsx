@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getEmployee } from '../api/employeeApi'
+import { getCurrentUser } from '../api/meApi'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
     const [session, setSession] = useState(undefined)
     const [isSystemAdmin, setIsSystemAdmin] = useState(false)
+    const [displayName, setDisplayName] = useState("")
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -30,6 +32,19 @@ export function AuthProvider({ children }) {
             .catch(err => setIsSystemAdmin(err.response?.status === 404))
     }, [session])
 
+    useEffect(() => {
+        const userId = session?.user?.id
+
+        if (!userId) {
+            setDisplayName("")
+            return
+        }
+
+        getCurrentUser()
+            .then(res => setDisplayName(res.data.displayName))
+            .catch(err => setDisplayName(""))
+    }, [session])
+
     return (
         <AuthContext.Provider value={{
             session,
@@ -37,6 +52,7 @@ export function AuthProvider({ children }) {
             role: session?.user?.app_metadata?.role ?? null,
             isSystemAdmin,
             loading: session === undefined,
+            displayName,
             signOut: () => supabase.auth.signOut()
         }}>
             {children}

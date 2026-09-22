@@ -84,7 +84,7 @@ public class IncidentChargeService {
         String description = "Incident: " + request.reason();
 
         try {
-            String customerEmail = reservationService.resolveGuestEmailForReservation(folio.reservationId());
+            String customerEmail = reservationService.resolveGuestEmailForFolio(folio.id());
             FolioPayment payment = paymentService.chargeStoredCredential(folio, credential, request.amount(), description, customerEmail);
             folioService.postIncidentCharge(folio, description, request.amount());
 

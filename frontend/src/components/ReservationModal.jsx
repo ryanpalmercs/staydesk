@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from "react"
-import { assignRoom, createReservation, getCheckInEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
+import { assignRoom, createReservation, createMultiRoomReservation, getCheckInEstimate, getReservationEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
 import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
 import { getRoom } from "../api/roomApi"
 import { createGuest, getGuests, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { formatGuestName } from "../utils/guestName"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
+import { getFeatureFlags } from "../api/featureFlagsApi"
 import { getExtras } from "../api/extrasApi"
 import AcceptJsCardForm from "./AcceptJsCardForm"
 import PaymentMethodStep from "./PaymentMethodStep"
 import { getPropertySetting } from "../api/settingsApi"
 import ReservationDatePicker from "./ReservationDatePicker"
 import { differenceInCalendarDays, parseISO } from "date-fns"
-import { CircleMinus, CirclePlus } from "lucide-react"
+import { CircleMinus, CirclePlus, Trash2 } from "lucide-react"
 import Modal from "./Modal"
 import AssignRoomModal from "./AssignRoomModal"
 import MoveRoomModal from "./MoveRoomModal"
@@ -42,6 +43,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [roomTypes, setRoomTypes] = useState([])
     const [unavailableRoomTypeIds, setUnavailableRoomTypeIds] = useState([])
+    const [multiRoomBookingEnabled, setMultiRoomBookingEnabled] = useState(false)
     const [guests, setGuests] = useState([])
     const [guestFormError, setGuestFormError] = useState(null)
     const [creatingGuest, setCreatingGuest] = useState(false)
@@ -120,9 +122,31 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     const [estimate, setEstimate] = useState(null)
 
+    const [roomLines, setRoomLines] = useState([{ roomTypeId: '', quantity: 1 }])
+
+    function addRoomLine() {
+        setRoomLines(lines => [...lines, { roomTypeId: '', quantity: 1 }])
+    }
+
+    function removeRoomLine(index) {
+        setRoomLines(lines => lines.filter((_, i) => i !== index))
+    }
+
+    function updateRoomLine(index, field, value) {
+        setRoomLines(lines => lines.map((line, i) => i === index ? { ...line, [field]: value } : line))
+    }
+
+    function isMultiRoom(lines) {
+        return lines.length > 1 || lines.some(l => Number(l.quantity) > 1)
+    }
+
+    const totalRoomCount = roomLines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
+
     useEffect(() => {
         getRoomTypes().then(res => setRoomTypes(res.data ?? [])),
             getGuests().then(res => setGuests(res.data ?? []))
+
+        getFeatureFlags().then(res => setMultiRoomBookingEnabled(res.data.multiRoomBookingEnabled)).catch(() => setMultiRoomBookingEnabled(false))
 
         if (canAddExtras) {
             getFolioByReservationId(reservation.id).then(res => setFolioId(res.data.id))
@@ -291,9 +315,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         setCreatingGuest(false)
     }
 
+    function isToday(dateString) {
+        const now = new Date()
+        const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        return dateString === todayString
+    }
+
     async function handleSubmit(e) {
         e.preventDefault()
-
         setError(null)
 
         if (!form.guestId) {
@@ -301,8 +330,13 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        if (!form.roomTypeId) {
-            setError('Please select a room type.')
+        if (isEditing || !multiRoomBookingEnabled) {
+            if (!form.roomTypeId) {
+                setError('Please select a room type.')
+                return
+            }
+        } else if (roomLines.some(l => !l.roomTypeId)) {
+            setError('Please select a room type for each room.')
             return
         }
 
@@ -321,43 +355,76 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             return
         }
 
-        const { adults, children, ...rest } = form
-        const submittedForm = { ...rest, rateType, guestCount }
+        const { adults, children, roomTypeId, ...rest } = form
+        const isFutureWalkIn = form.channel === 'WALK_IN' && !isToday(form.checkInDate)
 
-        try {
-            if (isEditing) {
-                await updateReservation(reservation.id, { ...reservation, ...submittedForm })
-            } else {
-                if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
-                    try {
-                        const res = await createReservation({ ...submittedForm, roomPaymentMethodId: null, extras: stagedExtraSelections() })
-                        onSaved(res.data.id)
-                    } catch (err) {
-                        setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
-                    }
+        if (isEditing) {
+            try {
+                await updateReservation(reservation.id, { ...reservation, ...rest, roomTypeId, rateType, guestCount })
+                onSaved()
+            } catch (err) {
+                if (err.response?.status === 400) setError('No room of this type is available for the selected dates.')
+                else if (err.response?.status === 404) setError('Room type not found.')
+                else setError('Something went wrong.')
+            }
+            return
+        }
 
-                    return
+        const multiRoom = multiRoomBookingEnabled && isMultiRoom(roomLines)
+        const channel = isFutureWalkIn ? 'PHONE' : form.channel
+
+        const basePayload = {
+            guestId: form.guestId,
+            checkInDate: form.checkInDate,
+            checkOutDate: form.checkOutDate,
+            rateType,
+            guestCount,
+            channel
+        }
+
+        // Multi-room booking is feature-flagged off by default (not yet integrated with the
+        // assign-room/pay-timing flow below) - see #{{multi-room-pay-timing-followup}}. While
+        // disabled, this branch is unreachable since roomLines never grows past one line.
+        if (multiRoom) {
+            const payload = { ...basePayload, rooms: roomLines.map(l => ({ roomTypeId: Number(l.roomTypeId), quantity: Number(l.quantity) })) }
+
+            if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
+                try {
+                    await createMultiRoomReservation({ ...payload, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                    onSaved()
+                } catch (err) {
+                    setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
                 }
-
-                // A future-dated walk-in or any phone booking has no guest present yet, so staff
-                // can optionally lock in a specific room before working through payment timing.
-                setPendingForm(submittedForm)
-                setPayTimingChoice(null)
-                setSelectedRoomId('')
-                setStep('assign-room')
                 return
             }
 
-            onSaved()
-        } catch (err) {
-            if (err.response?.status === 400) {
-                setError('No room of this type is available for the selected dates.')
-            } else if (err.response?.status === 404) {
-                setError('Room type not found.')
-            } else {
-                setError('Something went wrong.')
+            if (!paymentReady) {
+                setError('Payment provider is not connected. Check Settings.')
+                return
             }
+            setPendingForm({ ...payload, multiRoom: true })
+            setStep('payment')
+            return
         }
+
+        const payload = { ...basePayload, roomTypeId: Number(form.roomTypeId) }
+
+        if (form.channel === 'WALK_IN' && !isFutureWalkIn) {
+            try {
+                const res = await createReservation({ ...payload, roomPaymentMethodId: null, extras: stagedExtraSelections() })
+                onSaved(res.data.id)
+            } catch (err) {
+                setError(err.response?.status === 400 ? 'No room of this type is available for the selected dates.' : 'Something went wrong.')
+            }
+            return
+        }
+
+        // A future-dated walk-in or any phone booking has no guest present yet, so staff
+        // can optionally lock in a specific room before working through payment timing.
+        setPendingForm({ ...payload, multiRoom: false })
+        setPayTimingChoice(null)
+        setSelectedRoomId('')
+        setStep('assign-room')
     }
 
 
@@ -378,8 +445,14 @@ function ReservationModal({ reservation, onSaved, onClose }) {
 
     async function handleCapture(paymentMethodId) {
         try {
-            const res = await createReservation({ ...pendingForm, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
-            completeReservation(res.data)
+            const { multiRoom, ...payload } = pendingForm
+            if (multiRoom) {
+                await createMultiRoomReservation({ ...payload, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
+                onSaved()
+            } else {
+                const res = await createReservation({ ...payload, roomPaymentMethodId: paymentMethodId, extras: stagedExtraSelections() })
+                completeReservation(res.data)
+            }
         } catch (err) {
             setStep('form')
             if (err.response?.status === 400) {
@@ -388,7 +461,6 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                 setError('Something went wrong.')
             }
         }
-
     }
 
     async function handlePayNowChosen() {
@@ -688,7 +760,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-muted mb-1">Room Type</label>
+                                <label className="block text-sm text-muted mb-1">{multiRoomBookingEnabled && !isEditing ? 'Rooms' : 'Room Type'}</label>
                                 {isEditing ? (
                                     <div className="flex flex-col gap-1">
                                         <p className="text-sm text-black">
@@ -700,6 +772,45 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                                 Change Room
                                             </button>
                                         )}
+                                    </div>
+                                ) : multiRoomBookingEnabled ? (
+                                    <div className="flex flex-col gap-2">
+                                        {roomLines.map((line, index) => (
+                                            <div key={index} className="flex gap-2 items-center">
+                                                <select
+                                                    value={line.roomTypeId}
+                                                    onChange={e => updateRoomLine(index, 'roomTypeId', e.target.value)}
+                                                    className="filter-input w-117"
+                                                    required
+                                                >
+                                                    <option value="">Select a room type...</option>
+                                                    {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map(rt => (
+                                                        <option key={rt.id} value={rt.id}>{rt.name.replace('_', ' ')}</option>
+                                                    ))}
+                                                </select>
+                                                <Stepper
+                                                    value={line.quantity}
+                                                    onChange={qty => updateRoomLine(index, 'quantity', qty)}
+                                                    min={1}
+                                                    max={roomTypes.find(rt => String(rt.id) === String(line.roomTypeId))?.availableCount ?? 1}
+                                                    disabled={!line.roomTypeId}
+                                                />
+                                                {roomLines.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeRoomLine(index)}
+                                                        className="p-2 text-muted hover:text-error transition-colors"
+                                                        aria-label="Remove room"
+                                                        title="Remove room"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <button type="button" onClick={addRoomLine} className="btn btn-secondary text-sm mt-2">
+                                            + Add another room type
+                                        </button>
                                     </div>
                                 ) : (
                                     <select name="roomTypeId" value={form.roomTypeId} onChange={handleChange} className="filter-input w-full sm:w-56" required>

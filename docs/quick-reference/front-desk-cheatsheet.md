@@ -1,6 +1,6 @@
 ---
 title: StayDesk — Front Desk Quick Reference
-last_updated: 2026-06-26
+last_updated: 2026-09-21
 pdf_options:
   format: Letter
   margin: 0.75in 0.75in 0.75in 0.75in
@@ -22,6 +22,8 @@ stylesheet: ../style/staydesk.css
 5. Remind guest: check-out is **11:00 AM**, card charged at check-out
 
 **Walk-in?** → New Reservation → fill details → Save → then Check In
+
+**Terminal not responding?** → restart StayDeskBridge service, or enter card manually
 
 ---
 

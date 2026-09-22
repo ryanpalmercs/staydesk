@@ -79,7 +79,7 @@ public class FolioService {
 
         BigDecimal newTotal = folio.total().add(amount).add(tax);
 
-        return folioRepository.save(new Folio(folio.id(), folio.reservationId(), folio.status(), newTotal, folio.paidAt(), folio.createdAt(), now));
+        return folioRepository.save(new Folio(folio.id(), folio.status(), newTotal, folio.paidAt(), folio.createdAt(), now));
     }
 
     public record PerNightExtraCharge(int extraId, String extraName, BigDecimal unitPrice, int quantity) {
@@ -150,7 +150,8 @@ public class FolioService {
         BigDecimal amount = extra.price().multiply(BigDecimal.valueOf(quantity));
 
         if (extra.billingType() == Extra.BillingType.PER_NIGHT) {
-            Reservation reservation = reservationRepository.findById(folio.reservationId())
+            Reservation reservation = reservationRepository.findByFolioId(folio.id()).stream()
+                    .findFirst()
                     .orElseThrow(ReservationNotFoundException::new);
             long nights = ChronoUnit.DAYS.between(reservation.checkInDate(), reservation.checkOutDate());
 

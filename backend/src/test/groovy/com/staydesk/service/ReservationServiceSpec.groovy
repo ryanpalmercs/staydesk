@@ -58,7 +58,7 @@ class ReservationServiceSpec extends Specification {
 
     private static Reservation reservation(Reservation.ReservationStatus status, Reservation.Channel channel,
                                            Rate.RateType rateType = Rate.RateType.NIGHTLY) {
-        new Reservation(1, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
+        new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
                 status, null, null, rateType, 1, channel, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
     }
 
@@ -66,21 +66,22 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.markNoShow(1)
 
         then:
-        1 * paymentService.refundAllButFirstNight(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 })
+        1 * paymentService.refundReservationShare(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 },
+                { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 })
         1 * folioRepository.closeFolio(9)
         result.status() == Reservation.ReservationStatus.NO_SHOW
         result.roomId() == res.roomId()
@@ -96,7 +97,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(InvalidReservationException)
-        0 * paymentService.refundAllButFirstNight(_, _)
+        0 * paymentService.refundReservationShare(_, _, _)
         0 * folioRepository.closeFolio(_)
     }
 
@@ -126,14 +127,14 @@ class ReservationServiceSpec extends Specification {
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
-        folioRepository.getFolioByReservationId(1) >> Optional.empty()
+        folioRepository.findById(9) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.markNoShow(1)
 
         then:
-        0 * paymentService.refundAllButFirstNight(_, _)
+        0 * paymentService.refundReservationShare(_, _, _)
         0 * folioRepository.closeFolio(_)
         result.status() == Reservation.ReservationStatus.NO_SHOW
     }
@@ -143,12 +144,12 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, rateType)
         def rate = new Rate(1, rateType.name(), 1, rateAmount, LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(500), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(500), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(rateType, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         reservationRepository.save(_) >> { Reservation r -> r }
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }   // identity: isolates division math from tax logic
@@ -157,7 +158,7 @@ class ReservationServiceSpec extends Specification {
         reservationService.markNoShow(1)
 
         then:
-        1 * paymentService.refundAllButFirstNight(folio, { BigDecimal amt -> amt.compareTo(expectedBase) == 0 })
+        1 * paymentService.refundReservationShare(folio, _, { BigDecimal amt -> amt.compareTo(expectedBase) == 0 })
 
         where:
         rateType               | rateAmount              || expectedBase
@@ -170,12 +171,12 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.postCharge(_, _, _) >> folio
         folioRepository.save(_) >> { Folio f -> f }
@@ -194,11 +195,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
         folioRepository.save(_) >> { Folio f -> f }
@@ -215,11 +216,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
         folioRepository.save(_) >> { Folio f -> f }
@@ -237,11 +238,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
         folioRepository.save(_) >> { Folio f -> f }
@@ -258,11 +259,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         // PHONE bookings post every room period upfront at creation (#292/#266), so nothing is left to post at checkout
         folioService.countRoomChargesPosted(9) >> 3
@@ -282,11 +283,11 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(265), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(265), null, LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
-        folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
         folioRepository.save(_) >> { Folio f -> f }
@@ -311,7 +312,8 @@ class ReservationServiceSpec extends Specification {
                 new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
                 false, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
                 LocalDateTime.now(), LocalDateTime.now())
-        def savedReservation = new Reservation(11, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
+        def savedFolio = new Folio(20, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedReservation = new Reservation(11, 20, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
                 Reservation.ReservationStatus.CHECKED_IN, LocalDate.of(2026, 8, 21).atTime(15, 0), null,
                 Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
 
@@ -329,15 +331,15 @@ class ReservationServiceSpec extends Specification {
             g.firstName().value() == "James" && g.lastName().value() == "Reece" &&
                     g.phoneNumber().value() == "0000000000" && !g.smsConsent()
         }) >> savedGuest
+        1 * folioRepository.save({ Folio f ->
+            f.status() == Folio.FolioStatus.OPEN && f.total().compareTo(BigDecimal.ZERO) == 0
+        }) >> savedFolio
         1 * reservationRepository.save({ Reservation r ->
-            r.guestId() == 9 && r.roomId() == 5 && r.roomTypeId() == 2 &&
+            r.folioId() == 20 && r.guestId() == 9 && r.roomId() == 5 && r.roomTypeId() == 2 &&
                     r.status() == Reservation.ReservationStatus.CHECKED_IN && r.checkedInAt() != null &&
                     r.checkedOutAt() == null && r.rateType() == Rate.RateType.NIGHTLY && r.guestCount() == 1 &&
                     r.channel() == Reservation.Channel.WALK_IN
         }) >> savedReservation
-        1 * folioRepository.save({ Folio f ->
-            f.reservationId() == 11 && f.status() == Folio.FolioStatus.OPEN && f.total().compareTo(BigDecimal.ZERO) == 0
-        })
         0 * paymentService._
         result.status() == Reservation.ReservationStatus.CHECKED_IN
     }
@@ -396,7 +398,7 @@ class ReservationServiceSpec extends Specification {
     def "backlogCheckIn throws RoomUnavailableException when the room has an overlapping reservation for those dates"() {
         given:
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
-        def conflicting = new Reservation(9, 3, 5, 2, LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 25),
+        def conflicting = new Reservation(9, 99, 3, 5, 2, LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 25),
                 Reservation.ReservationStatus.CHECKED_IN, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN,
                 false, LocalDateTime.now(), LocalDateTime.now(), "111222")
         roomRepository.findById(5) >> Optional.of(room)
@@ -427,7 +429,7 @@ class ReservationServiceSpec extends Specification {
     def "syncBacklogFolios posts the missing GUEST ROOM charges for a CHECKED_IN reservation with an empty folio"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findAll() >> [res]
@@ -437,7 +439,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 0
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
 
         when:
         def result = reservationService.syncBacklogFolios()
@@ -453,7 +455,7 @@ class ReservationServiceSpec extends Specification {
     def "syncBacklogFolios skips a reservation whose folio is already fully posted"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findAll() >> [res]
@@ -491,7 +493,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay charges the stored credential per added night, priced at the same tier, and updates checkOutDate"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(350), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -504,7 +506,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
@@ -523,7 +525,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay also tops up an existing PER_NIGHT extra for just the added nights"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -536,10 +538,10 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> [new FolioService.PerNightExtraCharge(2, "Pet Fee", BigDecimal.valueOf(25), 1)]
         folioService.postCharge(_, "PET FEE", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(25)) == 0 }, 2, 1) >>
-                { Folio f, String d, BigDecimal amt, Integer extraId, Integer qty -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt, Integer extraId, Integer qty -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -554,7 +556,7 @@ class ReservationServiceSpec extends Specification {
     def "estimateExtendStayCharge includes both the added room nights and any PER_NIGHT extras, without charging or posting anything"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -619,7 +621,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay re-tiers only the newly added nights when the extension crosses into a longer-stay tier"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def weekly5Rate = new Rate(2, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -634,7 +636,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
@@ -651,7 +653,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay charges per added night when the extension stays within the reservation's current tier"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -664,7 +666,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
@@ -681,7 +683,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay throws DateConflictException when another reservation occupies the room during the extension window"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def conflicting = new Reservation(2, 8, 4, 2, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 15),
+        def conflicting = new Reservation(2, 99, 8, 4, 2, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 15),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN,
                 false, LocalDateTime.now(), LocalDateTime.now(), "654321")
         reservationRepository.findById(1) >> Optional.of(res)
@@ -718,7 +720,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay lets a Regular Guest extend past room-type capacity, taking priority over a not-yet-checked-in reservation"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -729,7 +731,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.of(regularGuest())
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [credential()]
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
@@ -747,7 +749,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay throws NoReusableCredentialException when there's no active credential on file"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -760,7 +762,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> []
         folioService.postCharge(_, "GUEST ROOM", _) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
 
         when:
@@ -775,7 +777,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStay throws NoReusableCredentialException when the only credential on file is the record-only stand-in"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def recordOnlyCredential = new ReusablePaymentCredential(4, 9, 1, "elavon_cpi_manual", "cust-1", "tok-1", "4242",
                 false, null, null, LocalDateTime.now(), LocalDateTime.now())
@@ -790,7 +792,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(9) >> [recordOnlyCredential]
         folioService.postCharge(_, "GUEST ROOM", _) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
 
         when:
@@ -805,7 +807,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStayTerminal charges the paired POS device for the added periods and updates checkOutDate"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
 
@@ -820,7 +822,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         providerFactory.getCardPresentProviderName() >> "elavon_cpi"
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
@@ -849,7 +851,7 @@ class ReservationServiceSpec extends Specification {
     def "extendStayTerminal falls back to record-only charging when no device is given and record-only is enabled"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         providerFactory.isCardPresentRecordOnly() >> true
@@ -863,7 +865,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
         reservationRepository.save(_) >> { Reservation r -> r }
 
@@ -897,7 +899,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def room = availableRoom()
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -908,7 +910,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
 
         when:
@@ -922,7 +924,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def room = availableRoom()
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -946,7 +948,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def room = availableRoom()
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
 
@@ -959,7 +961,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
 
         when:
@@ -973,7 +975,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def room = availableRoom()
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
 
@@ -999,7 +1001,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
         def room = availableRoom()
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -1010,7 +1012,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
 
         when:
@@ -1024,7 +1026,7 @@ class ReservationServiceSpec extends Specification {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
         def room = availableRoom()
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
 
@@ -1049,7 +1051,7 @@ class ReservationServiceSpec extends Specification {
     def "payFullStayNow charges the folio's real total, including any already-posted extras, for a WALK_IN reservation, without assigning a room or creating a hold"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -1059,7 +1061,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
 
         when:
         reservationService.payFullStayNow(1, "token-1")
@@ -1074,7 +1076,7 @@ class ReservationServiceSpec extends Specification {
     def "payFullStayNow throws InvalidReservationException when the folio was already charged in full"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -1109,7 +1111,7 @@ class ReservationServiceSpec extends Specification {
     def "payFullStayNowTerminal charges the folio's real total, including any already-posted extras, for a WALK_IN reservation, without assigning a room or creating a hold"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
 
@@ -1121,7 +1123,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
 
         when:
         reservationService.payFullStayNowTerminal(1, 6)
@@ -1136,7 +1138,7 @@ class ReservationServiceSpec extends Specification {
     def "payFullStayNowTerminal throws InvalidReservationException when the folio was already charged in full"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
 
@@ -1160,7 +1162,7 @@ class ReservationServiceSpec extends Specification {
     def "estimateCheckInCharge combines the folio's current total with the remaining room nights for a WALK_IN reservation"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(155), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -1182,7 +1184,7 @@ class ReservationServiceSpec extends Specification {
     def "estimateCheckInCharge reports no room charge due once the folio is already fully posted"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -1203,7 +1205,7 @@ class ReservationServiceSpec extends Specification {
     def "estimateCheckInCharge computes the remaining room charge for a PHONE reservation that deferred payment to check-in"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
-        def folio = new Folio(9, res.id(), Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
 
         reservationRepository.findById(1) >> Optional.of(res)
@@ -1236,12 +1238,12 @@ class ReservationServiceSpec extends Specification {
 
     def "createReservation charges the guest's legacy price instead of the standard rate"() {
         given:
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
@@ -1251,7 +1253,7 @@ class ReservationServiceSpec extends Specification {
         folioRepository.save(_) >> savedFolio
         guestRepository.findById(7) >> Optional.of(legacyPricedGuest())
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
 
         when:
         reservationService.createReservation(draft, "token-1", [])
@@ -1263,12 +1265,12 @@ class ReservationServiceSpec extends Specification {
 
     def "createReservation splits a WEEKLY_7 legacy price evenly across the stay instead of charging it per night"() {
         given:
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_7, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(322.70), LocalDateTime.now(), LocalDateTime.now())
-        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
@@ -1283,19 +1285,19 @@ class ReservationServiceSpec extends Specification {
 
         then:
         7 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(46.10)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(322.70)) == 0 }, _, "token-1",
                 "james@example.com")
     }
 
     def "createReservation passes null customerEmail when the guest has none on file"() {
         given:
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
@@ -1306,7 +1308,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
 
         when:
         reservationService.createReservation(draft, "token-1", [])
@@ -1317,12 +1319,12 @@ class ReservationServiceSpec extends Specification {
 
     def "createReservation posts staged extras before charging, so a PHONE booking's full-stay charge includes them"() {
         given:
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
@@ -1333,27 +1335,27 @@ class ReservationServiceSpec extends Specification {
         folioRepository.save(_) >> savedFolio
         guestRepository.findById(7) >> Optional.empty()
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.addExtra(_, _, _) >>
-                { Integer folioId, Integer extraId, Integer quantity -> new Folio(folioId, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now()) }
+                { Integer folioId, Integer extraId, Integer quantity -> new Folio(folioId, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now()) }
 
         when:
         reservationService.createReservation(draft, "token-1", [new FolioService.ExtraSelection(2, 1)])
 
         then:
         1 * folioService.addExtra(9, 2, 1) >>
-                new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now())
+                new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now())
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(185)) == 0 }, _, "token-1", _)
     }
 
     def "createReservation posts only the first room period and does not charge a PHONE booking that deferred payment to check-in"() {
         given:
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
-        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
@@ -1369,14 +1371,14 @@ class ReservationServiceSpec extends Specification {
 
         then:
         1 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
-                new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
+                new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
         0 * paymentService.chargeFullStay(_, _, _, _, _)
     }
 
     def "createReservation throws InvalidReservationException when the requested rate type doesn't match the tier for the stay length"() {
         given:
         // 3 nights is the NIGHTLY tier (1-4 nights), not WEEKLY_5
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 4),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 4),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_5, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
@@ -1396,12 +1398,12 @@ class ReservationServiceSpec extends Specification {
 
     def "createReservation accepts a 6-night stay at the WEEKLY_5 tier, priced per night"() {
         given:
-        def draft = new Reservation(0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7),
+        def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_5, 1, Reservation.Channel.PHONE,
                 false, LocalDateTime.now(), LocalDateTime.now(), null)
         def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
-        def savedFolio = new Folio(9, 0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
@@ -1418,7 +1420,7 @@ class ReservationServiceSpec extends Specification {
         then:
         // 6 nights at 325 / 5 = 65.00 per night
         6 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
-                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.reservationId(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(390)) == 0 }, _, "token-1", null)
     }
 

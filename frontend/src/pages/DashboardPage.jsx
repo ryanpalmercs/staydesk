@@ -16,6 +16,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import ReservationSummaryModal from '../components/ReservationSummaryModal'
 import CheckInPaymentModal from '../components/CheckInPaymentModal'
 import FolioModal from '../components/FolioModal'
+import { useAuth } from '../contexts/AuthContext'
 import ExtendStayModal from '../components/ExtendStayModal'
 import AssignRoomModal from '../components/AssignRoomModal'
 import MoveRoomModal from '../components/MoveRoomModal'
@@ -41,10 +42,12 @@ function DashboardPage() {
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [checkInTarget, setCheckInTarget] = useState(null)
     const [folioId, setFolioId] = useState(null)
+    const [folioReservationId, setFolioReservationId] = useState(null)
     const [extendTarget, setExtendTarget] = useState(null)
     const [assignRoomTarget, setAssignRoomTarget] = useState(null)
     const [moveRoomTarget, setMoveRoomTarget] = useState(null)
     const [visibleStatuses, setVisibleStatuses] = useState(new Set(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT']))
+    const { displayName } = useAuth()
     const [showCheckingInModal, setShowCheckingInModal] = useState(false)
     const [showCheckingOutModal, setShowCheckingOutModal] = useState(false)
     const [showOccupancyModal, setShowOccupancyModal] = useState(false)
@@ -61,8 +64,8 @@ function DashboardPage() {
 
     useEffect(() => { fetchData() }, [])
 
-    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId) {
-        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId)
+    async function handleCheckInConfirmed(roomId, incidentalsPaymentMethodId, roomPaymentMethodId) {
+        const res = await checkIn(checkInTarget, roomId, incidentalsPaymentMethodId, roomPaymentMethodId)
         setSelectedEvent(null)
         fetchData()
         return res.data.doorAccessStatus
@@ -79,6 +82,7 @@ function DashboardPage() {
         try {
             const res = await getFolioByReservationId(selectedEvent.reservationId)
             setFolioId(res.data.id)
+            setFolioReservationId(selectedEvent.reservationId)
             setSelectedEvent(null)
         } catch (err) {
             console.error('Failed to find folio:', err)
@@ -89,6 +93,7 @@ function DashboardPage() {
         const res = await checkOut(reservationId)
         const folioRes = await getFolioByReservationId(reservationId)
         setFolioId(folioRes.data.id)
+        setFolioReservationId(reservationId)
         fetchData()
         return res
     }
@@ -153,7 +158,11 @@ function DashboardPage() {
 
     return (
         <div className="dashboard">
-            <h1 className="section-title">Dashboard</h1>
+            {displayName ? (
+                <h1 className="section-title">{displayName}'s Dashboard</h1>
+            ) : (
+                <h1 className="section-title">Dashboard</h1>
+            )}
 
             <div className="dashboard-stats">
                 <button type="button" onClick={() => setShowOccupancyModal(true)} className="stat-card text-left">
@@ -293,7 +302,7 @@ function DashboardPage() {
             )}
 
             {folioId && (
-                <FolioModal folioId={folioId} onClose={() => setFolioId(null)} onPaid={fetchData} />
+                <FolioModal folioId={folioId} reservationId={folioReservationId} onClose={() => setFolioId(null)} onPaid={fetchData} />
             )}
 
             {showCheckingInModal && (

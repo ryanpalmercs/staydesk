@@ -95,3 +95,11 @@ export function backlogCheckIn(payload) {
 export function syncBacklogFolios() {
     return api.post('/admin/reservations/sync-folios')
 }
+
+export function createMultiRoomReservation(payload) {
+    return api.post('/reservations/multi', payload)
+}
+
+export function getUnsettledReservations() {
+    return api.get('/reservations/unsettled')
+}

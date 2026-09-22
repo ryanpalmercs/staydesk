@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -52,7 +53,8 @@ public class PaymentService {
         this.posDeviceRepository = posDeviceRepository;
     }
 
-    public void createIncidentalHold(Folio folio, String providerName, String incidentalsPaymentMethodId, String customerEmail) {
+    public void createIncidentalHold(Folio folio, int reservationId, String providerName,
+                                     String incidentalsPaymentMethodId, String customerEmail) {
         LocalDateTime now = LocalDateTime.now();
 
         String holdAmountString = propertySettingsService.getProperty("incidentals_hold_amount").value();
@@ -64,7 +66,7 @@ public class PaymentService {
             LOGGER.error("Could not parse hold amount", e);
         }
 
-        createHold(folio, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now, customerEmail);
+        createHold(folio, reservationId, PaymentKind.INCIDENTALS, providerName, holdAmount, incidentalsPaymentMethodId, now, customerEmail);
     }
 
     /**
@@ -72,8 +74,8 @@ public class PaymentService {
      * check-in (e.g. a backlog-imported guest) - reuses the same incidentals-hold-to-credential
      * flow check-in already does, just triggered later instead of only at check-in time.
      */
-    public void addCardOnFile(Folio folio, String paymentMethodId, String customerEmail) {
-        createIncidentalHold(folio, providerFactory.getPaymentProviderName(), paymentMethodId, customerEmail);
+    public void addCardOnFile(Folio folio, int reservationId, String paymentMethodId, String customerEmail) {
+        createIncidentalHold(folio, reservationId, providerFactory.getPaymentProviderName(), paymentMethodId, customerEmail);
     }
 
     /**
@@ -84,7 +86,7 @@ public class PaymentService {
      * here purely so this doesn't dead-end for a record-only checked-in guest, matching the
      * per-transaction terminal/record-only fallback available everywhere else.
      */
-    public void addCardOnFileTerminal(Folio folio, Integer posDeviceId, String customerEmail) {
+    public void addCardOnFileTerminal(Folio folio, int reservationId, Integer posDeviceId, String customerEmail) {
         String paymentMethodToken;
 
         if (posDeviceId != null) {
@@ -97,14 +99,14 @@ public class PaymentService {
             throw new CardPresentRecordOnlyDisabledException();
         }
 
-        createIncidentalHold(folio, providerFactory.getCardPresentProviderName(), paymentMethodToken, customerEmail);
+        createIncidentalHold(folio, reservationId, providerFactory.getCardPresentProviderName(), paymentMethodToken, customerEmail);
     }
 
     public void cancelOpenHolds(Folio folio) {
         folioPaymentRepository.findByFolioId(folio.id()).forEach(payment -> {
             if (payment.status() == PaymentStatus.REQUIRES_CAPTURE) {
                 cancelHold(payment);
-            } else if (payment.status() == PaymentStatus.CAPTURED) {
+            } else if (payment.status() == PaymentStatus.CAPTURED || payment.status() == PaymentStatus.PARTIALLY_REFUNDED) {
                 refundPayment(payment);
             }
         });
@@ -119,7 +121,7 @@ public class PaymentService {
             RefundResult refundResult = provider.refund(payment.stripePaymentIntentId(), payment.capturedAmount(), payment.cardLast4());
 
             if (!refundResult.success()) {
-                folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.kind(),
+                folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.reservationId(), payment.kind(),
                         payment.provider(), payment.stripePaymentIntentId(), payment.cardLast4(), PaymentStatus.FAILED,
                         payment.authorizedAmount(), payment.capturedAmount(), refundResult.message(), payment.createdAt(), LocalDateTime.now()));
                 throw new RuntimeException("Failed to void or refund " + payment.kind() + " payment " + payment.stripePaymentIntentId()
@@ -127,12 +129,12 @@ public class PaymentService {
             }
         }
 
-        return folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.kind(),
+        return folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.reservationId(), payment.kind(),
                 payment.provider(), payment.stripePaymentIntentId(), payment.cardLast4(), PaymentStatus.CANCELED,
                 payment.authorizedAmount(), payment.capturedAmount(), null, payment.createdAt(), LocalDateTime.now()));
     }
 
-    private void createHold(Folio folio, PaymentKind kind, String providerName, BigDecimal amount,
+    private void createHold(Folio folio, int reservationId, PaymentKind kind, String providerName, BigDecimal amount,
                             String paymentMethodId, LocalDateTime now, String customerEmail) {
         AuthResult result = providerFactory.getProvider(providerName)
                                            .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id(), customerEmail);
@@ -141,11 +143,11 @@ public class PaymentService {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
         }
 
-        FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), kind, providerName, result.transactionId(),
+        FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), reservationId, kind, providerName, result.transactionId(),
                 result.cardLast4(), PaymentStatus.REQUIRES_CAPTURE, amount, null, null, now, now));
 
         if (kind == PaymentKind.INCIDENTALS) {
-            paymentCredentialService.captureCheckInCredential(folio, providerName, saved);
+            paymentCredentialService.captureCheckInCredential(folio, reservationId, providerName, saved);
         }
     }
 
@@ -157,17 +159,20 @@ public class PaymentService {
                                            .findFirst()
                                            .orElseThrow(FolioPaymentNotFoundException::new);
 
-        FolioPayment incidentalsHold = payments.stream()
-                                               .filter(p -> p.kind() == PaymentKind.INCIDENTALS)
-                                               .findFirst()
-                                               .orElseThrow(FolioPaymentNotFoundException::new);
+        List<FolioPayment> incidentalsHolds = payments.stream()
+                                                      .filter(p -> p.kind() == PaymentKind.INCIDENTALS)
+                                                      .toList();
+
+        if (incidentalsHolds.isEmpty()) {
+            throw new FolioPaymentNotFoundException();
+        }
 
         BigDecimal owed = folio.total();
 
         BigDecimal roomAmountCollected;
         FolioPayment capturedRoom;
 
-        if (roomPayment.status() == PaymentStatus.CAPTURED) {
+        if (roomPayment.status() == PaymentStatus.CAPTURED || roomPayment.status() == PaymentStatus.PARTIALLY_REFUNDED) {
             capturedRoom = roomPayment;
             roomAmountCollected = roomPayment.capturedAmount();
         } else {
@@ -177,14 +182,16 @@ public class PaymentService {
         }
 
         BigDecimal remaining = owed.subtract(roomAmountCollected);
-        FolioPayment settledIncidentals;
+        List<FolioPayment> settledIncidentals = new ArrayList<>();
 
-        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal incidentalsCapture = remaining.min(incidentalsHold.authorizedAmount());
-            settledIncidentals = captureHold(incidentalsHold, incidentalsCapture);
-            remaining = remaining.subtract(incidentalsCapture);
-        } else {
-            settledIncidentals = cancelHold(incidentalsHold);
+        for (FolioPayment incidentalsHold : incidentalsHolds) {
+            if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal incidentalsCapture = remaining.min(incidentalsHold.authorizedAmount());
+                settledIncidentals.add(captureHold(incidentalsHold, incidentalsCapture));
+                remaining = remaining.subtract(incidentalsCapture);
+            } else {
+                settledIncidentals.add(cancelHold(incidentalsHold));
+            }
         }
 
         return new PaymentCaptureResult(capturedRoom, settledIncidentals, remaining);
@@ -241,14 +248,14 @@ public class PaymentService {
         CaptureResult result = providerFactory.getProvider(hold.provider()).capture(hold.stripePaymentIntentId(), amount);
 
         if (!result.success()) {
-            folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
+            folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.reservationId(), hold.kind(),
                     hold.provider(), hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.FAILED,
                     hold.authorizedAmount(), hold.capturedAmount(), result.message(), hold.createdAt(), LocalDateTime.now()));
             throw new RuntimeException("Failed to capture " + hold.kind() + " hold " + hold.stripePaymentIntentId()
                                        + ": " + result.message());
         }
 
-        return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
+        return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.reservationId(), hold.kind(),
                 hold.provider(), hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CAPTURED, hold.authorizedAmount(), amount,
                 null, hold.createdAt(), LocalDateTime.now()));
     }
@@ -257,14 +264,14 @@ public class PaymentService {
         VoidResult result = providerFactory.getProvider(hold.provider()).void_(hold.stripePaymentIntentId());
 
         if (!result.success()) {
-            folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
+            folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.reservationId(), hold.kind(),
                     hold.provider(), hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.FAILED,
                     hold.authorizedAmount(), hold.capturedAmount(), result.message(), hold.createdAt(), LocalDateTime.now()));
             throw new RuntimeException("Failed to cancel " + hold.kind() + " hold " + hold.stripePaymentIntentId()
                                        + ": " + result.message());
         }
 
-        return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.kind(),
+        return folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.reservationId(), hold.kind(),
                 hold.provider(), hold.stripePaymentIntentId(), hold.cardLast4(), PaymentStatus.CANCELED, hold.authorizedAmount(),
                 BigDecimal.ZERO, null, hold.createdAt(), LocalDateTime.now()));
     }
@@ -287,37 +294,46 @@ public class PaymentService {
             throw new RuntimeException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
         }
 
-        folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.ROOM, providerName, result.transactionId(),
+        folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.ROOM, providerName, result.transactionId(),
                 result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
     }
 
-    public void refundAllButFirstNight(Folio folio, BigDecimal firstNightAmount) {
-        FolioPayment roomPayment = folioPaymentRepository.findByFolioId(folio.id()).stream()
-                                                         .filter(p -> p.kind() == PaymentKind.ROOM)
-                                                         .filter(p -> p.status() == PaymentStatus.CAPTURED)
-                                                         .findFirst()
-                                                         .orElseThrow(FolioPaymentNotFoundException::new);
+    public boolean isRoomPaymentSettled(int folioId) {
+        return folioPaymentRepository.findByFolioId(folioId)
+                                     .stream()
+                                     .anyMatch(p -> p.kind() == PaymentKind.ROOM && p.status() == PaymentStatus.CAPTURED);
+    }
 
-        BigDecimal refundAmount = roomPayment.capturedAmount().subtract(firstNightAmount).max(BigDecimal.ZERO);
+    public void refundReservationShare(Folio folio, BigDecimal reservationShareAmount, BigDecimal retainAmount) {
+        folioPaymentRepository.findByFolioId(folio.id()).stream()
+                              .filter(p -> p.kind() == PaymentKind.ROOM)
+                              .filter(p -> p.status() == PaymentStatus.CAPTURED || p.status() == PaymentStatus.PARTIALLY_REFUNDED)
+                              .findFirst()
+                              .ifPresent(roomPayment -> {
+                                  BigDecimal refundAmount = reservationShareAmount.subtract(retainAmount)
+                                                                                  .max(BigDecimal.ZERO)
+                                                                                  .min(roomPayment.capturedAmount());
 
-        if (refundAmount.compareTo(BigDecimal.ZERO) == 0) {
-            LOGGER.info("No refund due for no-show on folio {}: captured {} <= first-night amount {}",
-                    folio.id(), roomPayment.capturedAmount(), firstNightAmount);
-            return;
-        }
+                                  if (refundAmount.compareTo(BigDecimal.ZERO) == 0) {
+                                      LOGGER.info("No refund due for reservation share on folio {}: share {} <= retain amount {}",
+                                              folio.id(), reservationShareAmount, retainAmount);
+                                      return;
+                                  }
 
-        RefundResult result = providerFactory.getProvider(roomPayment.provider())
-                                             .refund(roomPayment.stripePaymentIntentId(), refundAmount, roomPayment.cardLast4());
+                                  RefundResult result = providerFactory.getProvider(roomPayment.provider())
+                                                                       .refund(roomPayment.stripePaymentIntentId(), refundAmount, roomPayment.cardLast4());
 
-        if (!result.success()) {
-            throw new RuntimeException("Failed to refund no-show for folio " + folio.id() + ": " + result.message());
-        }
+                                  if (!result.success()) {
+                                      throw new RuntimeException("Failed to refund reservation share for folio " + folio.id() + ": " + result.message());
+                                  }
 
-        BigDecimal retainedAmount = roomPayment.capturedAmount().subtract(refundAmount);
+                                  BigDecimal retainedAmount = roomPayment.capturedAmount().subtract(refundAmount);
 
-        folioPaymentRepository.save(new FolioPayment(roomPayment.id(), roomPayment.folioId(), roomPayment.kind(),
-                roomPayment.provider(), roomPayment.stripePaymentIntentId(), roomPayment.cardLast4(), PaymentStatus.PARTIALLY_REFUNDED,
-                roomPayment.authorizedAmount(), retainedAmount, null, roomPayment.createdAt(), LocalDateTime.now()));
+                                  folioPaymentRepository.save(new FolioPayment(roomPayment.id(), roomPayment.folioId(), roomPayment.reservationId(),
+                                          roomPayment.kind(), roomPayment.provider(), roomPayment.stripePaymentIntentId(), roomPayment.cardLast4(),
+                                          PaymentStatus.PARTIALLY_REFUNDED, roomPayment.authorizedAmount(), retainedAmount, null,
+                                          roomPayment.createdAt(), LocalDateTime.now()));
+                              });
     }
 
     public FolioPayment chargeCardPresent(Folio folio, BigDecimal amount, String providerName, String paymentMethodId,
@@ -329,7 +345,7 @@ public class PaymentService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.INCIDENT_CHARGE, providerName,
+        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.INCIDENT_CHARGE, providerName,
                 result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
     }
 
@@ -344,7 +360,7 @@ public class PaymentService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), PaymentKind.INCIDENT_CHARGE,
+        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.INCIDENT_CHARGE,
                 credential.provider(), result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
     }
 
@@ -391,6 +407,6 @@ public class PaymentService {
         return chargeCardPresent(folio, amount, providerFactory.getCardPresentProviderName(), paymentMethodToken, description, customerEmail);
     }
 
-    public record PaymentCaptureResult(FolioPayment room, FolioPayment incidentals, BigDecimal outstandingBalance) {
+    public record PaymentCaptureResult(FolioPayment room, List<FolioPayment> incidentals, BigDecimal outstandingBalance) {
     }
 }
