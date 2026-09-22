@@ -15,6 +15,7 @@ import com.staydesk.provider.ProviderFactory
 import com.staydesk.repository.FolioPaymentRepository
 import com.staydesk.repository.PosDeviceRepository
 import com.staydesk.repository.ReusablePaymentCredentialRepository
+import com.staydesk.repository.TerminalTransactionRepository
 import spock.lang.Specification
 
 import java.time.LocalDateTime
@@ -27,9 +28,10 @@ class PaymentServiceSpec extends Specification {
     PaymentCredentialService paymentCredentialService = Mock()
     ReusablePaymentCredentialRepository reusablePaymentCredentialRepository = Mock()
     PosDeviceRepository posDeviceRepository = Mock()
+    TerminalTransactionRepository terminalTransactionRepository = Mock()
 
     PaymentService paymentService = new PaymentService(providerFactory, folioPaymentRepository, propertySettingsService,
-            paymentCredentialService, reusablePaymentCredentialRepository, posDeviceRepository)
+            paymentCredentialService, reusablePaymentCredentialRepository, posDeviceRepository, terminalTransactionRepository)
 
     private static FolioPayment capturedRoomPayment(BigDecimal amount) {
         new FolioPayment(5, 1, null, PaymentKind.ROOM, "authorizenet", "txn-1", "4242",
@@ -49,7 +51,7 @@ class PaymentServiceSpec extends Specification {
         paymentService.refundReservationShare(folio, BigDecimal.valueOf(300), BigDecimal.valueOf(100))
 
         then:
-        1 * provider.refund("txn-1", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(200)) == 0 }, "4242") >>
+        1 * provider.refund("txn-1", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(200)) == 0 }, "4242", 5) >>
                 new RefundResult(true, "txn-1", "ok")
         1 * folioPaymentRepository.save({ FolioPayment saved ->
             saved.status() == PaymentStatus.PARTIALLY_REFUNDED && saved.capturedAmount().compareTo(BigDecimal.valueOf(100)) == 0
@@ -108,7 +110,7 @@ class PaymentServiceSpec extends Specification {
         def provider = Mock(PaymentProvider)
 
         providerFactory.getProvider("authorizenet") >> provider
-        provider.chargeStoredCredential(BigDecimal.valueOf(150), "cust-1", "profile-1", "Incident: broken TV", "guest@example.com") >>
+        provider.chargeStoredCredential(BigDecimal.valueOf(150), "cust-1", "profile-1", "Incident: broken TV", "guest@example.com", null) >>
                 new AuthResult(true, "txn-99", null, "4242")
 
         when:
@@ -160,8 +162,8 @@ class PaymentServiceSpec extends Specification {
         def result = paymentService.capture(folio)
 
         then:
-        1 * provider.capture("txn-inc-1", _) >> new CaptureResult(true, "txn-inc-1", null)
-        1 * provider.capture("txn-inc-2", _) >> new CaptureResult(true, "txn-inc-2", null)
+        1 * provider.capture("txn-inc-1", _, 2) >> new CaptureResult(true, "txn-inc-1", null)
+        1 * provider.capture("txn-inc-2", _, 3) >> new CaptureResult(true, "txn-inc-2", null)
         result.incidentals().size() == 2
     }
 
@@ -276,7 +278,7 @@ class PaymentServiceSpec extends Specification {
 
         reusablePaymentCredentialRepository.findByFolioIdAndRevokedFalse(1) >> [activeCredential("authorizenet")]
         providerFactory.getProvider("authorizenet") >> provider
-        provider.chargeStoredCredential(BigDecimal.valueOf(25), "cust-1", "profile-1", "Pet Fee", "guest@example.com") >>
+        provider.chargeStoredCredential(BigDecimal.valueOf(25), "cust-1", "profile-1", "Pet Fee", "guest@example.com", null) >>
                 new AuthResult(true, "txn-1", null, "4242")
 
         when:
@@ -322,7 +324,7 @@ class PaymentServiceSpec extends Specification {
         posDeviceRepository.findById(6) >> Optional.of(device)
         providerFactory.getCardPresentProviderName() >> "elavon_cpi"
         providerFactory.getProvider("elavon_cpi") >> provider
-        provider.sale(BigDecimal.valueOf(25), "dev-token-1", "Pet Fee", "guest@example.com") >>
+        provider.sale(BigDecimal.valueOf(25), "dev-token-1", "Pet Fee", "guest@example.com", null) >>
                 new AuthResult(true, "txn-1", null, "4242")
 
         when:
@@ -341,7 +343,7 @@ class PaymentServiceSpec extends Specification {
         providerFactory.isCardPresentRecordOnly() >> true
         providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
         providerFactory.getProvider("elavon_cpi_manual") >> provider
-        provider.sale(BigDecimal.valueOf(25), "no-device-record-only", "Pet Fee", null) >>
+        provider.sale(BigDecimal.valueOf(25), "no-device-record-only", "Pet Fee", null, null) >>
                 new AuthResult(true, "MANUAL-1", null, null)
 
         when:
@@ -390,7 +392,7 @@ class PaymentServiceSpec extends Specification {
         providerFactory.getPaymentProviderName() >> "authorizenet"
         propertySettingsService.getProperty("incidentals_hold_amount") >> holdAmountSetting()
         providerFactory.getProvider("authorizenet") >> provider
-        provider.authorize(BigDecimal.ZERO, "manual-token", "INCIDENTALS hold for folio 1", "guest@example.com") >>
+        provider.authorize(BigDecimal.ZERO, "manual-token", "INCIDENTALS hold for folio 1", "guest@example.com", null) >>
                 new AuthResult(true, "hold-1", null, "4242")
 
         when:
@@ -412,7 +414,7 @@ class PaymentServiceSpec extends Specification {
         providerFactory.getCardPresentProviderName() >> "elavon_cpi"
         propertySettingsService.getProperty("incidentals_hold_amount") >> holdAmountSetting()
         providerFactory.getProvider("elavon_cpi") >> provider
-        provider.authorize(BigDecimal.ZERO, "dev-token-1", "INCIDENTALS hold for folio 1", null) >>
+        provider.authorize(BigDecimal.ZERO, "dev-token-1", "INCIDENTALS hold for folio 1", null, null) >>
                 new AuthResult(true, "hold-1", null, "4242")
 
         when:
@@ -433,7 +435,7 @@ class PaymentServiceSpec extends Specification {
         providerFactory.getCardPresentProviderName() >> "elavon_cpi_manual"
         propertySettingsService.getProperty("incidentals_hold_amount") >> holdAmountSetting()
         providerFactory.getProvider("elavon_cpi_manual") >> provider
-        provider.authorize(BigDecimal.ZERO, "no-device-record-only", "INCIDENTALS hold for folio 1", null) >>
+        provider.authorize(BigDecimal.ZERO, "no-device-record-only", "INCIDENTALS hold for folio 1", null, null) >>
                 new AuthResult(true, "MANUAL-1", null, null)
 
         when:
