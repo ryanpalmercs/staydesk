@@ -2,7 +2,7 @@ name: Branch protection
 
 on:
   pull_request:
-    branches: [develop, beta, master, 'v*']
+    branches: [develop, beta, master, 'v*', '[0-9]*']
 
 jobs:
   check-source-branch:
@@ -22,13 +22,13 @@ jobs:
             exit 1
           fi
 
-          if [[ "$TARGET" =~ ^v[0-9] && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
+          if [[ "$TARGET" =~ ^(v[0-9]|[0-9]) && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
             echo "Error: PRs targeting '$TARGET' must come from a 'feature/*' or 'bugfix/*' branch (got '$SOURCE')"
             exit 1
           fi
 
-          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ && ! "$SOURCE" =~ ^v[0-9] ]]; then
-            echo "Error: PRs targeting 'beta' must come from 'develop', 'master' (sync-back), a 'bugfix/*' hotfix branch, or a version lane ('v*') (got '$SOURCE')"
+          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ && ! "$SOURCE" =~ ^(v[0-9]|[0-9]) ]]; then
+            echo "Error: PRs targeting 'beta' must come from 'develop', 'master' (sync-back), a 'bugfix/*' hotfix branch, or a version lane ('v*' or bare-numbered) (got '$SOURCE')"
             exit 1
           fi
 
