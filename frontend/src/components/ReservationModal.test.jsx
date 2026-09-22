@@ -39,9 +39,15 @@ vi.mock('../api/extrasApi', () => ({
 vi.mock('../api/settingsApi', () => ({
     getPropertySetting: vi.fn()
 }))
+// ReservationModal renders PaymentMethodStep (for the payment step of the booking flow), which
+// imports posDeviceApi - and posDeviceApi, like every api/*.js module, transitively imports
+// src/lib/supabase.js via baseApi.js. supabase.js calls createClient() at module load time, which
+// throws immediately in Vitest since VITE_SUPABASE_URL isn't set there - so this mock is required
+// even though this suite never directly calls a posDeviceApi function itself.
 vi.mock('../api/posDeviceApi', () => ({
     getPosDevices: vi.fn(),
-    getPosDeviceConfig: vi.fn()
+    getPosDeviceConfig: vi.fn(),
+    checkPosDeviceHealth: vi.fn()
 }))
 
 // The real date picker wraps react-date-range's calendar, which needs ResizeObserver (not
@@ -94,6 +100,8 @@ describe('ReservationModal - new walk-in reservation', () => {
         getPosDeviceConfig.mockResolvedValue({ data: { recordOnly: false } })
         getReservationEstimateWithExtras.mockResolvedValue({ data: { total: 84.17 } })
         createReservation.mockResolvedValue({ data: { id: 42 } })
+        getPosDevices.mockResolvedValue({ data: [] })
+        getPosDeviceConfig.mockResolvedValue({ data: { recordOnly: false } })
     })
 
     afterEach(() => {
