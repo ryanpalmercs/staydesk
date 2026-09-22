@@ -78,7 +78,7 @@ public class IngenicoBridgeClient {
 
         boolean approved = "approved".equals(result.status()) || "completed".equals(result.status());
         markComplete(saved, approved ? TerminalTransaction.Status.COMPLETED : TerminalTransaction.Status.FAILED,
-                eventResource.toString());
+                eventResource.toString(), result);
         sendEventAck(flowId);
 
         return result;
@@ -147,7 +147,8 @@ public class IngenicoBridgeClient {
                                                TerminalTransaction.Operation operation, BigDecimal amount,
                                                String requestJson) {
         return transactionRepository.save(new TerminalTransaction(0, flowId, folioPaymentId, operation,
-                amount, TerminalTransaction.Status.PENDING, requestJson, null, LocalDateTime.now(), LocalDateTime.now()));
+                amount, TerminalTransaction.Status.PENDING, null, null, null, null, requestJson, null,
+                LocalDateTime.now(), LocalDateTime.now()));
     }
 
     /**
@@ -192,7 +193,32 @@ public class IngenicoBridgeClient {
     }
 
     private void markComplete(TerminalTransaction row, TerminalTransaction.Status status, String responsePayload) {
-        transactionRepository.save(new TerminalTransaction(row.id(), row.flowId(), row.folioPaymentId(),
-                row.operation(), row.amount(), status, row.requestPayload(), responsePayload, row.createdAt(), null));
+        markComplete(row, status, responsePayload, null);
+    }
+
+    /**
+     * Persists the terminal's outcome, promoting the reporting-relevant fields already parsed
+     * off {@code result} (when one is available - it isn't for a bridge-offline/unparseable/
+     * empty-result failure) into their own columns so they're queryable without touching the
+     * raw JSON payload.
+     */
+    private void markComplete(TerminalTransaction row, TerminalTransaction.Status status, String responsePayload,
+                              TsiTransactionResult result) {
+        transactionRepository.save(new TerminalTransaction(row.id(), row.flowId(), row.folioPaymentId(), row.operation(),
+                row.amount(), status,
+                result != null ? result.referenceNumber() : row.referenceNo(),
+                result != null ? result.authorizationNumber() : row.authorizationNo(),
+                result != null ? cardLast4From(result) : row.cardLast4(),
+                result != null ? result.hostResponseText() : row.hostResponseText(),
+                row.requestPayload(), responsePayload, row.createdAt(), null));
+    }
+
+    private String cardLast4From(TsiTransactionResult result) {
+        if (result.card() == null || result.card().accountNumber() == null || result.card().accountNumber().length() < 4) {
+            return null;
+        }
+
+        String accountNumber = result.card().accountNumber();
+        return accountNumber.substring(accountNumber.length() - 4);
     }
 }

@@ -51,6 +51,48 @@ class IngenicoBridgeClientSpec extends Specification {
                 { TerminalTransaction t -> t }
     }
 
+    def "sendTransaction promotes reference_no, authorization_no, card_last4 and host_response_text onto the saved row"() {
+        given:
+        respondWhenRequestSent('''
+            {"status":"completed","results":[{"status":"approved","reference_no":"ref-1",
+            "authorization_no":"AUTH123","host_response_text":"APPROVED","card":{"account_no":"************2205"}}]}
+        ''')
+
+        when:
+        def result = bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, null, "sale", BigDecimal.valueOf(64.17), null)
+
+        then:
+        result.status() == "approved"
+        1 * transactionRepository.save({ TerminalTransaction tt -> tt.status() == TerminalTransaction.Status.PENDING }) >>
+                { TerminalTransaction t -> t }
+        1 * transactionRepository.save({ TerminalTransaction tt ->
+            tt.status() == TerminalTransaction.Status.COMPLETED &&
+                    tt.referenceNo() == "ref-1" &&
+                    tt.authorizationNo() == "AUTH123" &&
+                    tt.cardLast4() == "2205" &&
+                    tt.hostResponseText() == "APPROVED"
+        }) >> { TerminalTransaction t -> t }
+    }
+
+    def "sendTransaction marks the row FAILED without structured fields when the terminal declines"() {
+        given:
+        respondWhenRequestSent('''
+            {"status":"completed","results":[{"status":"decline_by_host_or_card","reference_no":null,
+            "authorization_no":null,"host_response_text":"DECLINED"}]}
+        ''')
+
+        when:
+        def result = bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, null, "sale", BigDecimal.valueOf(64.17), null)
+
+        then:
+        result.status() == "decline_by_host_or_card"
+        1 * transactionRepository.save({ TerminalTransaction tt -> tt.status() == TerminalTransaction.Status.PENDING }) >>
+                { TerminalTransaction t -> t }
+        1 * transactionRepository.save({ TerminalTransaction tt ->
+            tt.status() == TerminalTransaction.Status.FAILED && tt.hostResponseText() == "DECLINED"
+        }) >> { TerminalTransaction t -> t }
+    }
+
     def "sendTransaction throws when the terminal event carries no results"() {
         given:
         respondWhenRequestSent('{"status":"completed","results":[]}')
