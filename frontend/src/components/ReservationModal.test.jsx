@@ -96,6 +96,8 @@ describe('ReservationModal - new walk-in reservation', () => {
         getFeatureFlags.mockResolvedValue({ data: { multiRoomBookingEnabled: false } })
         getExtras.mockResolvedValue({ data: [] })
         getPropertySetting.mockResolvedValue({ data: { value: 'authorizenet' } })
+        getPosDevices.mockResolvedValue({ data: [] })
+        getPosDeviceConfig.mockResolvedValue({ data: { recordOnly: false } })
         getReservationEstimateWithExtras.mockResolvedValue({ data: { total: 84.17 } })
         createReservation.mockResolvedValue({ data: { id: 42 } })
         getPosDevices.mockResolvedValue({ data: [] })
