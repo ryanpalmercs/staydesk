@@ -85,3 +85,10 @@ payment:
     # terminal credentials are available, so card-present check-ins are recorded but not
     # actually charged. Remove the env var once Elavon is live.
     record-only: ${CARD_PRESENT_RECORD_ONLY:false}
+
+terminal:
+  settlement:
+    # TEMPORARY: nightly settlement (batch-out) is new and unverified against real Desk 3500
+    # hardware. Leave TERMINAL_SETTLEMENT_ENABLED unset (defaults false, job no-ops) until it's
+    # been confirmed end-to-end against the real terminal, then set to true in the environment.
+    enabled: ${TERMINAL_SETTLEMENT_ENABLED:false}

@@ -13,7 +13,7 @@ public record TerminalTransaction(@Id int id, String flowId, Integer folioPaymen
                                   LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum Operation {
-        SALE, VOID, REFUND, PRE_AUTH, PRE_AUTH_COMPLETION
+        SALE, VOID, REFUND, PRE_AUTH, PRE_AUTH_COMPLETION, SETTLEMENT
     }
 
     public enum Status {
