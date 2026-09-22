@@ -10,6 +10,14 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 4,
+        title: "What's New",
+        date: '2026-09-22',
+        notes: [
+            'Reports now include a Terminal Transactions section (counts and volume by status) - metrics are preliminary pending final sign-off.'
+        ]
+    },
+    {
         id: 3,
         title: "What's New",
         date: '2026-09-21',
