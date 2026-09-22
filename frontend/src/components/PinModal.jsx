@@ -42,13 +42,13 @@ function PinModal({ employee, onSaved, onClose }) {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div>
-                    <label className="block text-sm text-muted mb-1">PIN</label>
-                    <input type="password" maxLength={6} inputMode="numeric" placeholder="PIN" name="pin" value={form.pin} onChange={handleChange} className="filter-input" required />
+                    <label htmlFor="pin" className="block text-sm text-muted mb-1">PIN</label>
+                    <input id="pin" type="password" maxLength={6} inputMode="numeric" placeholder="PIN" name="pin" value={form.pin} onChange={handleChange} className="filter-input" required />
                 </div>
 
                 <div>
-                    <label className="block text-sm text-muted mb-1">Confirm PIN</label>
-                    <input type="password" maxLength={6} inputMode="numeric" placeholder="Confirm PIN" onChange={e => setConfirmPin(e.target.value)} className="filter-input" required />
+                    <label htmlFor="confirmPin" className="block text-sm text-muted mb-1">Confirm PIN</label>
+                    <input id="confirmPin" type="password" maxLength={6} inputMode="numeric" placeholder="Confirm PIN" onChange={e => setConfirmPin(e.target.value)} className="filter-input" required />
                 </div>
 
                 <div className="flex items-center gap-2">

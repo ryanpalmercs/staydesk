@@ -39,6 +39,10 @@ vi.mock('../api/extrasApi', () => ({
 vi.mock('../api/settingsApi', () => ({
     getPropertySetting: vi.fn()
 }))
+vi.mock('../api/posDeviceApi', () => ({
+    getPosDevices: vi.fn(),
+    getPosDeviceConfig: vi.fn()
+}))
 
 // The real date picker wraps react-date-range's calendar, which needs ResizeObserver (not
 // present in jsdom) and is awkward to drive from a test. Stubbed here so this suite can test
@@ -70,6 +74,7 @@ import { getGuests } from '../api/guestApi'
 import { getFeatureFlags } from '../api/featureFlagsApi'
 import { getExtras } from '../api/extrasApi'
 import { getPropertySetting } from '../api/settingsApi'
+import { getPosDevices, getPosDeviceConfig } from '../api/posDeviceApi'
 
 const GUEST = { id: 7, name: 'Jane Doe', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phoneNumber: '5551234567', flagged: false }
 const ROOM_TYPES = [
@@ -85,6 +90,8 @@ describe('ReservationModal - new walk-in reservation', () => {
         getFeatureFlags.mockResolvedValue({ data: { multiRoomBookingEnabled: false } })
         getExtras.mockResolvedValue({ data: [] })
         getPropertySetting.mockResolvedValue({ data: { value: 'authorizenet' } })
+        getPosDevices.mockResolvedValue({ data: [] })
+        getPosDeviceConfig.mockResolvedValue({ data: { recordOnly: false } })
         getReservationEstimateWithExtras.mockResolvedValue({ data: { total: 84.17 } })
         createReservation.mockResolvedValue({ data: { id: 42 } })
     })
