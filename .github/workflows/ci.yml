@@ -57,3 +57,29 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  frontend-tests:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    # Only runs for PRs targeting beta - a pilot for frontend test coverage before expanding it
+    # to develop/master's required checks.
+    if: github.event_name == 'pull_request' && github.base_ref == 'beta'
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm run test
