@@ -18,6 +18,7 @@ import com.staydesk.provider.ProviderFactory;
 import com.staydesk.repository.FolioPaymentRepository;
 import com.staydesk.repository.PosDeviceRepository;
 import com.staydesk.repository.ReusablePaymentCredentialRepository;
+import com.staydesk.repository.TerminalTransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -38,19 +39,37 @@ public class PaymentService {
     private final PaymentCredentialService paymentCredentialService;
     private final ReusablePaymentCredentialRepository reusablePaymentCredentialRepository;
     private final PosDeviceRepository posDeviceRepository;
+    private final TerminalTransactionRepository terminalTransactionRepository;
 
     public PaymentService(ProviderFactory providerFactory,
                           FolioPaymentRepository folioPaymentRepository,
                           PropertySettingsService propertySettingsService,
                           PaymentCredentialService paymentCredentialService,
                           ReusablePaymentCredentialRepository reusablePaymentCredentialRepository,
-                          PosDeviceRepository posDeviceRepository) {
+                          PosDeviceRepository posDeviceRepository,
+                          TerminalTransactionRepository terminalTransactionRepository) {
         this.providerFactory = providerFactory;
         this.folioPaymentRepository = folioPaymentRepository;
         this.propertySettingsService = propertySettingsService;
         this.paymentCredentialService = paymentCredentialService;
         this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
         this.posDeviceRepository = posDeviceRepository;
+        this.terminalTransactionRepository = terminalTransactionRepository;
+    }
+
+    /**
+     * Backfills terminal_transactions.folio_payment_id for a brand-new hold/charge, where no
+     * FolioPayment row existed yet when the provider call (and, for the Ingenico terminal, its
+     * terminal_transactions row) was made - see {@link PaymentProvider#authorize} javadoc. A
+     * harmless no-op for every other provider, since only the terminal bridge ever writes rows
+     * into that table.
+     */
+    private void linkTerminalTransaction(String providerTransactionId, int folioPaymentId) {
+        if (providerTransactionId == null) {
+            return;
+        }
+
+        terminalTransactionRepository.linkToFolioPayment(providerTransactionId, folioPaymentId);
     }
 
     public void createIncidentalHold(Folio folio, int reservationId, String providerName,
@@ -115,10 +134,11 @@ public class PaymentService {
     private FolioPayment refundPayment(FolioPayment payment) {
         PaymentProvider provider = providerFactory.getProvider(payment.provider());
 
-        VoidResult voidResult = provider.void_(payment.stripePaymentIntentId());
+        VoidResult voidResult = provider.void_(payment.stripePaymentIntentId(), payment.id());
 
         if (!voidResult.success()) {
-            RefundResult refundResult = provider.refund(payment.stripePaymentIntentId(), payment.capturedAmount(), payment.cardLast4());
+            RefundResult refundResult = provider.refund(payment.stripePaymentIntentId(), payment.capturedAmount(), payment.cardLast4(),
+                    payment.id());
 
             if (!refundResult.success()) {
                 folioPaymentRepository.save(new FolioPayment(payment.id(), payment.folioId(), payment.reservationId(), payment.kind(),
@@ -136,8 +156,10 @@ public class PaymentService {
 
     private void createHold(Folio folio, int reservationId, PaymentKind kind, String providerName, BigDecimal amount,
                             String paymentMethodId, LocalDateTime now, String customerEmail) {
+        // No FolioPayment row exists yet, so the provider call can't be given a folio_payment_id -
+        // linkTerminalTransaction backfills it below once the row is saved.
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id(), customerEmail);
+                                           .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id(), customerEmail, null);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
@@ -145,6 +167,7 @@ public class PaymentService {
 
         FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), reservationId, kind, providerName, result.transactionId(),
                 result.cardLast4(), PaymentStatus.REQUIRES_CAPTURE, amount, null, null, now, now));
+        linkTerminalTransaction(result.transactionId(), saved.id());
 
         if (kind == PaymentKind.INCIDENTALS) {
             paymentCredentialService.captureCheckInCredential(folio, reservationId, providerName, saved);
@@ -245,7 +268,7 @@ public class PaymentService {
     }
 
     private FolioPayment captureHold(FolioPayment hold, BigDecimal amount) {
-        CaptureResult result = providerFactory.getProvider(hold.provider()).capture(hold.stripePaymentIntentId(), amount);
+        CaptureResult result = providerFactory.getProvider(hold.provider()).capture(hold.stripePaymentIntentId(), amount, hold.id());
 
         if (!result.success()) {
             folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.reservationId(), hold.kind(),
@@ -261,7 +284,7 @@ public class PaymentService {
     }
 
     private FolioPayment cancelHold(FolioPayment hold) {
-        VoidResult result = providerFactory.getProvider(hold.provider()).void_(hold.stripePaymentIntentId());
+        VoidResult result = providerFactory.getProvider(hold.provider()).void_(hold.stripePaymentIntentId(), hold.id());
 
         if (!result.success()) {
             folioPaymentRepository.save(new FolioPayment(hold.id(), hold.folioId(), hold.reservationId(), hold.kind(),
@@ -288,14 +311,15 @@ public class PaymentService {
         LocalDateTime now = LocalDateTime.now();
 
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail);
+                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail, null);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
         }
 
-        folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.ROOM, providerName, result.transactionId(),
+        FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.ROOM, providerName, result.transactionId(),
                 result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
+        linkTerminalTransaction(result.transactionId(), saved.id());
     }
 
     public boolean isRoomPaymentSettled(int folioId) {
@@ -321,7 +345,8 @@ public class PaymentService {
                                   }
 
                                   RefundResult result = providerFactory.getProvider(roomPayment.provider())
-                                                                       .refund(roomPayment.stripePaymentIntentId(), refundAmount, roomPayment.cardLast4());
+                                                                       .refund(roomPayment.stripePaymentIntentId(), refundAmount, roomPayment.cardLast4(),
+                                                                               roomPayment.id());
 
                                   if (!result.success()) {
                                       throw new RuntimeException("Failed to refund reservation share for folio " + folio.id() + ": " + result.message());
@@ -338,22 +363,24 @@ public class PaymentService {
 
     public FolioPayment chargeCardPresent(Folio folio, BigDecimal amount, String providerName, String paymentMethodId,
                                           String description, String customerEmail) {
-        AuthResult result = providerFactory.getProvider(providerName).sale(amount, paymentMethodId, description, customerEmail);
+        AuthResult result = providerFactory.getProvider(providerName).sale(amount, paymentMethodId, description, customerEmail, null);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to charge card-present for folio " + folio.id() + ": " + result.message());
         }
 
         LocalDateTime now = LocalDateTime.now();
-        return folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.INCIDENT_CHARGE, providerName,
+        FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.INCIDENT_CHARGE, providerName,
                 result.transactionId(), result.cardLast4(), PaymentStatus.CAPTURED, amount, amount, null, now, now));
+        linkTerminalTransaction(result.transactionId(), saved.id());
+        return saved;
     }
 
     public FolioPayment chargeStoredCredential(Folio folio, ReusablePaymentCredential credential, BigDecimal amount,
                                                String description, String customerEmail) {
         AuthResult result = providerFactory.getProvider(credential.provider())
                                            .chargeStoredCredential(amount, credential.providerCustomerId(), credential.providerToken(),
-                                                   description, customerEmail);
+                                                   description, customerEmail, null);
 
         if (!result.success()) {
             throw new RuntimeException("Failed to charge stored credential for folio " + folio.id() + ": " + result.message());

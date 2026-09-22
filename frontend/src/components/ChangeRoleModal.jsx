@@ -58,7 +58,7 @@ function ChangeRoleModal({ employee, onSaved, onClose }) {
                     <button type="button" onClick={onClose} className="btn btn-secondary">
                         Cancel
                     </button>
-                    <button type="submit" className="btn btn-primary" disabled={isDirty}>
+                    <button type="submit" className="btn btn-primary" disabled={!isDirty}>
                         Submit
                     </button>
                 </div>
