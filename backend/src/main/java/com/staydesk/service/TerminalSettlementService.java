@@ -9,6 +9,7 @@ import com.staydesk.payment.ingenico.TsiTerminalTotal;
 import com.staydesk.repository.TerminalSettlementBatchRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,12 @@ import java.time.LocalDateTime;
  * Triggers the Desk 3500 terminal's nightly settlement (batch-out). Staydesk has to
  * drive this itself - a 2026-08-03/04 Banccard/Elavon call confirmed there is no
  * terminal-side auto-settlement schedule to rely on.
+ * <p>
+ * Gated behind {@code terminal.settlement.enabled} (env {@code TERMINAL_SETTLEMENT_ENABLED}),
+ * defaulting to disabled - this is new, unverified against real Desk 3500 hardware, and an
+ * unattended nightly job is not something to risk running unattended in production before
+ * that verification happens. Mirrors the same infra-readiness gate pattern as
+ * {@code payment.card-present.record-only} in {@link com.staydesk.provider.ProviderFactory}.
  * <p>
  * Failure handling: if the run fails (bridge offline, terminal timeout, unparseable
  * response, etc.) we log clearly and store a FAILED row so it's visible, but do not
@@ -34,15 +41,23 @@ public class TerminalSettlementService {
 
     private final IngenicoBridgeClient bridgeClient;
     private final TerminalSettlementBatchRepository settlementBatchRepository;
+    private final boolean settlementEnabled;
 
     public TerminalSettlementService(IngenicoBridgeClient bridgeClient,
-                                     TerminalSettlementBatchRepository settlementBatchRepository) {
+                                     TerminalSettlementBatchRepository settlementBatchRepository,
+                                     @Value("${terminal.settlement.enabled:false}") boolean settlementEnabled) {
         this.bridgeClient = bridgeClient;
         this.settlementBatchRepository = settlementBatchRepository;
+        this.settlementEnabled = settlementEnabled;
     }
 
     @Scheduled(cron = "0 59 23 * * *", zone = "America/Chicago")
     public void runNightlySettlement() {
+        if (!settlementEnabled) {
+            LOGGER.debug("Nightly terminal settlement is disabled (terminal.settlement.enabled=false); skipping");
+            return;
+        }
+
         LocalDate batchDate = LocalDate.now();
 
         try {

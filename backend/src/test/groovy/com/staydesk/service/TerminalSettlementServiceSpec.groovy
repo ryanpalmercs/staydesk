@@ -13,7 +13,7 @@ class TerminalSettlementServiceSpec extends Specification {
     IngenicoBridgeClient bridgeClient = Mock()
     TerminalSettlementBatchRepository settlementBatchRepository = Mock()
 
-    TerminalSettlementService settlementService = new TerminalSettlementService(bridgeClient, settlementBatchRepository)
+    TerminalSettlementService settlementService = new TerminalSettlementService(bridgeClient, settlementBatchRepository, true)
 
     def "stores a COMPLETED batch row with the terminal's reported totals"() {
         given:
@@ -68,5 +68,17 @@ class TerminalSettlementServiceSpec extends Specification {
             batch.terminalId() == null &&
             batch.saleAmount() == null
         }) >> { TerminalSettlementBatch b -> b }
+    }
+
+    def "does nothing when disabled"() {
+        given:
+        def disabledService = new TerminalSettlementService(bridgeClient, settlementBatchRepository, false)
+
+        when:
+        disabledService.runNightlySettlement()
+
+        then:
+        0 * bridgeClient.sendSettlement()
+        0 * settlementBatchRepository.save(_)
     }
 }
