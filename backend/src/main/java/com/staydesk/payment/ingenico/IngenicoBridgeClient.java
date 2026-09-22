@@ -43,8 +43,6 @@ public class IngenicoBridgeClient {
 
     public TsiTransactionResult sendTransaction(TerminalTransaction.Operation operation, Integer folioPaymentId,
                                                 String type, BigDecimal amount, String referenceNumber) {
-        String flowId = UUID.randomUUID().toString();
-
         Map<String, Object> resource = new LinkedHashMap<>();
         resource.put("type", type);
 
@@ -56,40 +54,10 @@ public class IngenicoBridgeClient {
             resource.put("reference_no", referenceNumber);
         }
 
-        String requestJson;
-
-        try {
-            requestJson = objectMapper.writeValueAsString(Map.of("request", Map.of("flow_id", flowId, "resource", resource)));
-        } catch (JsonProcessingException e) {
-            throw new TerminalBridgeException("Failed to serialize TSI request", e);
-        }
-
-        TerminalTransaction saved = transactionRepository.save(new TerminalTransaction(0, flowId, folioPaymentId, operation,
-                amount, TerminalTransaction.Status.PENDING, requestJson, null, LocalDateTime.now(), LocalDateTime.now()));
-
-        CompletableFuture<JsonNode> future = new CompletableFuture<>();
-        pendingFlows.put(flowId, future);
-
-        try {
-            sessionRegistry.send(requestJson);
-        } catch (TerminalBridgeException e) {
-            pendingFlows.remove(flowId);
-            markComplete(saved, TerminalTransaction.Status.FAILED, e.getMessage());
-        }
-
-        JsonNode eventResource;
-
-        try {
-            eventResource = future.get(TRANSACTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            throw new TerminalBridgeException("Terminal did not respond within " + TRANSACTION_TIMEOUT_SECONDS
-                                              + "s for flow " + flowId  + " - outcome unknown, will be reconciled");
-        } catch (InterruptedException | ExecutionException e) {
-            Thread.currentThread().interrupt();
-            throw new TerminalBridgeException("Interrupted waiting for terminal response", e);
-        } finally {
-            pendingFlows.remove(flowId);
-        }
+        String flowId = UUID.randomUUID().toString();
+        String requestJson = buildRequestJson(flowId, resource);
+        TerminalTransaction saved = saveInitialRow(flowId, folioPaymentId, operation, amount, requestJson);
+        JsonNode eventResource = sendAndAwait(flowId, requestJson, saved);
 
         TsiEventResource event;
 
@@ -106,6 +74,46 @@ public class IngenicoBridgeClient {
         if (result == null) {
             markComplete(saved, TerminalTransaction.Status.FAILED, "Terminal event carried no results");
             throw new TerminalBridgeException("Terminal event for flow " + flowId + " carried no results");
+        }
+
+        boolean approved = "approved".equals(result.status()) || "completed".equals(result.status());
+        markComplete(saved, approved ? TerminalTransaction.Status.COMPLETED : TerminalTransaction.Status.FAILED,
+                eventResource.toString(), result);
+        sendEventAck(flowId);
+
+        return result;
+    }
+
+    /**
+     * Triggers a nightly settlement (batch-out) on the terminal (TSI spec §5.3.12).
+     * Unlike {@link #sendTransaction}, the response carries aggregate batch totals
+     * rather than a single card transaction's outcome, so it is parsed into
+     * {@link TsiSettlementResult} instead of {@link TsiTransactionResult}.
+     */
+    public TsiSettlementResult sendSettlement() {
+        Map<String, Object> resource = new LinkedHashMap<>();
+        resource.put("type", "settlement");
+
+        String flowId = UUID.randomUUID().toString();
+        String requestJson = buildRequestJson(flowId, resource);
+        TerminalTransaction saved = saveInitialRow(flowId, null, TerminalTransaction.Operation.SETTLEMENT, null, requestJson);
+        JsonNode eventResource = sendAndAwait(flowId, requestJson, saved);
+
+        TsiSettlementEventResource event;
+
+        try {
+            event = objectMapper.treeToValue(eventResource, TsiSettlementEventResource.class);
+        } catch (JsonProcessingException e) {
+            markComplete(saved, TerminalTransaction.Status.FAILED, "Could not parse terminal settlement response");
+            throw new TerminalBridgeException("Could not parse terminal settlement response for flow " + flowId, e);
+        }
+
+        List<TsiSettlementResult> results = event.results();
+        TsiSettlementResult result = (results == null || results.isEmpty()) ? null : results.getFirst();
+
+        if (result == null) {
+            markComplete(saved, TerminalTransaction.Status.FAILED, "Terminal settlement event carried no results");
+            throw new TerminalBridgeException("Terminal settlement event for flow " + flowId + " carried no results");
         }
 
         boolean approved = "approved".equals(result.status()) || "completed".equals(result.status());
@@ -127,6 +135,53 @@ public class IngenicoBridgeClient {
         future.complete(eventResource);
     }
 
+    private String buildRequestJson(String flowId, Map<String, Object> resource) {
+        try {
+            return objectMapper.writeValueAsString(Map.of("request", Map.of("flow_id", flowId, "resource", resource)));
+        } catch (JsonProcessingException e) {
+            throw new TerminalBridgeException("Failed to serialize TSI request", e);
+        }
+    }
+
+    private TerminalTransaction saveInitialRow(String flowId, Integer folioPaymentId,
+                                               TerminalTransaction.Operation operation, BigDecimal amount,
+                                               String requestJson) {
+        return transactionRepository.save(new TerminalTransaction(0, flowId, folioPaymentId, operation,
+                amount, TerminalTransaction.Status.PENDING, null, null, null, null, requestJson, null,
+                LocalDateTime.now(), LocalDateTime.now()));
+    }
+
+    /**
+     * Shared send/correlate/wait logic: registers a pending future for the flow, sends
+     * the request over the bridge WebSocket, and blocks (up to {@link #TRANSACTION_TIMEOUT_SECONDS})
+     * for the terminal's correlated event. Used by both {@link #sendTransaction} and
+     * {@link #sendSettlement} - the two differ only in how they build the request resource
+     * and parse the resulting event.
+     */
+    private JsonNode sendAndAwait(String flowId, String requestJson, TerminalTransaction saved) {
+        CompletableFuture<JsonNode> future = new CompletableFuture<>();
+        pendingFlows.put(flowId, future);
+
+        try {
+            sessionRegistry.send(requestJson);
+        } catch (TerminalBridgeException e) {
+            pendingFlows.remove(flowId);
+            markComplete(saved, TerminalTransaction.Status.FAILED, e.getMessage());
+        }
+
+        try {
+            return future.get(TRANSACTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            throw new TerminalBridgeException("Terminal did not respond within " + TRANSACTION_TIMEOUT_SECONDS
+                                              + "s for flow " + flowId + " - outcome unknown, will be reconciled");
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
+            throw new TerminalBridgeException("Interrupted waiting for terminal response", e);
+        } finally {
+            pendingFlows.remove(flowId);
+        }
+    }
+
     private void sendEventAck(String flowId) {
         try {
             String ack = objectMapper.writeValueAsString(
@@ -138,7 +193,32 @@ public class IngenicoBridgeClient {
     }
 
     private void markComplete(TerminalTransaction row, TerminalTransaction.Status status, String responsePayload) {
-        transactionRepository.save(new TerminalTransaction(row.id(), row.flowId(), row.folioPaymentId(),
-                row.operation(), row.amount(), status, row.requestPayload(), responsePayload, row.createdAt(), null));
+        markComplete(row, status, responsePayload, null);
+    }
+
+    /**
+     * Persists the terminal's outcome, promoting the reporting-relevant fields already parsed
+     * off {@code result} (when one is available - it isn't for a bridge-offline/unparseable/
+     * empty-result failure) into their own columns so they're queryable without touching the
+     * raw JSON payload.
+     */
+    private void markComplete(TerminalTransaction row, TerminalTransaction.Status status, String responsePayload,
+                              TsiTransactionResult result) {
+        transactionRepository.save(new TerminalTransaction(row.id(), row.flowId(), row.folioPaymentId(), row.operation(),
+                row.amount(), status,
+                result != null ? result.referenceNumber() : row.referenceNo(),
+                result != null ? result.authorizationNumber() : row.authorizationNo(),
+                result != null ? cardLast4From(result) : row.cardLast4(),
+                result != null ? result.hostResponseText() : row.hostResponseText(),
+                row.requestPayload(), responsePayload, row.createdAt(), null));
+    }
+
+    private String cardLast4From(TsiTransactionResult result) {
+        if (result.card() == null || result.card().accountNumber() == null || result.card().accountNumber().length() < 4) {
+            return null;
+        }
+
+        String accountNumber = result.card().accountNumber();
+        return accountNumber.substring(accountNumber.length() - 4);
     }
 }

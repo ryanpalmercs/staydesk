@@ -70,12 +70,13 @@ GUSTO_CLIENT_SECRET=...
 
 ## Branching Strategy
 
-master ← beta ← develop ← feature/issue-number-description (or bugfix/issue-number-description)
+master ← beta ← develop ← release lane (optional) ← feature/issue-number-description (or bugfix/issue-number-description)
 
 - `master` — production
 - `beta` — pre-production staging
 - `develop` — integration branch, all feature work merges here first
-- `feature/*` — named `feature/14-short-description` (issue number + description)
-- `bugfix/*` — named `bugfix/124-short-description` (issue number + description), for bug fixes
+- release lane — an optional branch grouping several related issues meant to ship together (e.g. `1.6.0`; new lanes are bare-numbered, no `v` prefix — tags stay `v`-prefixed), cut from `develop`. `feature/*`/`bugfix/*` branches merge into it (squash), then the lane merges into `develop` (merge commit) like any other finished work — it does not merge into `beta` directly.
+- `feature/*` — named `feature/14-short-description` (issue number + description); merges into `develop` directly, or into a release lane when one exists for its issue
+- `bugfix/*` — named `bugfix/124-short-description` (issue number + description), for bug fixes; same target rule as `feature/*`, plus allowed directly into `beta` for hotfixes
 
-All three persistent branches are protected — no direct pushes, PRs required to merge. Source branch enforcement is handled via GitHub Actions (only `feature/*` or `bugfix/*` → `develop`, only `develop` → `beta`, only `beta` → `master`).
+All three persistent branches are protected — no direct pushes, PRs required to merge. Source branch enforcement is handled via GitHub Actions (only `feature/*`/`bugfix/*`/a release lane → `develop`, only `develop`/`master` (sync-back)/`bugfix/*` → `beta`, only `beta` → `master`).

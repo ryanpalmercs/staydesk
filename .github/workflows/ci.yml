@@ -57,3 +57,55 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  frontend-tests:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    # Runs after a merge actually lands on beta (not as a pre-merge PR check) - a pilot for
+    # frontend test coverage before expanding it to develop/master's required checks.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/beta'
+    permissions:
+      issues: write
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm run test
+
+      - name: File or update a bug issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label bug --label frontend --state open \
+            --search "\"Frontend tests failing on beta\" in:title" --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+              --body "Still failing as of $GITHUB_SHA — see run: $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Frontend tests failing on beta" \
+              --label bug --label frontend \
+              --body "The frontend test suite failed after a merge to \`beta\`.
+
+          - Commit: $GITHUB_SHA
+          - Run: $RUN_URL
+
+          Check the run for full failure output."
+          fi

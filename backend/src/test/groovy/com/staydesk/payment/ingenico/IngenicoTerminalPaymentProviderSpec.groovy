@@ -16,12 +16,24 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, null, "sale", BigDecimal.valueOf(64.17), null) >> result
 
         when:
-        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null)
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null, null)
 
         then:
         authResult.success()
         authResult.transactionId() == "ref-1"
         authResult.cardLast4() == "2205"
+    }
+
+    def "sale threads a known folio_payment_id through to the bridge client"() {
+        given:
+        def result = new TsiTransactionResult("approved", "ref-1", "AUTH123", "APPROVED", new TsiCard("************2205"))
+        bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, 42, "sale", BigDecimal.valueOf(64.17), null) >> result
+
+        when:
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null, 42)
+
+        then:
+        authResult.success()
     }
 
     def "sale returns a failed AuthResult on decline"() {
@@ -30,7 +42,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(*_) >> result
 
         when:
-        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null)
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null, null)
 
         then:
         !authResult.success()
@@ -42,7 +54,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(*_) >> { throw new TerminalBridgeException("Terminal bridge is not connected") }
 
         when:
-        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null)
+        def authResult = provider.sale(BigDecimal.valueOf(64.17), "unused-token", "Room charge", null, null)
 
         then:
         !authResult.success()
@@ -52,10 +64,10 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
     def "void reports success using the terminal's returned reference_no"() {
         given:
         def result = new TsiTransactionResult("approved", "ref-2", "AUTH999", "APPROVED", null)
-        bridgeClient.sendTransaction(TerminalTransaction.Operation.VOID, null, "void", null, "ref-1") >> result
+        bridgeClient.sendTransaction(TerminalTransaction.Operation.VOID, 9, "void", null, "ref-1") >> result
 
         when:
-        def voidResult = provider.void_("ref-1")
+        def voidResult = provider.void_("ref-1", 9)
 
         then:
         voidResult.success()
@@ -65,10 +77,10 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
     def "refund reports failure with the terminal's message on decline"() {
         given:
         def result = new TsiTransactionResult("decline_by_host_or_card", null, null, "REFUND DECLINED", null)
-        bridgeClient.sendTransaction(TerminalTransaction.Operation.REFUND, null, "refund", BigDecimal.valueOf(20), null) >> result
+        bridgeClient.sendTransaction(TerminalTransaction.Operation.REFUND, 9, "refund", BigDecimal.valueOf(20), null) >> result
 
         when:
-        def refundResult = provider.refund("tx-1", BigDecimal.valueOf(20), "2205")
+        def refundResult = provider.refund("tx-1", BigDecimal.valueOf(20), "2205", 9)
 
         then:
         !refundResult.success()
@@ -81,7 +93,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH, null, "pre_auth", BigDecimal.valueOf(75), null) >> result
 
         when:
-        def authResult = provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null)
+        def authResult = provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null, null)
 
         then:
         authResult.success()
@@ -94,7 +106,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(*_) >> { throw new TerminalBridgeException("Terminal bridge is not connected") }
 
         when:
-        def authResult = provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null)
+        def authResult = provider.authorize(BigDecimal.valueOf(75), "unused-token", "Incidentals hold", null, null)
 
         then:
         !authResult.success()
@@ -104,11 +116,11 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
     def "capture reports success using the terminal's returned reference_no"() {
         given:
         def result = new TsiTransactionResult("approved", "ref-4", "AUTH789", "APPROVED", null)
-        bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH_COMPLETION, null, "pre_auth_completion",
+        bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH_COMPLETION, 9, "pre_auth_completion",
                 BigDecimal.valueOf(75), "ref-3") >> result
 
         when:
-        def captureResult = provider.capture("ref-3", BigDecimal.valueOf(75))
+        def captureResult = provider.capture("ref-3", BigDecimal.valueOf(75), 9)
 
         then:
         captureResult.success()
@@ -121,7 +133,7 @@ class IngenicoTerminalPaymentProviderSpec extends Specification {
         bridgeClient.sendTransaction(*_) >> result
 
         when:
-        def captureResult = provider.capture("ref-3", BigDecimal.valueOf(75))
+        def captureResult = provider.capture("ref-3", BigDecimal.valueOf(75), null)
 
         then:
         !captureResult.success()

@@ -39,7 +39,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
         PaymentType paymentType = new PaymentType();
         paymentType.setOpaqueData(decodeOpaqueData(token));
 
@@ -64,7 +64,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
         PaymentType paymentType = new PaymentType();
         paymentType.setOpaqueData(decodeOpaqueData(token));
 
@@ -90,7 +90,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public CaptureResult capture(String authId, BigDecimal amount) {
+    public CaptureResult capture(String authId, BigDecimal amount, Integer folioPaymentId) {
         TransactionRequestType transactionRequest = new TransactionRequestType();
         transactionRequest.setTransactionType(TransactionTypeEnum.PRIOR_AUTH_CAPTURE_TRANSACTION.value());
         transactionRequest.setRefTransId(authId);
@@ -105,7 +105,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public VoidResult void_(String authId) {
+    public VoidResult void_(String authId, Integer folioPaymentId) {
         TransactionRequestType transactionRequest = new TransactionRequestType();
         transactionRequest.setTransactionType(TransactionTypeEnum.VOID_TRANSACTION.value());
         transactionRequest.setRefTransId(authId);
@@ -120,7 +120,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4) {
+    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4, Integer folioPaymentId) {
         CreditCardType creditCard = new CreditCardType();
         creditCard.setCardNumber(cardLast4);
         creditCard.setExpirationDate("XXXX");
@@ -168,7 +168,7 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
-                                             String description, String customerEmail) {
+                                             String description, String customerEmail, Integer folioPaymentId) {
         PaymentProfile paymentProfile = new PaymentProfile();
         paymentProfile.setPaymentProfileId(providerToken);
 
