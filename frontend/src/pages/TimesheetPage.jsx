@@ -9,7 +9,7 @@ function getWeekStart(date) {
     const d = new Date(date)
     d.setHours(0, 0, 0, 0)
     const day = d.getDay()
-    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day))
+    d.setDate(d.getDate() - ((day + 2) % 7))
     return d
 }
 
