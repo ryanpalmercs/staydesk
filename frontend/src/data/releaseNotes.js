@@ -10,6 +10,14 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 5,
+        title: "What's New",
+        date: '2026-09-24',
+        notes: [
+            'The timesheet and payroll weeks now run Friday through Thursday instead of Monday through Sunday, and the week header shows the weekday names.'
+        ]
+    },
+    {
         id: 4,
         title: "What's New",
         date: '2026-09-22',
