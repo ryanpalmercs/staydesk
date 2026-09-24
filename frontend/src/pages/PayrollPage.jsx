@@ -20,7 +20,7 @@ function toISODate(date) {
 function formatWeekRange(start) {
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
-    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const fmt = d => d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
     return `${fmt(start)} – ${fmt(end)}`
 }
 
