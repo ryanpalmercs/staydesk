@@ -2,14 +2,25 @@ name: Scheduled Release
 
 # Runs on a fixed 2-week cadence: one Tuesday triggers the production deploy, the Tuesday in
 # between opens a reminder to promote the release lane into beta for the testing week. Two cron
-# entries (05:00 and 06:00 UTC) cover both CDT and CST, and the local-time check below picks the
-# one that actually lands at 00:00 America/Chicago - this avoids having to hand-edit the cron
-# expression twice a year for DST.
+# entries (05:00 UTC for CDT, 06:00 UTC for CST) cover DST without hand-editing the cron twice a
+# year: the check below only honors the entry that matches Chicago's current UTC offset, so exactly
+# one run per Tuesday counts. It checks the day, not the hour, so a delayed GitHub scheduler run
+# (common at the top of the hour) still fires instead of being silently skipped.
 on:
   schedule:
     - cron: "0 5 * * 2"
     - cron: "0 6 * * 2"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      override:
+        description: "Force an action regardless of today's date (auto = follow the schedule)"
+        type: choice
+        options: [auto, release, reminder]
+        default: auto
+      dry_run:
+        description: "Only print what would happen; skip the deploy / issue creation"
+        type: boolean
+        default: true
 
 env:
   VERCEL_ORG_ID: team_lt1WiqzhL2Jk7Lhi6INhUaa6
@@ -28,10 +39,29 @@ jobs:
     steps:
       - name: Determine today's action (release, reminder, or nothing)
         id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+          OVERRIDE: ${{ inputs.override }}
         run: |
-          LOCAL_HOUR=$(TZ=America/Chicago date +%H)
-          LOCAL_DOW=$(TZ=America/Chicago date +%u)
-          if [ "$LOCAL_DOW" != "2" ] || [ "$LOCAL_HOUR" != "00" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$OVERRIDE" != "auto" ]; then
+            echo "action=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            echo "Manual override: $OVERRIDE"
+            exit 0
+          fi
+
+          # Only the cron entry matching Chicago's current UTC offset counts (skipped on manual runs)
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            if [ "$(TZ=America/Chicago date +%Z)" = "CDT" ]; then EXPECTED="0 5 * * 2"; else EXPECTED="0 6 * * 2"; fi
+            if [ "$CRON" != "$EXPECTED" ]; then
+              echo "Cron '$CRON' is the off-season entry (expected '$EXPECTED'); skipping"
+              echo "action=none" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          if [ "$(TZ=America/Chicago date +%u)" != "2" ]; then
+            echo "Not a Tuesday in Chicago; nothing to do"
             echo "action=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -53,25 +83,34 @@ jobs:
     if: needs.determine-cycle.outputs.action == 'release'
     runs-on: ubuntu-latest
     steps:
+      - name: Dry run
+        if: inputs.dry_run == true
+        run: echo "Dry run - would trigger the Render deploy and the Vercel production deploy"
+
       - uses: actions/checkout@v4
+        if: inputs.dry_run != true
 
       - name: Trigger Render deploy
+        if: inputs.dry_run != true
         run: |
-          curl -sf -X POST "https://api.render.com/v1/services/${{ env.RENDER_SERVICE_ID }}/deploys" \
+          curl -sS --fail-with-body -X POST "https://api.render.com/v1/services/${{ env.RENDER_SERVICE_ID }}/deploys" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json"
 
-      - name: Set up Node 22
+      - name: Set up Node 24
+        if: inputs.dry_run != true
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
+      # Run from the repo root, not frontend/: the Vercel project's Root Directory setting is
+      # already "frontend", so the CLI resolves that subdirectory itself.
       - name: Deploy frontend to Vercel
-        working-directory: frontend
+        if: inputs.dry_run != true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          npm install -g vercel@latest
+          npm install -g vercel@54.3.0
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           vercel build --prod --token="$VERCEL_TOKEN"
           vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
@@ -83,11 +122,17 @@ jobs:
     permissions:
       issues: write
     steps:
+      - name: Dry run
+        if: inputs.dry_run == true
+        run: echo "Dry run - would open the beta-promotion reminder issue assigned to ryanpalmercs"
+
       - name: Open beta-promotion reminder issue
+        if: inputs.dry_run != true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Promote to beta — testing week starts today" \
             --label "infra" \
-            --body "Two-week release cycle: today starts the beta testing week. Promote the current release lane's work into \`beta\` when ready. Production release is scheduled for next Tuesday."
+            --assignee "ryanpalmercs" \
+            --body "Two-week release cycle: today starts the beta testing week. Merge the current release lane into \`develop\`, then promote \`develop\` into \`beta\` when ready. Production release is scheduled for next Tuesday."
