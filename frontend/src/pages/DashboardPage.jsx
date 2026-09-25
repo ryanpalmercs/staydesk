@@ -23,6 +23,7 @@ import MoveRoomModal from '../components/MoveRoomModal'
 import CheckingInTodayModal from '../components/CheckingInTodayModal'
 import CheckingOutTodayModal from '../components/CheckingOutTodayModal'
 import OccupancyModal from '../components/OccupancyModal'
+import RoomTypeAvailabilityGrid from '../components/RoomTypeAvailabilityGrid'
 
 const STATUS_COLORS = {
     CONFIRMED: { backgroundColor: '#F0E0C8', textColor: '#7A4E2D', borderColor: '#F0E0C8' },
@@ -239,6 +240,8 @@ function DashboardPage() {
                     height="auto"
                 />
             </div>
+
+            <RoomTypeAvailabilityGrid roomTypes={roomTypes} />
 
             {selectedEvent && !checkInTarget && (
                 <ReservationSummaryModal
