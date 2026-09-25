@@ -25,7 +25,6 @@ on:
 env:
   VERCEL_ORG_ID: team_lt1WiqzhL2Jk7Lhi6INhUaa6
   VERCEL_PROJECT_ID: prj_YzyipEHmK2ue1O2KXDeNH8NjNV5U
-  RENDER_SERVICE_ID: srv-d98gs99o3t8c739pfapg
   # Reference date for a scheduled production release. Any Tuesday exactly N*14 days from this
   # one is a release; the Tuesday 7 days off from it (either direction) is a beta-promotion
   # reminder instead.
@@ -92,10 +91,9 @@ jobs:
 
       - name: Trigger Render deploy
         if: inputs.dry_run != true
-        run: |
-          curl -sS --fail-with-body -X POST "https://api.render.com/v1/services/${{ env.RENDER_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json"
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: curl -sS --fail-with-body -X POST "$RENDER_DEPLOY_HOOK_URL"
 
       - name: Set up Node 24
         if: inputs.dry_run != true
