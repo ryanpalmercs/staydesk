@@ -1,5 +1,6 @@
 package com.staydesk.service
 
+import com.staydesk.exception.FolioPaymentNotFoundException
 import com.staydesk.model.Folio
 import com.staydesk.model.FolioPayment
 import com.staydesk.model.FolioPayment.PaymentKind
@@ -167,6 +168,35 @@ class PaymentServiceSpec extends Specification {
         result.incidentals().size() == 2
     }
 
+    def "capture captures nothing and returns a zero-balance no-op when every payment on the folio is the record-only stand-in"() {
+        given:
+        def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(325), null, LocalDateTime.now(), LocalDateTime.now())
+        def recordOnlyRoom = new FolioPayment(4, 1, null, PaymentKind.ROOM, "elavon_cpi_manual", "MANUAL-1", null,
+                PaymentStatus.CAPTURED, BigDecimal.valueOf(300), BigDecimal.valueOf(300), "", LocalDateTime.now(), LocalDateTime.now())
+        folioPaymentRepository.findByFolioId(1) >> [recordOnlyRoom, incidentalsHold("elavon_cpi_manual")]
+
+        when:
+        def result = paymentService.capture(folio)
+
+        then:
+        0 * providerFactory.getProvider(_)
+        result.room() == null
+        result.incidentals().isEmpty()
+        result.outstandingBalance().compareTo(BigDecimal.ZERO) == 0
+    }
+
+    def "capture throws when the room payment is real but no incidentals hold exists at all"() {
+        given:
+        def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(325), null, LocalDateTime.now(), LocalDateTime.now())
+        folioPaymentRepository.findByFolioId(1) >> [capturedRoomPayment(BigDecimal.valueOf(300))]
+
+        when:
+        paymentService.capture(folio)
+
+        then:
+        thrown(FolioPaymentNotFoundException)
+    }
+
     def "isRoomPaymentSettled is true only when a CAPTURED ROOM payment exists on the folio"() {
         given:
         def capturedRoom = new FolioPayment(1, 5, null, PaymentKind.ROOM, "authorizenet", "txn-1", "4242",
@@ -192,7 +222,7 @@ class PaymentServiceSpec extends Specification {
                 PaymentStatus.REQUIRES_CAPTURE, BigDecimal.valueOf(100), null, "", LocalDateTime.now(), LocalDateTime.now())
     }
 
-    def "previewCapture returns the real amount owed and recordOnly=false for a real provider"() {
+    def "previewCapture returns the real amount owed for a real provider"() {
         given:
         def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(325), null, LocalDateTime.now(), LocalDateTime.now())
         folioPaymentRepository.findByFolioId(1) >> [capturedRoomPayment(BigDecimal.valueOf(300)), incidentalsHold("authorizenet")]
@@ -202,7 +232,6 @@ class PaymentServiceSpec extends Specification {
 
         then:
         preview.amount().compareTo(BigDecimal.valueOf(25)) == 0
-        !preview.recordOnly()
     }
 
     def "previewCapture returns zero amount when the room charge already covers the folio total"() {
@@ -217,7 +246,23 @@ class PaymentServiceSpec extends Specification {
         preview.amount().compareTo(BigDecimal.ZERO) == 0
     }
 
-    def "previewCapture flags recordOnly=true when the incidentals hold is the record-only stand-in, without hiding the amount owed"() {
+    def "previewCapture returns zero when every charge on the folio is the record-only stand-in"() {
+        given:
+        def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(325), null, LocalDateTime.now(), LocalDateTime.now())
+        def recordOnlyRoom = new FolioPayment(4, 1, null, PaymentKind.ROOM, "elavon_cpi_manual", "MANUAL-1", null,
+                PaymentStatus.CAPTURED, BigDecimal.valueOf(300), BigDecimal.valueOf(300), "", LocalDateTime.now(), LocalDateTime.now())
+        folioPaymentRepository.findByFolioId(1) >> [recordOnlyRoom, incidentalsHold("elavon_cpi_manual")]
+
+        when:
+        def preview = paymentService.previewCapture(folio)
+
+        then:
+        // Both holds are record-only, so this is being settled out-of-band (cash, a standalone
+        // terminal) - there's nothing for the app to capture, so amount is zero, not the full total.
+        preview.amount().compareTo(BigDecimal.ZERO) == 0
+    }
+
+    def "previewCapture falls back to the full folio total when the room payment is real but the incidentals hold is the record-only stand-in"() {
         given:
         def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(325), null, LocalDateTime.now(), LocalDateTime.now())
         folioPaymentRepository.findByFolioId(1) >> [capturedRoomPayment(BigDecimal.valueOf(300)), incidentalsHold("elavon_cpi_manual")]
@@ -226,8 +271,7 @@ class PaymentServiceSpec extends Specification {
         def preview = paymentService.previewCapture(folio)
 
         then:
-        preview.amount().compareTo(BigDecimal.valueOf(25)) == 0
-        preview.recordOnly()
+        preview.amount().compareTo(BigDecimal.valueOf(325)) == 0
     }
 
     def "requiresManualCapture is true when a real provider would capture a non-zero amount"() {
@@ -257,13 +301,26 @@ class PaymentServiceSpec extends Specification {
         paymentService.requiresManualCapture(folio)
     }
 
-    def "requiresManualCapture is true when payment records are missing"() {
+    def "requiresManualCapture is false when payment records are missing entirely"() {
         given:
         def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(300), null, LocalDateTime.now(), LocalDateTime.now())
         folioPaymentRepository.findByFolioId(1) >> []
 
         expect:
-        paymentService.requiresManualCapture(folio)
+        // No real payment of either kind (e.g. a backlogCheckIn folio, or one settled entirely
+        // record-only) means nothing for the app to capture - not "assume the worst and prompt".
+        !paymentService.requiresManualCapture(folio)
+    }
+
+    def "requiresManualCapture is false when every charge on the folio is the record-only stand-in"() {
+        given:
+        def folio = new Folio(1, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(325), null, LocalDateTime.now(), LocalDateTime.now())
+        def recordOnlyRoom = new FolioPayment(4, 1, null, PaymentKind.ROOM, "elavon_cpi_manual", "MANUAL-1", null,
+                PaymentStatus.CAPTURED, BigDecimal.valueOf(300), BigDecimal.valueOf(300), "", LocalDateTime.now(), LocalDateTime.now())
+        folioPaymentRepository.findByFolioId(1) >> [recordOnlyRoom, incidentalsHold("elavon_cpi_manual")]
+
+        expect:
+        !paymentService.requiresManualCapture(folio)
     }
 
     private static ReusablePaymentCredential activeCredential(String provider = "authorizenet") {

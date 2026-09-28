@@ -25,6 +25,7 @@ import SmsTermsPage from './pages/SmsTermsPage'
 import WelcomePage from './pages/WelcomePage'
 import PendingIncidentChargesPage from './pages/PendingIncidentChargesPage'
 import BacklogCheckInPage from './pages/BacklogCheckInPage'
+import CalendarPage from './pages/CalendarPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
@@ -93,6 +94,7 @@ export default function App() {
                                         <Route element={<ProtectedRoute />}>
                                             <Route element={<Layout />}>
                                                 <Route path="/" element={<DashboardPage />} />
+                                                <Route path="/calendar" element={<CalendarPage />} />
                                                 <Route path="/rooms" element={<RoomsPage />} />
                                                 <Route path="/reservations" element={<ReservationsPage />} />
                                                 <Route path="/timesheet/:id" element={<TimesheetPage />} />
