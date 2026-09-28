@@ -12,6 +12,7 @@ export const releaseNotes = [
     {
         id: 6,
         title: "What's New",
+        version: 'v1.7.0',
         date: '2026-09-28',
         notes: [
             'The dashboard now shows a room-type availability grid — how many rooms of each type are open across a date range.',
