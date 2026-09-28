@@ -10,6 +10,16 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 6,
+        title: "What's New",
+        date: '2026-09-28',
+        notes: [
+            'The dashboard now shows a room-type availability grid — how many rooms of each type are open across a date range.',
+            'The reservation calendar has moved off the dashboard onto its own page. Look for the new Calendar link in the sidebar.',
+            'Fixed an error where checking out a walk-in reservation could show a "Payment capture failed" message even though nothing was actually wrong.'
+        ]
+    },
+    {
         id: 5,
         title: "What's New",
         version: 'v1.6.1',
