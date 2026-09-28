@@ -21,6 +21,7 @@ import com.staydesk.model.ReusablePaymentCredential
 import com.staydesk.model.Room
 import com.staydesk.model.RoomType
 import com.staydesk.model.request.BacklogCheckInRequest
+import com.staydesk.model.request.CreateMultiRoomReservationRequest
 import com.staydesk.provider.ProviderFactory
 import com.staydesk.repository.*
 import com.staydesk.security.PiiCipher
@@ -167,6 +168,31 @@ class ReservationServiceSpec extends Specification {
         Rate.RateType.WEEKLY_7 | BigDecimal.valueOf(490) || BigDecimal.valueOf(70.00)
     }
 
+    def "cancelReservation refunds only this reservation's share and leaves the folio open when a sibling reservation on the same folio is still active"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.PHONE, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.findById(9) >> Optional.of(folio)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        reservationRepository.save(_) >> { Reservation r -> r }
+        // a sibling multi-room reservation on the same folio is still CONFIRMED
+        reservationRepository.existsOtherActiveByFolioId(9, 1) >> true
+
+        when:
+        def result = reservationService.cancelReservation(1)
+
+        then:
+        // 3 nights at 80/night, this reservation's own share only
+        1 * paymentService.refundReservationShare(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 }, BigDecimal.ZERO)
+        0 * paymentService.cancelOpenHolds(_)
+        0 * folioRepository.closeFolio(_)
+        result.status() == Reservation.ReservationStatus.CANCELLED
+    }
+
     def "checkOut schedules a 30-day credential expiry after closing the folio"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.PHONE)
@@ -298,6 +324,31 @@ class ReservationServiceSpec extends Specification {
 
         then:
         0 * paymentService.capture(*_)
+    }
+
+    def "checkOut leaves the folio open and skips capture and credential expiry when a sibling reservation on the same folio is still active"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioRepository.findById(9) >> Optional.of(folio)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.countRoomChargesPosted(9) >> 3
+        folioRepository.save(_) >> { Folio f -> f }
+        // a sibling multi-room reservation on the same folio is still CONFIRMED/CHECKED_IN
+        reservationRepository.existsOtherActiveByFolioId(9, 1) >> true
+
+        when:
+        reservationService.checkOut(1)
+
+        then:
+        0 * paymentService.requiresManualCapture(_)
+        0 * paymentService.capture(_)
+        0 * folioRepository.save({ Folio f -> f.status() == Folio.FolioStatus.CLOSED })
+        0 * paymentCredentialService.scheduleExpiry(_, _)
     }
 
     private static BacklogCheckInRequest backlogRequest(String email = null, String phoneNumber = null) {
@@ -1422,6 +1473,167 @@ class ReservationServiceSpec extends Specification {
         6 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(390)) == 0 }, _, "token-1", null)
+    }
+
+    def "createMultiRoomReservation creates a reservation per unit of quantity on one room line, sharing one folio, and charges the combined total for a PHONE booking"() {
+        given:
+        def rooms = [new CreateMultiRoomReservationRequest.RoomLine(2, 2)]
+        def checkInDate = LocalDate.of(2026, 8, 1)
+        def checkOutDate = LocalDate.of(2026, 8, 4)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.empty()
+
+        when:
+        def result = reservationService.createMultiRoomReservation(7, rooms, checkInDate, checkOutDate,
+                Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE, "token-1")
+
+        then:
+        result.size() == 2
+        result.every { it.folioId() == 9 && it.roomTypeId() == 2 }
+        // 3 nights x 2 rooms
+        6 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(480)) == 0 }, _, "token-1", null)
+    }
+
+    def "createMultiRoomReservation creates one reservation per room type when the request lines span different room types"() {
+        given:
+        def rooms = [new CreateMultiRoomReservationRequest.RoomLine(2, 1), new CreateMultiRoomReservationRequest.RoomLine(3, 1)]
+        def checkInDate = LocalDate.of(2026, 8, 1)
+        def checkOutDate = LocalDate.of(2026, 8, 2)
+        def queen = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def double_ = new RoomType(3, "DOUBLE", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(queen)
+        roomTypeRepository.findById(3) >> Optional.of(double_)
+        reservationRepository.countOverlappingByRoomType(_, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+
+        when:
+        def result = reservationService.createMultiRoomReservation(7, rooms, checkInDate, checkOutDate,
+                Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE, "token-1")
+
+        then:
+        result.size() == 2
+        result*.roomTypeId() as Set == [2, 3] as Set
+        result.every { it.folioId() == 9 }
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(160)) == 0 }, _, "token-1", null)
+    }
+
+    def "createMultiRoomReservation still posts the full room charge to the shared folio for a WALK_IN booking, but doesn't charge a card or send an SMS confirmation"() {
+        given:
+        def rooms = [new CreateMultiRoomReservationRequest.RoomLine(2, 1)]
+        def checkInDate = LocalDate.of(2026, 8, 1)
+        def checkOutDate = LocalDate.of(2026, 8, 2)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        // smsConsent is true here specifically to prove the skip is driven by the WALK_IN channel filter, not by consent
+        def guest = new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
+                "hash", new EncryptedString("5551234567"), true, false, null, null, null, false,
+                false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+
+        roomTypeRepository.findById(2) >> Optional.of(roomType)
+        reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        reservationRepository.existsByConfirmationCode(_) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.save(_) >> savedFolio
+        guestRepository.findById(7) >> Optional.of(guest)
+
+        when:
+        reservationService.createMultiRoomReservation(7, rooms, checkInDate, checkOutDate,
+                Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, null)
+
+        then:
+        1 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * smsService.sendConfirmation(_, _)
+    }
+
+    def "createMultiRoomReservation throws InvalidReservationException when no room lines are given"() {
+        when:
+        reservationService.createMultiRoomReservation(7, [], LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2),
+                Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE, "token-1")
+
+        then:
+        thrown(InvalidReservationException)
+        0 * folioRepository.save(_)
+        0 * reservationRepository.save(_)
+    }
+
+    def "settleWalkInStay charges the combined stay total for every reservation on the folio, via the online provider"() {
+        given:
+        def now = LocalDateTime.now()
+        def res1 = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456")
+        def res2 = new Reservation(2, 9, 7, 4, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123457")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(160), null, now, now)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), now, now)
+
+        folioRepository.findById(9) >> Optional.of(folio)
+        reservationRepository.findByFolioId(9) >> [res1, res2]
+        paymentService.isRoomPaymentSettled(9) >> false
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        guestRepository.findById(7) >> Optional.empty()
+
+        when:
+        def result = reservationService.settleWalkInStay(9, "token-1")
+
+        then:
+        // 3 nights x 80 per reservation, across 2 reservations on the shared folio
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(480)) == 0 }, _, "token-1", null)
+        result.id() == 9
+    }
+
+    def "settleWalkInStayTerminal resolves the paired device's token and charges the combined stay total via the card-present provider"() {
+        given:
+        def now = LocalDateTime.now()
+        def res1 = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456")
+        def res2 = new Reservation(2, 9, 7, 4, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123457")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(160), null, now, now)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), now, now)
+        def device = new PosDevice(6, "dev-token-1", "Front Desk", null, now, now, now)
+
+        posDeviceRepository.findById(6) >> Optional.of(device)
+        folioRepository.findById(9) >> Optional.of(folio)
+        reservationRepository.findByFolioId(9) >> [res1, res2]
+        paymentService.isRoomPaymentSettled(9) >> false
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        guestRepository.findById(7) >> Optional.empty()
+
+        when:
+        def result = reservationService.settleWalkInStayTerminal(9, 6)
+
+        then:
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(480)) == 0 }, _, "dev-token-1", null)
+        result.id() == 9
     }
 
     def "estimateTotal uses the guest's legacy price when legacy pricing is enabled"() {
