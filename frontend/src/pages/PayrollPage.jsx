@@ -9,7 +9,7 @@ function getWeekStart(date) {
     const d = new Date(date)
     d.setHours(0, 0, 0, 0)
     const day = d.getDay()
-    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day))
+    d.setDate(d.getDate() - ((day + 2) % 7))
     return d
 }
 
@@ -20,7 +20,7 @@ function toISODate(date) {
 function formatWeekRange(start) {
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
-    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const fmt = d => d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
     return `${fmt(start)} – ${fmt(end)}`
 }
 

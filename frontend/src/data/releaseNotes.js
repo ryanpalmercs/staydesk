@@ -10,8 +10,18 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 5,
+        title: "What's New",
+        version: 'v1.6.1',
+        date: '2026-09-24',
+        notes: [
+            'The timesheet and payroll weeks now run Friday through Thursday instead of Monday through Sunday, and the week header shows the weekday names.'
+        ]
+    },
+    {
         id: 4,
         title: "What's New",
+        version: 'v1.6.0',
         date: '2026-09-22',
         notes: [
             'Reports (admin only) now include a Terminal Transactions section (counts and volume by status) - metrics are preliminary pending final sign-off.'
@@ -20,6 +30,7 @@ export const releaseNotes = [
     {
         id: 3,
         title: "What's New",
+        version: 'v1.5.0',
         date: '2026-09-21',
         notes: [
             "Your name now shows in the dashboard heading and sidebar when you're logged in."
