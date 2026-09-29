@@ -39,6 +39,9 @@ public class PaymentCredentialService {
                 return;
             }
 
+            reusablePaymentCredentialRepository.findByFolioIdAndReservationIdAndRevokedFalse(folio.id(), reservationId)
+                                               .ifPresent(this::revokeExisting);
+
             LocalDateTime now = LocalDateTime.now();
             reusablePaymentCredentialRepository.save(new ReusablePaymentCredential(0, folio.id(), reservationId,
                     providerName, result.providerCustomerId(), result.providerToken(), result.cardLast4(),
@@ -46,6 +49,18 @@ public class PaymentCredentialService {
         } catch (Exception e) {
             LOGGER.error("Unexpected failure capturing reusable payment credential for folio {}", folio.id(), e);
         }
+    }
+
+    private void revokeExisting(ReusablePaymentCredential existing) {
+        try {
+            providerFactory.getProvider(existing.provider())
+                           .revokeReusableCredential(existing.providerCustomerId(), existing.providerToken());
+        } catch (Exception e) {
+            LOGGER.warn("Remote revocation failed for credential {} (provider {}); marking revoked locally regardless",
+                    existing.id(), existing.provider(), e);
+        }
+
+        reusablePaymentCredentialRepository.markRevoked(existing.id(), LocalDateTime.now());
     }
 
     public void scheduleExpiry(int folioId, LocalDateTime expiresAt) {
