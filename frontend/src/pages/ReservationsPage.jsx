@@ -102,7 +102,7 @@ function ReservationsPage() {
         await fetchReservations()
         getGuests().then(res => setGuests(res.data))
         if (newWalkIn != null) {
-            openCheckIn(newWalkIn.id)
+            openCheckIn(newWalkIn)
         }
     }
 
