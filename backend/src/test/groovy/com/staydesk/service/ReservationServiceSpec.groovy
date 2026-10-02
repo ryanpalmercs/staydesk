@@ -1550,7 +1550,7 @@ class ReservationServiceSpec extends Specification {
         // smsConsent is true here specifically to prove the skip is driven by the WALK_IN channel filter, not by consent
         def guest = new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), true, false, null, null, null, false,
-                false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, "", LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
