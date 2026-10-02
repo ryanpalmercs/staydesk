@@ -31,3 +31,7 @@ export function setGuestLegalHold(id) {
 export function clearGuestLegalHold(id) {
     return api.delete(`/guests/${id}/legal-hold`)
 }
+
+export function setGuestNotes(id, notes) {
+    return api.post(`/guests/${id}/note`, { notes })
+}

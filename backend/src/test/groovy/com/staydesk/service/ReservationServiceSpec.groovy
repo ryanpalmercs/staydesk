@@ -361,7 +361,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def savedGuest = new Guest(9, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("backlog@placeholder"), "hashed-placeholder-email", new EncryptedString("0000000000"),
-                false, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
+                false, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, "",
                 LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(20, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def savedReservation = new Reservation(11, 20, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
@@ -400,7 +400,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def existingGuest = new Guest(3, new EncryptedString("James"), new EncryptedString("Reece"),
                 new EncryptedString("james@example.com"), "hashed-real-email", new EncryptedString("5551234567"),
-                true, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
+                true, false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, "",
                 LocalDateTime.now(), LocalDateTime.now())
 
         roomRepository.findById(5) >> Optional.of(room)
@@ -1278,13 +1278,13 @@ class ReservationServiceSpec extends Specification {
     private static Guest legacyPricedGuest(BigDecimal legacyAmount = BigDecimal.valueOf(50), Rate.RateType legacyRateType = Rate.RateType.NIGHTLY) {
         new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
-                true, legacyAmount, legacyRateType, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                true, legacyAmount, legacyRateType, false, Guest.GuestType.INDIVIDUAL, "", LocalDateTime.now(), LocalDateTime.now())
     }
 
     private static Guest regularGuest() {
         new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), false, false, null, null, null, false,
-                false, null, Rate.RateType.NIGHTLY, true, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                false, null, Rate.RateType.NIGHTLY, true, Guest.GuestType.INDIVIDUAL, "", LocalDateTime.now(), LocalDateTime.now())
     }
 
     def "createReservation charges the guest's legacy price instead of the standard rate"() {
@@ -1550,7 +1550,7 @@ class ReservationServiceSpec extends Specification {
         // smsConsent is true here specifically to prove the skip is driven by the WALK_IN channel filter, not by consent
         def guest = new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
                 "hash", new EncryptedString("5551234567"), true, false, null, null, null, false,
-                false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, LocalDateTime.now(), LocalDateTime.now())
+                false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, "", LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
         reservationRepository.countOverlappingByRoomType(2, _, _) >> 0
