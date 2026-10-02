@@ -16,6 +16,7 @@ import ConfirmDialog from "../components/ConfirmDialog"
 import ExtendStayModal from "../components/ExtendStayModal"
 import AssignRoomModal from "../components/AssignRoomModal"
 import MoveRoomModal from "../components/MoveRoomModal"
+import { StickyNote } from "lucide-react"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -42,6 +43,7 @@ function ReservationsPage() {
     const [extendTarget, setExtendTarget] = useState(null)
     const [assignRoomTarget, setAssignRoomTarget] = useState(null)
     const [moveRoomTarget, setMoveRoomTarget] = useState(null)
+    const [expandedNoteId, setExpandedNoteId] = useState(null)
 
     function handleSort(key) {
         if (sortKey === key) {
@@ -282,9 +284,21 @@ function ReservationsPage() {
                                     </span>
                                 )}
                                 <div className="flex items-start justify-between gap-4 mb-2">
-                                    <span className="font-semibold text-black">
-                                        {guest ? formatGuestName(guest) : res.guestId}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-black">
+                                            {guest ? formatGuestName(guest) : res.guestId}
+                                        </span>
+                                        {guest?.notes && ['CONFIRMED', 'CHECKED_IN'].includes(res.status) && (
+                                            <button
+                                                type="button"
+                                                title={guest.notes}
+                                                onClick={() => setExpandedNoteId(prev => prev === res.id ? null : res.id)}
+                                                className="text-muted cursor-help"
+                                            >
+                                                <StickyNote size={16} />
+                                            </button>
+                                        )}
+                                    </div>
                                     <StatusBadge status={res.status} />
                                 </div>
                                 <div className="flex gap-4 text-sm text-muted mb-3">
@@ -292,6 +306,9 @@ function ReservationsPage() {
                                     <span>{res.checkInDate} → {res.checkOutDate}</span>
                                     {res.confirmationCode && <span>Conf# {res.confirmationCode}</span>}
                                 </div>
+                                {expandedNoteId === res.id && (
+                                    <p className="text-xs text-muted italic mb-3">{guest.notes}</p>
+                                )}
                                 <div className="flex gap-4 justify-end">
                                     {/* No "pay now" action here yet - settleWalkInStay/settleWalkInStayTerminal are
                                         backend-only until #355 builds a real standalone entry point for them. */}
