@@ -17,7 +17,9 @@ export const releaseNotes = [
         notes: [
             'The dashboard now shows a room-type availability grid — how many rooms of each type are open across a date range.',
             'The reservation calendar has moved off the dashboard onto its own page. Look for the new Calendar link in the sidebar.',
-            'Fixed an error where checking out a walk-in reservation could show a "Payment capture failed" message even though nothing was actually wrong.'
+            'Fixed an error where checking out a walk-in reservation could show a "Payment capture failed" message even though nothing was actually wrong.',
+            "Guests can now have a note. Add or edit one from a guest's profile, and it'll show up when booking or extending their reservation, and on their folio.",
+            'Fixed a same-day walk-in reservation sometimes not opening check-in automatically right after it was created.'
         ]
     },
     {
