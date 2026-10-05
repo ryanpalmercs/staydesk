@@ -19,7 +19,8 @@ export const releaseNotes = [
             'The reservation calendar has moved off the dashboard onto its own page. Look for the new Calendar link in the sidebar.',
             'Fixed an error where checking out a walk-in reservation could show a "Payment capture failed" message even though nothing was actually wrong.',
             "Guests can now have a note. Add or edit one from a guest's profile, and it'll show up when booking or extending their reservation, and on their folio.",
-            'Fixed a same-day walk-in reservation sometimes not opening check-in automatically right after it was created.'
+            'Fixed a same-day walk-in reservation sometimes not opening check-in automatically right after it was created.',
+            'Fixed a bug where booking a long stay (a couple of weeks or more) could incorrectly show no rooms of a type available, even when rooms were actually free the whole time.'
         ]
     },
     {
