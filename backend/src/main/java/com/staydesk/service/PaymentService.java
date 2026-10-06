@@ -177,14 +177,26 @@ public class PaymentService {
     public PaymentCaptureResult capture(Folio folio) {
         List<FolioPayment> payments = folioPaymentRepository.findByFolioId(folio.id());
 
-        FolioPayment roomPayment = payments.stream()
-                                           .filter(p -> p.kind() == PaymentKind.ROOM)
-                                           .findFirst()
-                                           .orElseThrow(FolioPaymentNotFoundException::new);
+        List<FolioPayment> realRoomPayments = payments.stream()
+                                                       .filter(p -> p.kind() == PaymentKind.ROOM)
+                                                       .filter(PaymentService::isReal)
+                                                       .toList();
 
         List<FolioPayment> incidentalsHolds = payments.stream()
                                                       .filter(p -> p.kind() == PaymentKind.INCIDENTALS)
+                                                      .filter(PaymentService::isReal)
                                                       .toList();
+
+        if (realRoomPayments.isEmpty() && incidentalsHolds.isEmpty()) {
+            // Nothing real on this folio to capture - either nothing was ever charged through the
+            // app (backlogCheckIn) or every charge on it was recorded under the record-only
+            // card-present stand-in, which means it's being collected out-of-band (cash, a
+            // standalone terminal) rather than through the app, same as a backlog entry. Nothing
+            // for checkout to settle here.
+            return new PaymentCaptureResult(null, List.of(), BigDecimal.ZERO);
+        }
+
+        FolioPayment roomPayment = realRoomPayments.stream().findFirst().orElseThrow(FolioPaymentNotFoundException::new);
 
         if (incidentalsHolds.isEmpty()) {
             throw new FolioPaymentNotFoundException();
@@ -220,31 +232,29 @@ public class PaymentService {
         return new PaymentCaptureResult(capturedRoom, settledIncidentals, remaining);
     }
 
-    public record CapturePreview(BigDecimal amount, boolean recordOnly) {
+    public record CapturePreview(BigDecimal amount) {
     }
 
     /**
-     * What checkout would actually settle beyond the room charge, and whether that settlement
-     * would go through the record-only card-present stand-in
-     * ({@link ProviderFactory#CARD_PRESENT_RECORD_ONLY_PROVIDER}) rather than a real provider.
-     * {@code amount} is zero when the room charge already covers the folio total, in which case
-     * there's nothing to collect -- the incidentals hold just needs releasing.
+     * What checkout would actually settle beyond the room charge. {@code amount} is zero both
+     * when the room charge already covers the folio total (nothing left to collect) and when
+     * every charge on this folio was recorded under the record-only card-present stand-in
+     * ({@link ProviderFactory#CARD_PRESENT_RECORD_ONLY_PROVIDER}) rather than a real provider -
+     * that money is being collected out-of-band (cash, a standalone terminal), the same as a
+     * backlogCheckIn entry, so there's nothing for the app to capture.
      */
     public CapturePreview previewCapture(Folio folio) {
         List<FolioPayment> payments = folioPaymentRepository.findByFolioId(folio.id());
 
-        FolioPayment roomPayment = payments.stream()
-                                           .filter(p -> p.kind() == PaymentKind.ROOM)
-                                           .findFirst()
-                                           .orElse(null);
+        FolioPayment roomPayment = findReal(payments, PaymentKind.ROOM);
+        FolioPayment incidentalsHold = findReal(payments, PaymentKind.INCIDENTALS);
 
-        FolioPayment incidentalsHold = payments.stream()
-                                               .filter(p -> p.kind() == PaymentKind.INCIDENTALS)
-                                               .findFirst()
-                                               .orElse(null);
+        if (roomPayment == null && incidentalsHold == null) {
+            return new CapturePreview(BigDecimal.ZERO);
+        }
 
         if (roomPayment == null || incidentalsHold == null) {
-            return new CapturePreview(folio.total(), false);
+            return new CapturePreview(folio.total());
         }
 
         BigDecimal roomAmountCollected = roomPayment.status() == PaymentStatus.CAPTURED
@@ -252,19 +262,30 @@ public class PaymentService {
                 : folio.total().min(roomPayment.authorizedAmount());
 
         BigDecimal remaining = folio.total().subtract(roomAmountCollected).max(BigDecimal.ZERO);
-        boolean recordOnly = ProviderFactory.CARD_PRESENT_RECORD_ONLY_PROVIDER.equals(incidentalsHold.provider());
 
-        return new CapturePreview(remaining, recordOnly);
+        return new CapturePreview(remaining);
     }
 
     /**
      * Whether checkout should prompt staff for any action before the folio is considered paid.
-     * False only when nothing is actually owed beyond the room charge -- record-only mode does
-     * NOT skip this on its own, since staff may still need to collect a real amount through some
-     * out-of-band means (their own physical terminal, cash, etc.) when one is owed.
+     * False when nothing is actually owed beyond the room charge, and also when every charge on
+     * the folio was recorded under the record-only stand-in - that's settled out-of-band, not
+     * through the app, so there's nothing to prompt staff for.
      */
     public boolean requiresManualCapture(Folio folio) {
         return previewCapture(folio).amount().compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private static boolean isReal(FolioPayment payment) {
+        return !ProviderFactory.CARD_PRESENT_RECORD_ONLY_PROVIDER.equals(payment.provider());
+    }
+
+    private static FolioPayment findReal(List<FolioPayment> payments, PaymentKind kind) {
+        return payments.stream()
+                       .filter(p -> p.kind() == kind)
+                       .filter(PaymentService::isReal)
+                       .findFirst()
+                       .orElse(null);
     }
 
     private FolioPayment captureHold(FolioPayment hold, BigDecimal amount) {

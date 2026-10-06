@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { assignRoom, createReservation, createMultiRoomReservation, getCheckInEstimate, getReservationEstimate, getReservationEstimateWithExtras, payFullStayNow, payFullStayNowTerminal, updateReservation } from "../api/reservationApi"
 import { getRoomTypes, getUnavailableRoomTypeIds } from "../api/roomTypeApi"
 import { getRoom } from "../api/roomApi"
-import { createGuest, getGuests, updateGuest } from "../api/guestApi"
+import { createGuest, getGuests, setGuestNotes, updateGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { formatGuestName } from "../utils/guestName"
 import { getFolioByReservationId, addFolioItem } from "../api/folioApi"
@@ -85,6 +85,10 @@ function ReservationModal({ reservation, onSaved, onClose }) {
     const [guestStepOrigin, setGuestStepOrigin] = useState('choice')
     const [guestSearchQuery, setGuestSearchQuery] = useState('')
     const [editingGuestInfo, setEditingGuestInfo] = useState(false)
+    const [editingNote, setEditingNote] = useState(false)
+    const [noteDraft, setNoteDraft] = useState('')
+    const [noteError, setNoteError] = useState(null)
+    const [savingNote, setSavingNote] = useState(false)
     const [pendingForm, setPendingForm] = useState(null)
     const [provider, setProvider] = useState(null)
     const paymentReady = provider === 'authorizenet'
@@ -313,6 +317,28 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
 
         setCreatingGuest(false)
+    }
+
+    function startEditingNote() {
+        setNoteDraft(selectedGuest.notes || '')
+        setNoteError(null)
+        setEditingNote(true)
+    }
+
+    async function handleSaveNote() {
+        setNoteError(null)
+        setSavingNote(true)
+
+        try {
+            await setGuestNotes(selectedGuest.id, noteDraft)
+            const guestsRes = await getGuests()
+            setGuests(guestsRes.data)
+            setEditingNote(false)
+        } catch {
+            setNoteError('Failed to save note.')
+        }
+
+        setSavingNote(false)
     }
 
     function isToday(dateString) {
@@ -580,7 +606,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                             <button
                                 key={g.id}
                                 type="button"
-                                onClick={() => { setForm(f => ({ ...f, guestId: g.id })); setStep('confirmGuest') }}
+                                onClick={() => { setForm(f => ({ ...f, guestId: g.id })); setEditingNote(false); setStep('confirmGuest') }}
                                 className="filter-input flex justify-between items-center text-left hover:border-green"
                             >
                                 <span>{formatGuestName(g)}</span>
@@ -675,6 +701,33 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                                     Warning: this guest is flagged — {selectedGuest.flagReason}
                                 </div>
                             )}
+
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Notes</label>
+                                {!editingNote ? (
+                                    <>
+                                        <p className="text-sm text-black whitespace-pre-wrap">
+                                            {selectedGuest.notes || <span className="text-muted">No notes</span>}
+                                        </p>
+                                        <button type="button" onClick={startEditingNote} className="text-sm font-medium text-green hover:text-black mt-1">
+                                            {selectedGuest.notes ? 'Edit Note' : 'Add Note'}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        <textarea value={noteDraft} onChange={e => setNoteDraft(e.target.value)} className="filter-input" rows={3} />
+                                        {noteError && <p className="text-sm text-error">{noteError}</p>}
+                                        <div className="flex justify-end gap-2">
+                                            <button type="button" onClick={() => setEditingNote(false)} className="btn btn-secondary" disabled={savingNote}>
+                                                Cancel
+                                            </button>
+                                            <button type="button" onClick={handleSaveNote} className="btn btn-primary" disabled={savingNote}>
+                                                {savingNote ? 'Saving...' : 'Save'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <button type="button" onClick={startEditingGuestInfo} className="text-sm font-medium text-green hover:text-black self-start">
                                 Edit Information
@@ -900,6 +953,12 @@ function ReservationModal({ reservation, onSaved, onClose }) {
                         {flaggedMatch && (
                             <div className="bg-red-100 text-red-700 text-sm rounded p-2">
                                 Warning: this guest is flagged — {flaggedMatch.flagReason}
+                            </div>
+                        )}
+
+                        {selectedGuest?.notes && ['CONFIRMED', 'CHECKED_IN'].includes(reservation?.status ?? 'CONFIRMED') && (
+                            <div className="bg-tan/20 text-sm rounded p-2">
+                                <span className="font-medium text-muted">Guest Notes:</span> {selectedGuest.notes}
                             </div>
                         )}
                     </div>

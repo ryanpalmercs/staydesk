@@ -42,6 +42,7 @@ import com.staydesk.repository.RateRepository;
 import com.staydesk.repository.ReservationRepository;
 import com.staydesk.repository.ReusablePaymentCredentialRepository;
 import com.staydesk.repository.RoomRepository;
+import com.staydesk.repository.RoomTypeAvailabilityRepository;
 import com.staydesk.repository.RoomTypeRepository;
 import com.staydesk.security.PiiCipher;
 import org.springframework.stereotype.Service;
@@ -64,6 +65,7 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
     private final RoomTypeRepository roomTypeRepository;
+    private final RoomTypeAvailabilityRepository roomTypeAvailabilityRepository;
     private final FolioRepository folioRepository;
     private final RateRepository rateRepository;
     private final RateOverrideRepository rateOverrideRepository;
@@ -82,7 +84,8 @@ public class ReservationService {
     private static final int STANDARD_CHECK_IN_HOUR = 15;
 
     public ReservationService(ReservationRepository reservationRepository, RoomRepository roomRepository,
-                              RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
+                              RoomTypeRepository roomTypeRepository, RoomTypeAvailabilityRepository roomTypeAvailabilityRepository,
+                              FolioRepository folioRepository,
                               RateRepository rateRepository, RateOverrideRepository rateOverrideRepository,
                               PaymentService paymentService, FolioService folioService,
                               GuestRepository guestRepository, SmsService smsService,
@@ -93,6 +96,7 @@ public class ReservationService {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
+        this.roomTypeAvailabilityRepository = roomTypeAvailabilityRepository;
         this.folioRepository = folioRepository;
         this.rateRepository = rateRepository;
         this.rateOverrideRepository = rateOverrideRepository;
@@ -264,12 +268,7 @@ public class ReservationService {
     }
 
     private boolean isRoomTypeAvailable(RoomType roomType, LocalDate checkInDate, LocalDate checkOutDate, Integer excludingReservationId) {
-        int overlapping = excludingReservationId != null
-                ? reservationRepository.countOverlappingByRoomTypeExcludingReservation(
-                        roomType.id(), checkOutDate, checkInDate, excludingReservationId)
-                : reservationRepository.countOverlappingByRoomType(roomType.id(), checkOutDate, checkInDate);
-
-        return overlapping < roomType.availableCount();
+        return roomTypeAvailabilityRepository.isAvailableForRange(roomType.id(), checkInDate, checkOutDate, excludingReservationId);
     }
 
     private void checkRoomTypeAvailability(RoomType roomType, LocalDate checkInDate, LocalDate checkOutDate) {
@@ -497,13 +496,13 @@ public class ReservationService {
                 throw new DateConflictException();
             }
         } else {
-            RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
-                                                  .orElseThrow(RoomTypeNotFoundException::new);
+            roomTypeRepository.findById(reservation.roomTypeId())
+                              .orElseThrow(RoomTypeNotFoundException::new);
 
-            int overlapping = reservationRepository.countOverlappingByRoomTypeExcludingReservation(
-                    reservation.roomTypeId(), reservation.checkOutDate(), reservation.checkInDate(), id);
+            boolean available = roomTypeAvailabilityRepository.isAvailableForRange(
+                    reservation.roomTypeId(), reservation.checkInDate(), reservation.checkOutDate(), id);
 
-            if (overlapping >= roomType.availableCount()) {
+            if (!available) {
                 throw new RoomTypeUnavailableException();
             }
         }
@@ -899,7 +898,7 @@ public class ReservationService {
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                     new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
                     false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
-                    createdAt, createdAt));
+                    "", createdAt, createdAt));
         });
     }
 
@@ -1069,10 +1068,10 @@ public class ReservationService {
             RoomType roomType = roomTypeRepository.findById(reservation.roomTypeId())
                                                   .orElseThrow(RoomTypeNotFoundException::new);
 
-            int overlappingByType = reservationRepository.countOverlappingByRoomTypeExcludingReservation(
-                    roomType.id(), newCheckOutDate, reservation.checkOutDate(), id);
+            boolean available = roomTypeAvailabilityRepository.isAvailableForRange(
+                    roomType.id(), reservation.checkOutDate(), newCheckOutDate, id);
 
-            if (overlappingByType >= roomType.availableCount()) {
+            if (!available) {
                 throw new RoomTypeUnavailableException();
             }
         }

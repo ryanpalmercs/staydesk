@@ -1,0 +1,55 @@
+.availability-grid {
+    background: var(--color-warm-white);
+    border: 1px solid var(--color-tan);
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-top: 1.5rem;
+}
+
+.availability-grid-scroll {
+    overflow-x: auto;
+}
+
+.availability-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.availability-grid-table th {
+    text-align: center;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-tan);
+    font-weight: 600;
+    color: var(--color-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.availability-grid-table th:first-child {
+    text-align: left;
+}
+
+.availability-grid-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: center;
+    border-bottom: 1px solid var(--color-tan);
+    color: var(--color-black);
+}
+
+.availability-grid-table td:first-child {
+    text-align: left;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.availability-grid-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.availability-grid-total-row td {
+    font-weight: 700;
+    background: var(--color-tan);
+}
