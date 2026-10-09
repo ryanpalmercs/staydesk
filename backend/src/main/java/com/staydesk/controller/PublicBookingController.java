@@ -1,5 +1,6 @@
 package com.staydesk.controller;
 
+import com.staydesk.exception.BookingBlockedException;
 import com.staydesk.exception.PetFriendlyRequiredException;
 import com.staydesk.exception.RoomTypeNotFoundException;
 import com.staydesk.model.EncryptedString;
@@ -19,6 +20,7 @@ import com.staydesk.repository.RoomTypeRepository;
 import com.staydesk.security.PiiCipher;
 import com.staydesk.security.PublicEndpointRateLimiter;
 import com.staydesk.service.FolioService;
+import com.staydesk.service.GuestFlagMatchService;
 import com.staydesk.service.ReservationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -59,13 +61,15 @@ public class PublicBookingController {
     private final ReservationService reservationService;
     private final GuestRepository guestRepository;
     private final PiiCipher piiCipher;
+    private final GuestFlagMatchService guestFlagMatchService;
     private final PublicEndpointRateLimiter rateLimiter;
 
     public PublicBookingController(RoomTypeRepository roomTypeRepository,
                                    RoomTypeAvailabilityRepository roomTypeAvailabilityRepository,
                                    RateRepository rateRepository, ExtraRepository extraRepository,
                                    ReservationService reservationService, GuestRepository guestRepository,
-                                   PiiCipher piiCipher, PublicEndpointRateLimiter rateLimiter) {
+                                   PiiCipher piiCipher, GuestFlagMatchService guestFlagMatchService,
+                                   PublicEndpointRateLimiter rateLimiter) {
         this.roomTypeRepository = roomTypeRepository;
         this.roomTypeAvailabilityRepository = roomTypeAvailabilityRepository;
         this.rateRepository = rateRepository;
@@ -73,6 +77,7 @@ public class PublicBookingController {
         this.reservationService = reservationService;
         this.guestRepository = guestRepository;
         this.piiCipher = piiCipher;
+        this.guestFlagMatchService = guestFlagMatchService;
         this.rateLimiter = rateLimiter;
     }
 
@@ -130,6 +135,12 @@ public class PublicBookingController {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
         }
 
+        if (guestFlagMatchService.isBookingBlocked(request.firstName(), request.lastName(), request.email(), request.phoneNumber())) {
+            LOGGER.warn("Blocked online booking attempt for a flagged guest");
+            throw new BookingBlockedException(
+                    "We're unable to complete this reservation online. Please call the front desk at (660) 258-7257 to book.");
+        }
+
         List<FolioService.ExtraSelection> extraSelections = resolveAddOnSelections(request.roomTypeId(), request.addOnIds());
 
         Guest guest = findOrCreateGuest(request);
@@ -173,8 +184,8 @@ public class PublicBookingController {
 
             Guest saved = guestRepository.save(new Guest(0, new EncryptedString(request.firstName()),
                     new EncryptedString(request.lastName()), new EncryptedString(request.email()), emailHash,
-                    new EncryptedString(request.phoneNumber()), request.smsConsent(), false, null, null, null,
-                    false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, now, now));
+                    new EncryptedString(request.phoneNumber()), piiCipher.hash(request.phoneNumber()), request.smsConsent(),
+                    false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, "", now, now));
 
             return saved;
         });

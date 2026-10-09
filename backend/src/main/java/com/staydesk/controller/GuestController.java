@@ -83,8 +83,8 @@ public class GuestController {
 
         Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
-                request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(),
-                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), "", now, now);
+                piiCipher.hash(request.phoneNumber()), request.smsConsent(), false, null, null, null, false, request.legacyPricing(),
+                request.legacyPricingAmount(), defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), "", now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -110,8 +110,8 @@ public class GuestController {
         String emailHash = hashEmail(request.email());
         Guest updatedGuest = new Guest(id, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
-                request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
-                existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(),
+                piiCipher.hash(request.phoneNumber()), request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(),
+                existing.flaggedBy(), existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(),
                 defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), existing.notes(),
                 existing.createdAt(), LocalDateTime.now());
 

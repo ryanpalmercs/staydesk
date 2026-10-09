@@ -912,7 +912,7 @@ public class ReservationService {
             LocalDateTime createdAt = LocalDateTime.now();
 
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                    new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
+                    new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), piiCipher.hash(phoneNumber), false,
                     false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
                     "", createdAt, createdAt));
         });

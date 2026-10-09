@@ -6,12 +6,23 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface GuestRepository extends ListCrudRepository<Guest, Integer> {
 
+    // email_hash has a UNIQUE constraint (V15), so this is safely a single-result lookup.
     Optional<Guest> findByEmailHash(String emailHash);
+
+    // phone_hash has no such constraint -- guests can legitimately share a phone number (e.g.
+    // family members booking separately), so this can return more than one row.
+    @Query("SELECT * FROM guests WHERE phone_hash = :phoneHash")
+    List<Guest> findByPhoneHash(@Param("phoneHash") String phoneHash);
+
+    @Modifying
+    @Query("UPDATE guests SET phone_hash = :phoneHash WHERE id = :id")
+    void updatePhoneHash(@Param("id") Integer id, @Param("phoneHash") String phoneHash);
 
     @Modifying
     @Query("UPDATE guests SET flagged = TRUE, flag_reason = :reason, flagged_date = now(), flagged_by = :flaggedBy WHERE id = :id")
