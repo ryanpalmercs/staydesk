@@ -26,9 +26,9 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
         try {
-            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH, folioPaymentId,
+            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH, null,
                     "pre_auth", amount, null);
             return toAuthResult(result);
         } catch (TerminalBridgeException e) {
@@ -38,9 +38,9 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
         try {
-            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, folioPaymentId,
+            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.SALE, null,
                     "sale", amount, null);
             return toAuthResult(result);
         } catch (TerminalBridgeException e) {
@@ -50,10 +50,10 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public CaptureResult capture(String authId, BigDecimal amount, Integer folioPaymentId) {
+    public CaptureResult capture(String authId, BigDecimal amount) {
         try {
             TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.PRE_AUTH_COMPLETION,
-                    folioPaymentId, "pre_auth_completion", amount, authId);
+                    null, "pre_auth_completion", amount, authId);
 
             if (!isApproved(result)) {
                 return new CaptureResult(false, authId, message(result));
@@ -67,9 +67,9 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public VoidResult void_(String authId, Integer folioPaymentId) {
+    public VoidResult void_(String authId) {
         try {
-            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.VOID, folioPaymentId,
+            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.VOID, null,
                     "void", null, authId);
 
             if (!isApproved(result)) {
@@ -84,9 +84,9 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4, Integer folioPaymentId) {
+    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4) {
         try {
-            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.REFUND, folioPaymentId,
+            TsiTransactionResult result = bridgeClient.sendTransaction(TerminalTransaction.Operation.REFUND, null,
                     "refund", amount, null);
 
             if (!isApproved(result)) {
@@ -110,7 +110,7 @@ public class IngenicoTerminalPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
-                                             String description, String customerEmail, Integer folioPaymentId) {
+                                             String description, String customerEmail) {
         throw new UnsupportedOperationException(
                 "IngenicoTerminalPaymentProvider does not support stored-credential charges - no card data is available locally for a card-present terminal flow");
     }

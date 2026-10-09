@@ -22,12 +22,4 @@ public final class IngenicoAmountFormat {
                      .setScale(0, RoundingMode.UNNECESSARY)
                      .longValueExact();
     }
-
-    public static BigDecimal fromCents(Long cents) {
-        if (cents == null) {
-            return null;
-        }
-
-        return BigDecimal.valueOf(cents, 2);
-    }
 }
