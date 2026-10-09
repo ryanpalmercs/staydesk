@@ -10,8 +10,40 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 6,
+        title: "What's New",
+        version: 'v1.7.0',
+        date: '2026-09-28',
+        notes: [
+            'The dashboard now shows a room-type availability grid — how many rooms of each type are open across a date range.',
+            'The reservation calendar has moved off the dashboard onto its own page. Look for the new Calendar link in the sidebar.',
+            'Fixed an error where checking out a walk-in reservation could show a "Payment capture failed" message even though nothing was actually wrong.',
+            "Guests can now have a note. Add or edit one from a guest's profile, and it'll show up when booking or extending their reservation, and on their folio.",
+            'Fixed a same-day walk-in reservation sometimes not opening check-in automatically right after it was created.'
+        ]
+    },
+    {
+        id: 5,
+        title: "What's New",
+        version: 'v1.6.1',
+        date: '2026-09-24',
+        notes: [
+            'The timesheet and payroll weeks now run Friday through Thursday instead of Monday through Sunday, and the week header shows the weekday names.'
+        ]
+    },
+    {
+        id: 4,
+        title: "What's New",
+        version: 'v1.6.0',
+        date: '2026-09-22',
+        notes: [
+            'Reports (admin only) now include a Terminal Transactions section (counts and volume by status) - metrics are preliminary pending final sign-off.'
+        ]
+    },
+    {
         id: 3,
         title: "What's New",
+        version: 'v1.5.0',
         date: '2026-09-21',
         notes: [
             "Your name now shows in the dashboard heading and sidebar when you're logged in."

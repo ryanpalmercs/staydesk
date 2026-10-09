@@ -33,8 +33,9 @@ public class TerminalTransactionReconciliationService {
     private void flagUnknown(TerminalTransaction pendingTransaction) {
         terminalTransactionRepository.save(new TerminalTransaction(pendingTransaction.id(), pendingTransaction.flowId(),
                 pendingTransaction.folioPaymentId(), pendingTransaction.operation(), pendingTransaction.amount(),
-                TerminalTransaction.Status.UNKNOWN, pendingTransaction.requestPayload(), pendingTransaction.responsePayload(),
-                pendingTransaction.createdAt(), null));
+                TerminalTransaction.Status.UNKNOWN, pendingTransaction.referenceNo(), pendingTransaction.authorizationNo(),
+                pendingTransaction.cardLast4(), pendingTransaction.hostResponseText(), pendingTransaction.requestPayload(),
+                pendingTransaction.responsePayload(), pendingTransaction.createdAt(), null));
 
         LOGGER.error("Terminal transaction flow {} ({}) has an unknown outcome after {} minutes - reconcile manually " +
                      "against the terminal receipt/batch report before retrying", pendingTransaction.flowId(),

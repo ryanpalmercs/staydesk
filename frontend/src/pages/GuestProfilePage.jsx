@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, unflagGuest } from "../api/guestApi"
+import { clearGuestLegalHold, flagGuest, getGuest, setGuestLegalHold, setGuestNotes, unflagGuest } from "../api/guestApi"
 import { formatPhone } from "../utils/phone"
 import { displayPrice } from "../utils/price"
 import { formatGuestName } from "../utils/guestName"
@@ -15,13 +15,16 @@ function GuestProfilePage() {
     const { id } = useParams()
     const { role } = useAuth()
     const canManage = ['ADMIN', 'MANAGER'].includes(role)
+    const canAddNote = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
 
     const [guest, setGuest] = useState(null)
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)
     const [showFlagForm, setShowFlagForm] = useState(false)
+    const [showNoteForm, setShowNoteForm] = useState(false)
     const [editModalOpen, setEditModalOpen] = useState(false)
     const [flagReason, setFlagReason] = useState('')
+    const [notes, setNotes] = useState('')
     const [error, setError] = useState(null)
     const [reservations, setReservations] = useState([])
     const [rooms, setRooms] = useState([])
@@ -85,6 +88,19 @@ function GuestProfilePage() {
         }
     }
 
+    async function handleNotes(e) {
+        e.preventDefault()
+        setError(null)
+        try {
+            await setGuestNotes(id, notes)
+            setShowNoteForm(false)
+            setNotes('')
+            await fetchGuest()
+        } catch {
+            setError('Failed to set guest note.')
+        }
+    }
+
     if (loading) {
         return <p className="text-gray-500">Loading...</p>
     }
@@ -135,18 +151,42 @@ function GuestProfilePage() {
                 </div>
             )}
 
-            {canManage && (
+            {guest.notes && (
+                <div className="mt-4">
+                    <span className="block text-sm text-muted mb-1">Notes</span>
+                    <p className="text-sm text-black whitespace-pre-wrap">{guest.notes}</p>
+                </div>
+            )}
+
+            {(canManage || canAddNote) && (
                 <div className="mt-4 flex gap-4">
-                    {guest.flagged ? (
-                        <button onClick={handleUnflag} className="text-sm font-medium text-muted hover:text-green">
-                            Unflag Guest
-                        </button>
-                    ) : (
-                        <button onClick={() => setShowFlagForm(!showFlagForm)} className="text-sm font-medium text-green hover:text-black">Flag Guest</button>
+                    {canManage && (
+                        <>
+                            {guest.flagged ? (
+                                <button onClick={handleUnflag} className="text-sm font-medium text-muted hover:text-green">
+                                    Unflag Guest
+                                </button>
+                            ) : (
+                                <button onClick={() => setShowFlagForm(!showFlagForm)} className="text-sm font-medium text-green hover:text-black">Flag Guest</button>
+                            )}
+                            <button onClick={handleLegalHoldToggle} className="text-sm font-medium text-muted hover:text-green">
+                                {guest.legalHold ? 'Clear Legal Hold' : 'Place Legal Hold'}
+                            </button>
+                        </>
                     )}
-                    <button onClick={handleLegalHoldToggle} className="text-sm font-medium text-muted hover:text-green">
-                        {guest.legalHold ? 'Clear Legal Hold' : 'Place Legal Hold'}
-                    </button>
+                    {canAddNote && (
+                        <button
+                            onClick={() => {
+                                if (!showNoteForm) {
+                                    setNotes(guest.notes || '')
+                                }
+                                setShowNoteForm(!showNoteForm)
+                            }}
+                            className="text-sm font-medium text-muted hover:text-green"
+                        >
+                            {guest.notes ? 'Edit Note' : 'Add Note'}
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -158,6 +198,17 @@ function GuestProfilePage() {
                     <div className="flex justify-end gap-3">
                         <button type="button" onClick={() => setShowFlagForm(false)} className="btn btn-secondary">Cancel</button>
                         <button type="submit" className="btn btn-primary">Flag</button>
+                    </div>
+                </form>
+            )}
+
+            {showNoteForm && (
+                <form onSubmit={handleNotes} className="flex flex-col gap-2 mt-2 max-w-md">
+                    <span className="block text-sm text-muted mb-1">Notes</span>
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} className="filter-input" required />
+                    <div className="flex justify-end gap-3">
+                        <button type="button" onClick={() => setShowNoteForm(false)} className="btn btn-secondary">Cancel</button>
+                        <button type="submit" className="btn btn-primary">Set Notes</button>
                     </div>
                 </form>
             )}

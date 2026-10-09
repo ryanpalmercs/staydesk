@@ -31,7 +31,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "AUTH", amount.toPlainString(),
                 null, null, null, null, null, "F101");
 
@@ -45,7 +45,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "SALE", amount.toPlainString(),
                 null, null, null, null, null, null);
 
@@ -59,7 +59,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public CaptureResult capture(String authId, BigDecimal amount) {
+    public CaptureResult capture(String authId, BigDecimal amount, Integer folioPaymentId) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "PRIORAUTHCOMPLETION", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(authId)), null, null, null);
 
@@ -73,7 +73,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public VoidResult void_(String authId) {
+    public VoidResult void_(String authId, Integer folioPaymentId) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "VOIDSALE", null,
                 null, null, new CpiSafetyFields(new CpiToken(authId)), null, null, null);
 
@@ -87,7 +87,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4) {
+    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4, Integer folioPaymentId) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "REFUND", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(transactionId)), null, null, null);
 
@@ -108,7 +108,7 @@ public class ElavonCpiPaymentProvider implements PaymentProvider {
 
     @Override
     public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken,
-                                             String description, String customerEmail) {
+                                             String description, String customerEmail, Integer folioPaymentId) {
         CpiTransaction request = new CpiTransaction(client.referenceNumber(), "SALE", amount.toPlainString(),
                 null, null, new CpiSafetyFields(new CpiToken(providerToken)), null, null, "M206");
 
