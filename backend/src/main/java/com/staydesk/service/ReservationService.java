@@ -26,6 +26,7 @@ import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.ReusablePaymentCredential;
 import com.staydesk.model.RoomType;
+import com.staydesk.model.dto.BillingAddress;
 import com.staydesk.model.dto.CheckInEstimateResponse;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ExtendStayResult;
@@ -71,6 +72,7 @@ public class ReservationService {
     private final FolioService folioService;
     private final GuestRepository guestRepository;
     private final SmsService smsService;
+    private final EmailService emailService;
     private final LockPasscodeService lockPasscodeService;
     private final ProviderFactory providerFactory;
     private final PosDeviceRepository posDeviceRepository;
@@ -85,7 +87,7 @@ public class ReservationService {
                               RoomTypeRepository roomTypeRepository, FolioRepository folioRepository,
                               RateRepository rateRepository, RateOverrideRepository rateOverrideRepository,
                               PaymentService paymentService, FolioService folioService,
-                              GuestRepository guestRepository, SmsService smsService,
+                              GuestRepository guestRepository, SmsService smsService, EmailService emailService,
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
                               PosDeviceRepository posDeviceRepository,
                               PaymentCredentialService paymentCredentialService, PiiCipher piiCipher,
@@ -100,6 +102,7 @@ public class ReservationService {
         this.folioService = folioService;
         this.guestRepository = guestRepository;
         this.smsService = smsService;
+        this.emailService = emailService;
         this.lockPasscodeService = lockPasscodeService;
         this.providerFactory = providerFactory;
         this.posDeviceRepository = posDeviceRepository;
@@ -290,6 +293,11 @@ public class ReservationService {
 
     @Transactional
     public Reservation createReservation(Reservation reservation, String roomPaymentMethodId, List<FolioService.ExtraSelection> extras) {
+        return createReservation(reservation, roomPaymentMethodId, extras, null);
+    }
+
+    public Reservation createReservation(Reservation reservation, String roomPaymentMethodId, List<FolioService.ExtraSelection> extras,
+                                         BillingAddress billingAddress) {
         LocalDateTime now = LocalDateTime.now();
 
         Folio folio = folioRepository.save(new Folio(0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
@@ -304,15 +312,22 @@ public class ReservationService {
             updatedFolio = folioService.addExtra(updatedFolio.id(), selection.extraId(), selection.quantity());
         }
 
-        if (savedReservation.channel().equals(Reservation.Channel.PHONE) && chargeRoomNow) {
+        boolean chargeableChannel = savedReservation.channel().equals(Reservation.Channel.PHONE)
+                || savedReservation.channel().equals(Reservation.Channel.ONLINE);
+
+        if (chargeableChannel && chargeRoomNow) {
             paymentService.chargeFullStay(updatedFolio, updatedFolio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
-                    resolveGuestEmail(savedReservation.guestId()));
+                    resolveGuestEmail(savedReservation.guestId()), billingAddress);
         }
 
         if (savedReservation.guestId() != null && savedReservation.channel() != Reservation.Channel.WALK_IN) {
-            guestRepository.findById(savedReservation.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
+            guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendConfirmation(guest, savedReservation);
+                }
+
+                emailService.sendConfirmation(guest, savedReservation);
+            });
         }
 
         return savedReservation;

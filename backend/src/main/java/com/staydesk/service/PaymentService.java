@@ -10,6 +10,7 @@ import com.staydesk.model.FolioPayment;
 import com.staydesk.model.FolioPayment.PaymentKind;
 import com.staydesk.model.FolioPayment.PaymentStatus;
 import com.staydesk.model.ReusablePaymentCredential;
+import com.staydesk.model.dto.BillingAddress;
 import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
 import com.staydesk.payment.PaymentProvider;
@@ -330,10 +331,16 @@ public class PaymentService {
     }
 
     public void chargeFullStay(Folio folio, BigDecimal amount, String providerName, String paymentMethodId, String customerEmail) {
+        chargeFullStay(folio, amount, providerName, paymentMethodId, customerEmail, null);
+    }
+
+    public void chargeFullStay(Folio folio, BigDecimal amount, String providerName, String paymentMethodId, String customerEmail,
+                               BillingAddress billingAddress) {
         LocalDateTime now = LocalDateTime.now();
 
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail, null);
+                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail, null,
+                                                   billingAddress);
 
         if (!result.success()) {
             throw new PaymentDeclinedException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());

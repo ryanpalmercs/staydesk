@@ -44,6 +44,7 @@ class ReservationServiceSpec extends Specification {
     FolioService folioService = Mock()
     GuestRepository guestRepository = Mock()
     SmsService smsService = Mock()
+    EmailService emailService = Mock()
     LockPasscodeService lockPasscodeService = Mock()
     ProviderFactory providerFactory = Mock()
     PosDeviceRepository posDeviceRepository = Mock()
@@ -54,7 +55,7 @@ class ReservationServiceSpec extends Specification {
     @Subject
     ReservationService reservationService = new ReservationService(reservationRepository, roomRepository, roomTypeRepository,
             folioRepository, rateRepository, rateOverrideRepository, paymentService, folioService, guestRepository, smsService,
-            lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService, piiCipher,
+            emailService, lockPasscodeService, providerFactory, posDeviceRepository, paymentCredentialService, piiCipher,
             reusablePaymentCredentialRepository)
 
     private static Reservation reservation(Reservation.ReservationStatus status, Reservation.Channel channel,
@@ -992,7 +993,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         0 * folioService.postCharge(_, _, _)
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "checkInTerminal charges the folio's real total, including any already-posted extras, for a WALK_IN reservation"() {
@@ -1045,7 +1046,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         0 * folioService.postCharge(_, _, _)
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "checkIn charges the remaining room total for a PHONE reservation that deferred payment to check-in"() {
@@ -1096,7 +1097,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         0 * folioService.postCharge(_, _, _)
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "payFullStayNow charges the folio's real total, including any already-posted extras, for a WALK_IN reservation, without assigning a room or creating a hold"() {
@@ -1143,7 +1144,7 @@ class ReservationServiceSpec extends Specification {
         then:
         thrown(InvalidReservationException)
         0 * folioService.postCharge(_, _, _)
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "payFullStayNow throws InvalidReservationException for a non-WALK_IN reservation"() {
@@ -1156,7 +1157,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         thrown(InvalidReservationException)
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "payFullStayNowTerminal charges the folio's real total, including any already-posted extras, for a WALK_IN reservation, without assigning a room or creating a hold"() {
@@ -1207,7 +1208,7 @@ class ReservationServiceSpec extends Specification {
         then:
         thrown(InvalidReservationException)
         0 * folioService.postCharge(_, _, _)
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "estimateCheckInCharge combines the folio's current total with the remaining room nights for a WALK_IN reservation"() {
@@ -1311,7 +1312,7 @@ class ReservationServiceSpec extends Specification {
 
         then:
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(100)) == 0 }, _, "token-1",
-                "james@example.com")
+                "james@example.com", _)
     }
 
     def "createReservation splits a WEEKLY_7 legacy price evenly across the stay instead of charging it per night"() {
@@ -1338,7 +1339,7 @@ class ReservationServiceSpec extends Specification {
         7 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(46.10)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(322.70)) == 0 }, _, "token-1",
-                "james@example.com")
+                "james@example.com", _)
     }
 
     def "createReservation passes null customerEmail when the guest has none on file"() {
@@ -1365,7 +1366,7 @@ class ReservationServiceSpec extends Specification {
         reservationService.createReservation(draft, "token-1", [])
 
         then:
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, _, _, "token-1", null)
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, _, _, "token-1", null, _)
     }
 
     def "createReservation posts staged extras before charging, so a PHONE booking's full-stay charge includes them"() {
@@ -1396,7 +1397,7 @@ class ReservationServiceSpec extends Specification {
         then:
         1 * folioService.addExtra(9, 2, 1) >>
                 new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(185), null, LocalDateTime.now(), LocalDateTime.now())
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(185)) == 0 }, _, "token-1", _)
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(185)) == 0 }, _, "token-1", _, _)
     }
 
     def "createReservation posts only the first room period and does not charge a PHONE booking that deferred payment to check-in"() {
@@ -1423,7 +1424,7 @@ class ReservationServiceSpec extends Specification {
         then:
         1 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(80), null, LocalDateTime.now(), LocalDateTime.now())
-        0 * paymentService.chargeFullStay(_, _, _, _, _)
+        0 * paymentService.chargeFullStay(_, _, _, _, _, _)
     }
 
     def "createReservation throws InvalidReservationException when the requested rate type doesn't match the tier for the stay length"() {
@@ -1472,7 +1473,7 @@ class ReservationServiceSpec extends Specification {
         // 6 nights at 325 / 5 = 65.00 per night
         6 * folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
-        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(390)) == 0 }, _, "token-1", null)
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(390)) == 0 }, _, "token-1", null, _)
     }
 
     def "createMultiRoomReservation creates a reservation per unit of quantity on one room line, sharing one folio, and charges the combined total for a PHONE booking"() {

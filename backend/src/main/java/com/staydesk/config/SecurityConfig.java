@@ -37,6 +37,7 @@ public class SecurityConfig {
                    .authorizeHttpRequests(auth -> auth
                            .requestMatchers("/auth/employee/login", "/error", "/stripe/connect/return", "/stripe/connect/refresh", "/quickbooks/connect/callback").permitAll()
                            .requestMatchers("/webhooks/sifely/**").permitAll()
+                           .requestMatchers("/public/**").permitAll()
                            .requestMatchers("/bridge/terminal").permitAll()
                            .requestMatchers("/actuator/health").permitAll()
                            .requestMatchers(HttpMethod.POST, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")
