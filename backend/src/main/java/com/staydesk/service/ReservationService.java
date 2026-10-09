@@ -338,7 +338,7 @@ public class ReservationService {
         for (CreateMultiRoomReservationRequest.RoomLine roomLine : rooms) {
             for (int i = 0; i < roomLine.quantity(); i++) {
                 Reservation draft = new Reservation(0, 0, guestId, null, roomLine.roomTypeId(), checkInDate, checkOutDate,
-                        Reservation.ReservationStatus.CONFIRMED, null, null, rateType, guestCount, channel, false, now, now, null);
+                        Reservation.ReservationStatus.CONFIRMED, null, null, rateType, guestCount, channel, false, now, now, null, null);
 
                 ReservationDraftResult result = createReservationOnFolio(folio, draft, true);
                 folio = result.folio();
@@ -386,7 +386,7 @@ public class ReservationService {
         Reservation savedReservation = reservationRepository.save(new Reservation(0, folio.id(), reservation.guestId(), null, roomType.id(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(), now, now,
-                confirmationCode));
+                confirmationCode, reservation.specialRequests()));
 
         long periodsToPost = postFullStay ? nights : 1;
 
@@ -515,7 +515,7 @@ public class ReservationService {
         Reservation updated = new Reservation(id, existing.folioId(), reservation.guestId(), existing.roomId(), reservation.roomTypeId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
                 reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now(),
-                existing.confirmationCode());
+                existing.confirmationCode(), reservation.specialRequests());
 
         return reservationRepository.save(updated);
     }
@@ -828,7 +828,7 @@ public class ReservationService {
         Reservation savedReservation = reservationRepository.save(new Reservation(0, savedFolio.id(), guest.id(), room.id(), room.roomTypeId(),
                 request.checkInDate(), request.checkOutDate(), Reservation.ReservationStatus.CHECKED_IN,
                 request.checkInDate().atTime(STANDARD_CHECK_IN_HOUR, 0), null, rateType, guestCount,
-                Reservation.Channel.WALK_IN, false, now, now, confirmationCode));
+                Reservation.Channel.WALK_IN, false, now, now, confirmationCode, null));
 
         return savedReservation;
     }
@@ -1114,7 +1114,7 @@ public class ReservationService {
         Reservation extended = new Reservation(reservation.id(), reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
                 ctx.newTier(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), ctx.now(), reservation.confirmationCode());
+                reservation.createdAt(), ctx.now(), reservation.confirmationCode(), reservation.specialRequests());
 
         return reservationRepository.save(extended);
     }
@@ -1186,7 +1186,7 @@ public class ReservationService {
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode()));
+                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode(), reservation.specialRequests()));
     }
 
     @Transactional
@@ -1194,7 +1194,7 @@ public class ReservationService {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
         if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)
-            || !reservation.channel().equals(Reservation.Channel.PHONE)) {
+            || (!reservation.channel().equals(Reservation.Channel.PHONE) && !reservation.channel().equals(Reservation.Channel.ONLINE))) {
             throw new InvalidReservationException();
         }
 
@@ -1213,7 +1213,7 @@ public class ReservationService {
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.NO_SHOW, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode()));
+                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode(), reservation.specialRequests()));
     }
 
     @Transactional

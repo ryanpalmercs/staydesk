@@ -60,7 +60,7 @@ class ReservationServiceSpec extends Specification {
     private static Reservation reservation(Reservation.ReservationStatus status, Reservation.Channel channel,
                                            Rate.RateType rateType = Rate.RateType.NIGHTLY) {
         new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
-                status, null, null, rateType, 1, channel, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
+                status, null, null, rateType, 1, channel, false, LocalDateTime.now(), LocalDateTime.now(), "123456", null)
     }
 
     def "marks a CONFIRMED PHONE reservation as NO_SHOW, refunds all but first night, and closes the folio"() {
@@ -366,7 +366,7 @@ class ReservationServiceSpec extends Specification {
         def savedFolio = new Folio(20, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         def savedReservation = new Reservation(11, 20, 9, 5, 2, LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 28),
                 Reservation.ReservationStatus.CHECKED_IN, LocalDate.of(2026, 8, 21).atTime(15, 0), null,
-                Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
+                Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456", null)
 
         roomRepository.findById(5) >> Optional.of(room)
         piiCipher.hash(_) >> "hashed-placeholder-email"
@@ -451,7 +451,7 @@ class ReservationServiceSpec extends Specification {
         def room = new Room(5, 26, 2, Room.RoomStatus.AVAILABLE, null, null, LocalDateTime.now(), LocalDateTime.now())
         def conflicting = new Reservation(9, 99, 3, 5, 2, LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 25),
                 Reservation.ReservationStatus.CHECKED_IN, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN,
-                false, LocalDateTime.now(), LocalDateTime.now(), "111222")
+                false, LocalDateTime.now(), LocalDateTime.now(), "111222", null)
         roomRepository.findById(5) >> Optional.of(room)
         reservationRepository.findOverlapping(5, LocalDate.of(2026, 8, 28), LocalDate.of(2026, 8, 21)) >> [conflicting]
 
@@ -549,7 +549,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 17), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
@@ -581,7 +581,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
@@ -677,7 +677,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         // original 3 nights were already posted at NIGHTLY - only the 3 added nights (total stay = 6)
@@ -709,7 +709,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
@@ -736,7 +736,7 @@ class ReservationServiceSpec extends Specification {
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def conflicting = new Reservation(2, 99, 8, 4, 2, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 15),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN,
-                false, LocalDateTime.now(), LocalDateTime.now(), "654321")
+                false, LocalDateTime.now(), LocalDateTime.now(), "654321", null)
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 16), LocalDate.of(2026, 7, 13)) >> [conflicting]
 
@@ -756,7 +756,7 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
         guestRepository.findById(7) >> Optional.empty()
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 1, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 1, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13), 1) >> 1
 
         when:
@@ -805,7 +805,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
@@ -835,7 +835,7 @@ class ReservationServiceSpec extends Specification {
 
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
@@ -865,7 +865,7 @@ class ReservationServiceSpec extends Specification {
         posDeviceRepository.findById(6) >> Optional.of(device)
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
@@ -908,7 +908,7 @@ class ReservationServiceSpec extends Specification {
         providerFactory.isCardPresentRecordOnly() >> true
         reservationRepository.findById(1) >> Optional.of(res)
         reservationRepository.findOverlapping(3, LocalDate.of(2026, 7, 14), LocalDate.of(2026, 7, 13)) >> []
-        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
+        roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now()))
         reservationRepository.countOverlappingByRoomTypeExcludingReservation(2, _, _, 1) >> 0
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
@@ -1291,8 +1291,8 @@ class ReservationServiceSpec extends Specification {
         given:
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1318,8 +1318,8 @@ class ReservationServiceSpec extends Specification {
         given:
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_7, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(322.70), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1345,8 +1345,8 @@ class ReservationServiceSpec extends Specification {
         given:
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1372,8 +1372,8 @@ class ReservationServiceSpec extends Specification {
         given:
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1403,8 +1403,8 @@ class ReservationServiceSpec extends Specification {
         given:
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1431,8 +1431,8 @@ class ReservationServiceSpec extends Specification {
         // 3 nights is the NIGHTLY tier (1-4 nights), not WEEKLY_5
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 4),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_5, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
@@ -1451,8 +1451,8 @@ class ReservationServiceSpec extends Specification {
         given:
         def draft = new Reservation(0, 0, 7, null, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7),
                 Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_5, 1, Reservation.Channel.PHONE,
-                false, LocalDateTime.now(), LocalDateTime.now(), null)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+                false, LocalDateTime.now(), LocalDateTime.now(), null, null)
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "WEEKLY_5", 1, BigDecimal.valueOf(325), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
