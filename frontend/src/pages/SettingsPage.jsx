@@ -10,18 +10,79 @@ import { displayPercent, formatPercent, parsePercent } from "../utils/percent"
 import { getPosDevices, pairPosDevice, unpairPosDevice } from "../api/posDeviceApi"
 import { syncBacklogFolios } from "../api/reservationApi"
 import { getQuickBooksStatus, startQuickBooksConnect, disconnectQuickBooks } from "../api/quickbooksApi"
+import { getAllExtras, createExtra, updateExtra, deleteExtra } from "../api/extrasApi"
 import { useAuth } from "../contexts/AuthContext"
 
 const RATE_TYPE_LABELS = { NIGHTLY: 'Nightly', WEEKLY_5: 'Weekly (5-night)', WEEKLY_7: 'Weekly (7-night)' }
 const RATE_TYPE_ORDER = ['NIGHTLY', 'WEEKLY_5', 'WEEKLY_7']
+const BILLING_TYPE_LABELS = { FLAT: 'Flat', PER_NIGHT: 'Per night' }
 
 function RoomTypeRow({ roomType, onChange }) {
     return (
-        <input
-            value={roomType.name}
-            onChange={e => onChange(roomType.id, e.target.value)}
-            className="filter-input w-full"
-        />
+        <div className="flex items-center gap-3">
+            <input
+                value={roomType.name}
+                onChange={e => onChange(roomType.id, 'name', e.target.value)}
+                className="filter-input flex-1"
+            />
+            <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
+                <input
+                    type="checkbox"
+                    checked={roomType.petFriendly}
+                    onChange={e => onChange(roomType.id, 'petFriendly', e.target.checked)}
+                />
+                Pet friendly
+            </label>
+        </div>
+    )
+}
+
+function AddOnRow({ addOn, onChange, onDelete }) {
+    const [focused, setFocused] = useState(false)
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_2fr_1fr_1fr_auto_auto_auto] items-center gap-2">
+            <input
+                value={addOn.name}
+                onChange={e => onChange(addOn.id, { name: e.target.value })}
+                placeholder="Name"
+                className="filter-input"
+            />
+            <input
+                value={addOn.description ?? ''}
+                onChange={e => onChange(addOn.id, { description: e.target.value })}
+                placeholder="Description (optional)"
+                className="filter-input"
+            />
+            <input
+                type="text"
+                value={focused ? addOn.price : displayPrice(addOn.price)}
+                onChange={e => onChange(addOn.id, { price: sanitizePrice(e.target.value) })}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                className="filter-input"
+            />
+            <select
+                value={addOn.billingType}
+                onChange={e => onChange(addOn.id, { billingType: e.target.value })}
+                className="filter-input"
+            >
+                {Object.entries(BILLING_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                ))}
+            </select>
+            <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
+                <input type="checkbox" checked={addOn.petFriendlyOnly} onChange={e => onChange(addOn.id, { petFriendlyOnly: e.target.checked })} />
+                Pet rooms only
+            </label>
+            <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
+                <input type="checkbox" checked={addOn.active} onChange={e => onChange(addOn.id, { active: e.target.checked })} />
+                Active
+            </label>
+            <button type="button" onClick={() => onDelete(addOn.id)} className="text-sm font-medium text-muted hover:text-error justify-self-start sm:justify-self-end">
+                Delete
+            </button>
+        </div>
     )
 }
 
@@ -109,10 +170,21 @@ function SettingsPage() {
     const [confirmationTemplate, setConfirmationTemplate] = useState('')
     const [checkInLinkTemplate, setCheckInLinkTemplate] = useState('')
     const [checkInCompleteTemplate, setCheckInCompleteTemplate] = useState('')
+    const [emailConfirmationSubject, setEmailConfirmationSubject] = useState('')
+    const [emailConfirmationBody, setEmailConfirmationBody] = useState('')
+    const [emailCheckInLinkSubject, setEmailCheckInLinkSubject] = useState('')
+    const [emailCheckInLinkBody, setEmailCheckInLinkBody] = useState('')
+    const [emailCheckInCompleteSubject, setEmailCheckInCompleteSubject] = useState('')
+    const [emailCheckInCompleteBody, setEmailCheckInCompleteBody] = useState('')
     const [roomTypes, setRoomTypes] = useState([])
     const [rates, setRates] = useState([])
     const [roomTypesSaving, setRoomTypesSaving] = useState(false)
     const [roomTypesError, setRoomTypesError] = useState(null)
+    const [addOns, setAddOns] = useState([])
+    const [addOnsSaving, setAddOnsSaving] = useState(false)
+    const [addOnsError, setAddOnsError] = useState(null)
+    const [newAddOnForm, setNewAddOnForm] = useState({ name: '', description: '', price: '', billingType: 'FLAT', petFriendlyOnly: false })
+    const [addingAddOn, setAddingAddOn] = useState(false)
     const [ratesSaving, setRatesSaving] = useState(false)
     const [rateOverrides, setRateOverrides] = useState([])
     const [overrideForm, setOverrideForm] = useState({ guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
@@ -121,9 +193,13 @@ function SettingsPage() {
     const confirmationRef = useRef(null)
     const checkInLinkRef = useRef(null)
     const checkInCompleteRef = useRef(null)
+    const emailConfirmationBodyRef = useRef(null)
+    const emailCheckInLinkBodyRef = useRef(null)
+    const emailCheckInCompleteBodyRef = useRef(null)
     const originalSettings = useRef({})
     const originalRoomTypes = useRef([])
     const originalRates = useRef([])
+    const originalAddOns = useRef([])
     const [posDevices, setPosDevices] = useState([])
     const [pairForm, setPairForm] = useState({ pairingCode: '', friendlyName: '', location: '' })
     const [pairing, setPairing] = useState(false)
@@ -154,6 +230,11 @@ function SettingsPage() {
         getPosDevices().then(res => setPosDevices(res.data ?? []))
         getRateOverrides().then(res => setRateOverrides(res.data ?? []))
         getQuickBooksSettings()
+        getAllExtras().then(res => {
+            const data = res.data ?? []
+            setAddOns(data)
+            originalAddOns.current = data
+        })
     }, [])
 
     useEffect(() => {
@@ -209,8 +290,13 @@ function SettingsPage() {
         setLockMappingSaving(false)
     }
 
-    function handleRoomTypeChange(id, name) {
-        setRoomTypes(prev => prev.map(rt => rt.id === id ? { ...rt, name } : rt))
+    function handleRoomTypeChange(id, field, value) {
+        setRoomTypes(prev => prev.map(rt => rt.id === id ? { ...rt, [field]: value } : rt))
+    }
+
+    function roomTypeDirty(rt) {
+        const original = originalRoomTypes.current.find(o => o.id === rt.id)
+        return !original || rt.name !== original.name || rt.petFriendly !== original.petFriendly
     }
 
     function handleRateChange(id, amount) {
@@ -221,8 +307,7 @@ function SettingsPage() {
         setPairForm({ ...pairForm, [e.target.name]: e.target.value })
     }
 
-    const roomTypesDirty = roomTypes.some(rt =>
-        rt.name !== originalRoomTypes.current.find(o => o.id === rt.id)?.name)
+    const roomTypesDirty = roomTypes.some(roomTypeDirty)
 
     const ratesDirty = rates.some(r =>
         r.amount !== originalRates.current.find(o => o.id === r.id)?.amount)
@@ -231,11 +316,10 @@ function SettingsPage() {
         setRoomTypesSaving(true)
         setRoomTypesError(null)
 
-        const dirty = roomTypes.filter(rt =>
-            rt.name !== originalRoomTypes.current.find(o => o.id === rt.id)?.name)
+        const dirty = roomTypes.filter(roomTypeDirty)
 
         try {
-            const responses = await Promise.all(dirty.map(rt => updateRoomType(rt.id, { name: rt.name })))
+            const responses = await Promise.all(dirty.map(rt => updateRoomType(rt.id, { name: rt.name, petFriendly: rt.petFriendly })))
             const updated = responses.map(r => r.data)
             setRoomTypes(prev => prev.map(rt => updated.find(u => u.id === rt.id) ?? rt))
             originalRoomTypes.current = originalRoomTypes.current.map(o => updated.find(u => u.id === o.id) ?? o)
@@ -244,6 +328,72 @@ function SettingsPage() {
         }
 
         setRoomTypesSaving(false)
+    }
+
+    function handleAddOnChange(id, patch) {
+        setAddOns(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a))
+    }
+
+    function handleNewAddOnFieldChange(e) {
+        const { name, value, type, checked } = e.target
+        setNewAddOnForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+    }
+
+    function isAddOnDirty(addOn) {
+        const original = originalAddOns.current.find(o => o.id === addOn.id)
+        return !original || addOn.name !== original.name || addOn.description !== original.description
+            || addOn.price !== original.price || addOn.billingType !== original.billingType
+            || addOn.petFriendlyOnly !== original.petFriendlyOnly || addOn.active !== original.active
+    }
+
+    const addOnsDirty = addOns.some(isAddOnDirty)
+
+    async function handleSaveAddOns() {
+        setAddOnsSaving(true)
+        setAddOnsError(null)
+
+        const dirty = addOns.filter(isAddOnDirty)
+
+        try {
+            const responses = await Promise.all(dirty.map(a => updateExtra(a.id, {
+                name: a.name, description: a.description, price: a.price, billingType: a.billingType,
+                petFriendlyOnly: a.petFriendlyOnly, active: a.active
+            })))
+            const updated = responses.map(r => r.data)
+            setAddOns(prev => prev.map(a => updated.find(u => u.id === a.id) ?? a))
+            originalAddOns.current = originalAddOns.current.map(o => updated.find(u => u.id === o.id) ?? o)
+        } catch {
+            setAddOnsError('Failed to save.')
+        }
+
+        setAddOnsSaving(false)
+    }
+
+    async function handleCreateAddOn(e) {
+        e.preventDefault()
+        setAddingAddOn(true)
+        setAddOnsError(null)
+
+        try {
+            const res = await createExtra({
+                name: newAddOnForm.name, description: newAddOnForm.description,
+                price: sanitizePrice(newAddOnForm.price), billingType: newAddOnForm.billingType,
+                petFriendlyOnly: newAddOnForm.petFriendlyOnly
+            })
+            setAddOns(prev => [...prev, res.data])
+            originalAddOns.current = [...originalAddOns.current, res.data]
+            setNewAddOnForm({ name: '', description: '', price: '', billingType: 'FLAT', petFriendlyOnly: false })
+        } catch {
+            setAddOnsError('Failed to create add-on.')
+        }
+
+        setAddingAddOn(false)
+    }
+
+    async function handleDeleteAddOn(id) {
+        await deleteExtra(id)
+        setAddOns(prev => prev.filter(a => a.id !== id))
+        originalAddOns.current = originalAddOns.current.filter(a => a.id !== id)
     }
 
     async function handleSaveRates() {
@@ -395,19 +545,37 @@ function SettingsPage() {
         const confirmation = settings?.find(s => s.name === 'sms_confirmation_template')?.value ?? ''
         const checkInLink = settings?.find(s => s.name === 'sms_checkin_link_template')?.value ?? ''
         const checkInComplete = settings?.find(s => s.name === 'sms_checkin_complete_template')?.value ?? ''
+        const emailConfirmSubject = settings?.find(s => s.name === 'email_confirmation_subject')?.value ?? ''
+        const emailConfirmBody = settings?.find(s => s.name === 'email_confirmation_body')?.value ?? ''
+        const emailLinkSubject = settings?.find(s => s.name === 'email_checkin_link_subject')?.value ?? ''
+        const emailLinkBody = settings?.find(s => s.name === 'email_checkin_link_body')?.value ?? ''
+        const emailCompleteSubject = settings?.find(s => s.name === 'email_checkin_complete_subject')?.value ?? ''
+        const emailCompleteBody = settings?.find(s => s.name === 'email_checkin_complete_body')?.value ?? ''
 
         setIncidentalsHoldAmount(incidentals)
         setLodgingTaxRate(taxRate)
         setConfirmationTemplate(confirmation)
         setCheckInLinkTemplate(checkInLink)
         setCheckInCompleteTemplate(checkInComplete)
+        setEmailConfirmationSubject(emailConfirmSubject)
+        setEmailConfirmationBody(emailConfirmBody)
+        setEmailCheckInLinkSubject(emailLinkSubject)
+        setEmailCheckInLinkBody(emailLinkBody)
+        setEmailCheckInCompleteSubject(emailCompleteSubject)
+        setEmailCheckInCompleteBody(emailCompleteBody)
 
         originalSettings.current = {
             incidentalsHoldAmount: incidentals,
             lodgingTaxRate: taxRate,
             confirmationTemplate: confirmation,
             checkInLinkTemplate: checkInLink,
-            checkInCompleteTemplate: checkInComplete
+            checkInCompleteTemplate: checkInComplete,
+            emailConfirmationSubject: emailConfirmSubject,
+            emailConfirmationBody: emailConfirmBody,
+            emailCheckInLinkSubject: emailLinkSubject,
+            emailCheckInLinkBody: emailLinkBody,
+            emailCheckInCompleteSubject: emailCompleteSubject,
+            emailCheckInCompleteBody: emailCompleteBody
         }
     }
 
@@ -416,6 +584,12 @@ function SettingsPage() {
         || confirmationTemplate !== originalSettings.current.confirmationTemplate
         || checkInLinkTemplate !== originalSettings.current.checkInLinkTemplate
         || checkInCompleteTemplate !== originalSettings.current.checkInCompleteTemplate
+        || emailConfirmationSubject !== originalSettings.current.emailConfirmationSubject
+        || emailConfirmationBody !== originalSettings.current.emailConfirmationBody
+        || emailCheckInLinkSubject !== originalSettings.current.emailCheckInLinkSubject
+        || emailCheckInLinkBody !== originalSettings.current.emailCheckInLinkBody
+        || emailCheckInCompleteSubject !== originalSettings.current.emailCheckInCompleteSubject
+        || emailCheckInCompleteBody !== originalSettings.current.emailCheckInCompleteBody
 
     async function handleSave() {
         console.log('isDirty:', isDirty)
@@ -444,6 +618,30 @@ function SettingsPage() {
             updates.push(updatePropertySetting('sms_checkin_complete_template', checkInCompleteTemplate))
         }
 
+        if (emailConfirmationSubject !== originalSettings.current.emailConfirmationSubject) {
+            updates.push(updatePropertySetting('email_confirmation_subject', emailConfirmationSubject))
+        }
+
+        if (emailConfirmationBody !== originalSettings.current.emailConfirmationBody) {
+            updates.push(updatePropertySetting('email_confirmation_body', emailConfirmationBody))
+        }
+
+        if (emailCheckInLinkSubject !== originalSettings.current.emailCheckInLinkSubject) {
+            updates.push(updatePropertySetting('email_checkin_link_subject', emailCheckInLinkSubject))
+        }
+
+        if (emailCheckInLinkBody !== originalSettings.current.emailCheckInLinkBody) {
+            updates.push(updatePropertySetting('email_checkin_link_body', emailCheckInLinkBody))
+        }
+
+        if (emailCheckInCompleteSubject !== originalSettings.current.emailCheckInCompleteSubject) {
+            updates.push(updatePropertySetting('email_checkin_complete_subject', emailCheckInCompleteSubject))
+        }
+
+        if (emailCheckInCompleteBody !== originalSettings.current.emailCheckInCompleteBody) {
+            updates.push(updatePropertySetting('email_checkin_complete_body', emailCheckInCompleteBody))
+        }
+
         const responses = await Promise.all(updates)
 
         responses.forEach(r => {
@@ -468,6 +666,30 @@ function SettingsPage() {
                 case 'sms_checkin_complete_template':
                     setCheckInCompleteTemplate(updated.value)
                     originalSettings.current.checkInCompleteTemplate = updated.value
+                    break
+                case 'email_confirmation_subject':
+                    setEmailConfirmationSubject(updated.value)
+                    originalSettings.current.emailConfirmationSubject = updated.value
+                    break
+                case 'email_confirmation_body':
+                    setEmailConfirmationBody(updated.value)
+                    originalSettings.current.emailConfirmationBody = updated.value
+                    break
+                case 'email_checkin_link_subject':
+                    setEmailCheckInLinkSubject(updated.value)
+                    originalSettings.current.emailCheckInLinkSubject = updated.value
+                    break
+                case 'email_checkin_link_body':
+                    setEmailCheckInLinkBody(updated.value)
+                    originalSettings.current.emailCheckInLinkBody = updated.value
+                    break
+                case 'email_checkin_complete_subject':
+                    setEmailCheckInCompleteSubject(updated.value)
+                    originalSettings.current.emailCheckInCompleteSubject = updated.value
+                    break
+                case 'email_checkin_complete_body':
+                    setEmailCheckInCompleteBody(updated.value)
+                    originalSettings.current.emailCheckInCompleteBody = updated.value
                     break
             }
         })
@@ -546,6 +768,51 @@ function SettingsPage() {
                             </div>
                         </details>
                         <textarea ref={checkInCompleteRef} className="filter-input w-full" rows={3} value={checkInCompleteTemplate} onChange={e => setCheckInCompleteTemplate(e.target.value)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Reservation Confirmation Email</label>
+                        <input className="filter-input w-full mb-2" placeholder="Subject" value={emailConfirmationSubject} onChange={e => setEmailConfirmationSubject(e.target.value)} />
+                        <details>
+                            <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                {CONFIRMATION_VARS.map(v => (
+                                    <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setEmailConfirmationBody, emailConfirmationBodyRef, v)}>
+                                        {`{{${v}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </details>
+                        <textarea ref={emailConfirmationBodyRef} className="filter-input w-full" rows={4} value={emailConfirmationBody} onChange={e => setEmailConfirmationBody(e.target.value)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Remote Check-In Link Email</label>
+                        <input className="filter-input w-full mb-2" placeholder="Subject" value={emailCheckInLinkSubject} onChange={e => setEmailCheckInLinkSubject(e.target.value)} />
+                        <details>
+                            <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                {CHECKIN_LINK_VARS.map(v => (
+                                    <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setEmailCheckInLinkBody, emailCheckInLinkBodyRef, v)}>
+                                        {`{{${v}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </details>
+                        <textarea ref={emailCheckInLinkBodyRef} className="filter-input w-full" rows={4} value={emailCheckInLinkBody} onChange={e => setEmailCheckInLinkBody(e.target.value)} />
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm text-muted mb-1">Check-In Complete Email</label>
+                        <input className="filter-input w-full mb-2" placeholder="Subject" value={emailCheckInCompleteSubject} onChange={e => setEmailCheckInCompleteSubject(e.target.value)} />
+                        <details>
+                            <summary className="text-sm text-muted cursor-pointer mb-1">Insert variable</summary>
+                            <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                {CHECKIN_COMPLETE_VARS.map(v => (
+                                    <button key={v} type="button" className="btn-chip" onClick={() => insertVariable(setEmailCheckInCompleteBody, emailCheckInCompleteBodyRef, v)}>
+                                        {`{{${v}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </details>
+                        <textarea ref={emailCheckInCompleteBodyRef} className="filter-input w-full" rows={4} value={emailCheckInCompleteBody} onChange={e => setEmailCheckInCompleteBody(e.target.value)} />
                     </div>
                     <button className="btn-primary mt-6" onClick={handleSave} disabled={saving || !isDirty}>
                         {saving ? 'Saving...' : 'Save'}
@@ -656,6 +923,36 @@ function SettingsPage() {
                     <button className="btn-primary mt-4" onClick={handleSaveRoomTypes} disabled={!roomTypesDirty || roomTypesSaving}>
                         {roomTypesSaving ? 'Saving...' : 'Save'}
                     </button>
+                </div>
+
+                <div className="feat-card lg:col-span-2">
+                    <h3>Add-ons</h3>
+                    <div className="flex flex-col gap-3 mt-4">
+                        {addOns.map(addOn => (
+                            <AddOnRow key={addOn.id} addOn={addOn} onChange={handleAddOnChange} onDelete={handleDeleteAddOn} />
+                        ))}
+                    </div>
+                    {addOnsError && <p className="text-sm text-error mt-2">{addOnsError}</p>}
+                    <button className="btn-primary mt-4" onClick={handleSaveAddOns} disabled={!addOnsDirty || addOnsSaving}>
+                        {addOnsSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <form onSubmit={handleCreateAddOn} className="grid grid-cols-1 sm:grid-cols-[1.5fr_2fr_1fr_1fr_auto_auto] gap-2 mt-6 pt-6 border-t border-tan items-center">
+                        <input name="name" placeholder="Name" value={newAddOnForm.name} onChange={handleNewAddOnFieldChange} className="filter-input" required />
+                        <input name="description" placeholder="Description (optional)" value={newAddOnForm.description} onChange={handleNewAddOnFieldChange} className="filter-input" />
+                        <input name="price" placeholder="Price" value={newAddOnForm.price} onChange={handleNewAddOnFieldChange} className="filter-input" required />
+                        <select name="billingType" value={newAddOnForm.billingType} onChange={handleNewAddOnFieldChange} className="filter-input">
+                            {Object.entries(BILLING_TYPE_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                        <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
+                            <input type="checkbox" name="petFriendlyOnly" checked={newAddOnForm.petFriendlyOnly} onChange={handleNewAddOnFieldChange} />
+                            Pet rooms only
+                        </label>
+                        <button type="submit" className="btn-primary" disabled={addingAddOn}>
+                            {addingAddOn ? 'Adding...' : 'Add'}
+                        </button>
+                    </form>
                 </div>
 
                 <div className="feat-card">
