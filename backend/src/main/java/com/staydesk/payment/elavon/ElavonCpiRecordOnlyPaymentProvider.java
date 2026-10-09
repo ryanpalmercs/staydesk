@@ -24,31 +24,31 @@ public class ElavonCpiRecordOnlyPaymentProvider implements PaymentProvider {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElavonCpiRecordOnlyPaymentProvider.class);
 
     @Override
-    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail) {
+    public AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
         String recordId = recordId();
         LOGGER.info("Recording card-present hold without charging (Elavon terminal unavailable): {} for {}", recordId, description);
         return new AuthResult(true, recordId, null, null);
     }
 
     @Override
-    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail) {
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId) {
         String recordId = recordId();
         LOGGER.info("Recording card-present sale without charging (Elavon terminal unavailable): {} for {}", recordId, description);
         return new AuthResult(true, recordId, null, null);
     }
 
     @Override
-    public CaptureResult capture(String authId, BigDecimal amount) {
+    public CaptureResult capture(String authId, BigDecimal amount, Integer folioPaymentId) {
         return new CaptureResult(true, authId, null);
     }
 
     @Override
-    public VoidResult void_(String authId) {
+    public VoidResult void_(String authId, Integer folioPaymentId) {
         return new VoidResult(true, authId, null);
     }
 
     @Override
-    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4) {
+    public RefundResult refund(String transactionId, BigDecimal amount, String cardLast4, Integer folioPaymentId) {
         return new RefundResult(true, transactionId, null);
     }
 
@@ -58,7 +58,8 @@ public class ElavonCpiRecordOnlyPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description, String customerEmail) {
+    public AuthResult chargeStoredCredential(BigDecimal amount, String providerCustomerId, String providerToken, String description,
+                                             String customerEmail, Integer folioPaymentId) {
         String recordId = recordId();
         LOGGER.info("Recording stored-credential charge without charging (Elavon terminal unavailable): {} for {}", recordId, description);
         return new AuthResult(true, recordId, null, null);

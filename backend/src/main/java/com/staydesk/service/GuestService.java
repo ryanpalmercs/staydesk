@@ -48,4 +48,11 @@ public class GuestService {
         guestRepository.clearLegalHold(id);
         return guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
     }
+
+    @Transactional
+    public Guest setNotes(int id, String notes) {
+        guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
+        guestRepository.setNotes(id, notes);
+        return guestRepository.findById(id).orElseThrow(GuestNotFoundException::new);
+    }
 }

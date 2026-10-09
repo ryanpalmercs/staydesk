@@ -1,7 +1,9 @@
 package com.staydesk.repository;
 
+import com.staydesk.model.TerminalTransaction;
 import com.staydesk.model.reporting.GuestCountRow;
 import com.staydesk.model.reporting.RoomReportRow;
+import com.staydesk.model.reporting.TerminalTransactionReportRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -117,5 +119,33 @@ public class ReportRepository {
                         rs.getBigDecimal("revenue")
                 ),
                 endDate, startDate, endDate, startDate);
+    }
+
+    /**
+     * Placeholder terminal-transactions metrics (issue #206) - counts and dollar volume per
+     * operation/status in the date range, joined back through folio_payment_id -> folio_payments
+     * -> folios -> reservations the same way this report already joins folio_items to
+     * reservations. Total count and completed-volume stats are derived from this in
+     * {@code ReportService} rather than queried separately.
+     */
+    public List<TerminalTransactionReportRow> getTerminalTransactionBreakdown(LocalDate startDate, LocalDate endDate) {
+        String sql = """
+                SELECT tt.operation, tt.status, COUNT(*) AS transaction_count, COALESCE(SUM(tt.amount), 0) AS total_amount
+                FROM terminal_transactions tt
+                WHERE tt.created_at::date >= ? AND tt.created_at::date < ?
+                GROUP BY tt.operation, tt.status
+                ORDER BY tt.operation, tt.status
+                """;
+
+        LOGGER.debug("SQL: {}", sql);
+
+        return jdbcTemplate.query(sql,
+                (rs, rowNum) -> new TerminalTransactionReportRow(
+                        TerminalTransaction.Operation.valueOf(rs.getString("operation")),
+                        TerminalTransaction.Status.valueOf(rs.getString("status")),
+                        rs.getInt("transaction_count"),
+                        rs.getBigDecimal("total_amount")
+                ),
+                startDate, endDate);
     }
 }
