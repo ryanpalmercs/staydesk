@@ -5,6 +5,9 @@ import { getRoomTypes, getRates } from "../api/publicBookingApi"
 import { displayPrice } from "../utils/price"
 
 const ROOM_PHOTOS = [
+    ['room2-1.jpg', 'Newly renovated guest room'],
+    ['room2-2.jpg', 'Renovated guest room, alternate view'],
+    ['bathroom2-1.jpg', 'Renovated bathroom with LED mirror'],
     ['room-1.jpg', 'Guest room with double bed'],
     ['room-2.jpg', 'Guest room with TV and mini-fridge'],
     ['room-3.jpg', 'Guest room, alternate view'],
@@ -85,7 +88,7 @@ export default function WelcomePage() {
             </div>
 
             <div className="relative overflow-hidden">
-                <img src="/images/rooms/room-1.jpg" alt="Guest room at Martin House Motel"
+                <img src="/images/rooms/room2-1.jpg" alt="Newly renovated guest room at Martin House Motel"
                      className="w-full h-64 sm:h-[420px] object-cover" />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(26,26,26,0.75) 10%, rgba(26,26,26,0.1) 70%)' }} />
                 <div className="absolute inset-0 flex flex-col justify-end px-6 pb-8 sm:px-10 sm:pb-10">
