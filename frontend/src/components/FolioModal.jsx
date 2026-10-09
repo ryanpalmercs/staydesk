@@ -4,9 +4,6 @@ import {
     chargeExtra, chargeExtraTerminal
 } from "../api/folioApi"
 import { getExtras } from "../api/extrasApi"
-import { getReservation } from "../api/reservationApi"
-import { getGuest } from "../api/guestApi"
-import { formatGuestName } from "../utils/guestName"
 import Modal from "./Modal"
 import StatusBadge from "./StatusBadge"
 import IncidentChargeRequestModal from "./IncidentChargeRequestModal"
@@ -14,7 +11,6 @@ import TerminalOrRecordOnlyStep from "./TerminalOrRecordOnlyPayment"
 
 function FolioModal({ folioId, reservationId, onClose, onPaid }) {
     const [folio, setFolio] = useState(null)
-    const [guest, setGuest] = useState(null)
     const [items, setItems] = useState([])
     const [extras, setExtras] = useState([])
     const [payments, setPayments] = useState([])
@@ -31,11 +27,7 @@ function FolioModal({ folioId, reservationId, onClose, onPaid }) {
     useEffect(() => {
         loadFolio()
         getExtras().then(res => setExtras(res.data))
-        getReservation(reservationId)
-            .then(res => getGuest(res.data.guestId))
-            .then(res => setGuest(res.data))
-            .catch(() => setGuest(null))
-    }, [folioId, reservationId])
+    }, [folioId])
 
     async function loadFolio() {
         const [folioRes, itemsRes, paymentsRes] = await Promise.all([getFolio(folioId), getFolioItems(folioId), getFolioPayments(folioId)])
@@ -118,17 +110,6 @@ function FolioModal({ folioId, reservationId, onClose, onPaid }) {
     return (
         <Modal onClose={onClose} size="lg">
             <h2 className="text-lg text-black font-semibold mb-4">Folio</h2>
-
-            {guest && (
-                <div className="mb-4">
-                    <p className="text-sm font-medium text-black">{formatGuestName(guest)}</p>
-                    {guest.notes && (
-                        <p className="text-sm text-muted whitespace-pre-wrap mt-1">
-                            <span className="font-medium">Notes:</span> {guest.notes}
-                        </p>
-                    )}
-                </div>
-            )}
 
             <table className="w-full text-sm mb-4">
                 <tbody>

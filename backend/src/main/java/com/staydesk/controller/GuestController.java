@@ -5,7 +5,6 @@ import com.staydesk.model.Guest;
 import com.staydesk.model.Rate;
 import com.staydesk.model.request.CreateGuestRequest;
 import com.staydesk.model.request.FlagGuestRequest;
-import com.staydesk.model.request.GuestNoteRequest;
 import com.staydesk.model.request.UpdateGuestRequest;
 import com.staydesk.repository.GuestRepository;
 import com.staydesk.security.PiiCipher;
@@ -84,7 +83,7 @@ public class GuestController {
         Guest savedGuest = new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(nullToEmpty(request.lastName())),
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), false, null, null, null, false, request.legacyPricing(), request.legacyPricingAmount(),
-                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), "", now, now);
+                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), now, now);
         Guest saved = guestRepository.save(savedGuest);
         URI location = URI.create("/guests/" + saved.id());
         return ResponseEntity.created(location).body(saved);
@@ -112,8 +111,8 @@ public class GuestController {
                 emailHash == null ? null : new EncryptedString(request.email()), emailHash, new EncryptedString(request.phoneNumber()),
                 request.smsConsent(), existing.flagged(), existing.flagReason(), existing.flaggedDate(), existing.flaggedBy(),
                 existing.legalHold(), request.legacyPricing(), request.legacyPricingAmount(),
-                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), existing.notes(),
-                existing.createdAt(), LocalDateTime.now());
+                defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), existing.createdAt(),
+                LocalDateTime.now());
 
         return ResponseEntity.ok(guestRepository.save(updatedGuest));
     }
@@ -170,11 +169,5 @@ public class GuestController {
     public ResponseEntity<Guest> clearLegalHold(@PathVariable Integer id) {
         LOGGER.info("Clearing legal hold on guest {}", id);
         return ResponseEntity.ok(guestService.clearLegalHold(id));
-    }
-
-    @PostMapping("{id}/note")
-    public ResponseEntity<Guest> setNotes(@PathVariable Integer id, @RequestBody GuestNoteRequest request) {
-        LOGGER.info("Setting notes on guest {}", id);
-        return ResponseEntity.ok(guestService.setNotes(id, request.notes()));
     }
 }

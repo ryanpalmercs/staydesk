@@ -1,12 +1,10 @@
 package com.staydesk.service;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import com.staydesk.model.TerminalTransaction;
 import com.staydesk.model.reporting.GuestCountRow;
 import com.staydesk.model.reporting.PeriodComparison;
 import com.staydesk.model.reporting.ReportSummaryResponse;
 import com.staydesk.model.reporting.RoomReportRow;
-import com.staydesk.model.reporting.TerminalTransactionReportRow;
 import com.staydesk.repository.ReportRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -71,16 +69,8 @@ public class ReportService {
 
         PeriodComparison periodComparison = buildComparison(comparisonStartDate, comparisonEndDate, totalRooms);
 
-        List<TerminalTransactionReportRow> terminalTransactionBreakdown = reportRepository.getTerminalTransactionBreakdown(startDate, endDate);
-        int terminalTransactionCount = terminalTransactionBreakdown.stream().mapToInt(TerminalTransactionReportRow::transactionCount).sum();
-        BigDecimal terminalTransactionVolume = terminalTransactionBreakdown.stream()
-                                                                           .filter(r -> r.status() == TerminalTransaction.Status.COMPLETED)
-                                                                           .map(TerminalTransactionReportRow::totalAmount)
-                                                                           .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         return new ReportSummaryResponse(startDate, endDate, totalRevenue, totalTax, occupancyRate, occupiedNights,
-                totalRoomNights, averageNightlyRate, guestCountBreakdown, periodComparison, roomBreakDown,
-                terminalTransactionCount, terminalTransactionVolume, terminalTransactionBreakdown);
+                totalRoomNights, averageNightlyRate, guestCountBreakdown, periodComparison, roomBreakDown);
     }
 
     private PeriodComparison buildComparison(LocalDate startDate, LocalDate endDate, int totalRooms) {
