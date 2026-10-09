@@ -68,6 +68,11 @@ sifely:
   token-encryption-key: ${SIFELY_TOKEN_ENCRYPTION_KEY}
   webhook-secret: ${SIFELY_WEBHOOK_SECRET}
 
+sendgrid:
+  api-key: ${SENDGRID_API_KEY:}
+  from-email: ${SENDGRID_FROM_EMAIL:martinhousemotel@gmail.com}
+  from-name: ${SENDGRID_FROM_NAME:Martin House Motel}
+
 guest:
   pii-encryption-key: ${GUEST_PII_ENCRYPTION_KEY}
   pii-hash-key: ${GUEST_PII_HASH_KEY}

@@ -3,6 +3,7 @@ package com.staydesk.service;
 import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.exception.NoReusableCredentialException;
+import com.staydesk.exception.PaymentDeclinedException;
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioPayment;
@@ -162,7 +163,7 @@ public class PaymentService {
                                            .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id(), customerEmail, null);
 
         if (!result.success()) {
-            throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
+            throw new PaymentDeclinedException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
         }
 
         FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), reservationId, kind, providerName, result.transactionId(),
@@ -335,7 +336,7 @@ public class PaymentService {
                                            .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail, null);
 
         if (!result.success()) {
-            throw new RuntimeException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
+            throw new PaymentDeclinedException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
         }
 
         FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.ROOM, providerName, result.transactionId(),

@@ -78,6 +78,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
 
+    @ExceptionHandler(PaymentDeclinedException.class)
+    public ResponseEntity<String> handlePaymentDeclinedException(PaymentDeclinedException ex) {
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(ex.getMessage());
+    }
+
     @ExceptionHandler(StayAlreadySettledException.class)
     public ResponseEntity<String> handleStayAlreadySettledException(StayAlreadySettledException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
