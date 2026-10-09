@@ -632,9 +632,13 @@ public class ReservationService {
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
-            guestRepository.findById(checkedIn.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(checkedIn.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+                }
+
+                emailService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+            });
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
@@ -700,9 +704,13 @@ public class ReservationService {
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
-            guestRepository.findById(checkedIn.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(checkedIn.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+                }
+
+                emailService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+            });
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
@@ -1006,9 +1014,13 @@ public class ReservationService {
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(moved, newRoom);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && moved.guestId() != null) {
-            guestRepository.findById(moved.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(moved.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode());
+                }
+
+                emailService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode());
+            });
         }
 
         return moved;

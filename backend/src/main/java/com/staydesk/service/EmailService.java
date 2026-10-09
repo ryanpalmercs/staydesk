@@ -121,6 +121,21 @@ public class EmailService {
         sendEmail(guest.email().value(), subject, interpolate(template, variables));
     }
 
+    public void sendFrontDeskRemoteCheckInNotice(Guest guest, Reservation reservation, int roomNumber) {
+        String frontDeskEmail = propertySettingsService.getProperty("front_desk_notification_email").value();
+        String subject = propertySettingsService.getProperty("email_front_desk_remote_checkin_subject").value();
+        String template = propertySettingsService.getProperty("email_front_desk_remote_checkin_body").value();
+
+        Map<String, String> variables = Map.of(
+                "guestFirstName", guest.firstName().value(),
+                "guestLastName", guest.lastName().value(),
+                "roomNumber", String.valueOf(roomNumber),
+                "confirmationNumber", reservation.confirmationCode() != null ? reservation.confirmationCode() : "NO CONFIRMATION NUMBER"
+        );
+
+        sendEmail(frontDeskEmail, interpolate(subject, variables), interpolate(template, variables));
+    }
+
     private record SendGridRequest(List<Personalization> personalizations, EmailAddress from, String subject,
                                    List<Content> content) {
     }

@@ -88,6 +88,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
     }
 
+    @ExceptionHandler(RemoteCheckInTokenInvalidException.class)
+    public ResponseEntity<String> handleRemoteCheckInTokenInvalidException(RemoteCheckInTokenInvalidException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
     @ExceptionHandler(StayAlreadySettledException.class)
     public ResponseEntity<String> handleStayAlreadySettledException(StayAlreadySettledException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());

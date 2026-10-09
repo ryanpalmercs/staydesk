@@ -77,6 +77,11 @@ guest:
   pii-encryption-key: ${GUEST_PII_ENCRYPTION_KEY}
   pii-hash-key: ${GUEST_PII_HASH_KEY}
 
+# TEMPORARY: off by default until Sifely locks are installed in every room -- remote check-in
+# completion issues a door code, which can't work on a lockless room.
+remote-checkin:
+  enabled: ${REMOTE_CHECKIN_ENABLED:false}
+
 # Authorize.net
 authorizenet:
   api-login-id: ${AUTHORIZE_NET_API_LOGIN_ID}
