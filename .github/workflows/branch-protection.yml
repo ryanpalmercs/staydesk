@@ -2,7 +2,7 @@ name: Branch protection
 
 on:
   pull_request:
-    branches: [develop, beta, master, 'v*']
+    branches: [develop, beta, master, 'v*', '[0-9]*']
 
 jobs:
   check-source-branch:
@@ -17,18 +17,18 @@ jobs:
 
           echo "PR: $SOURCE → $TARGET"
 
-          if [[ "$TARGET" == "develop" && "$SOURCE" != "beta" && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
-            echo "Error: PRs targeting 'develop' must come from 'beta' (sync-back) or a 'feature/*'/'bugfix/*' branch (got '$SOURCE')"
+          if [[ "$TARGET" == "develop" && "$SOURCE" != "beta" && ! "$SOURCE" =~ ^(feature|bugfix)/ && ! "$SOURCE" =~ ^(v[0-9]|[0-9]) ]]; then
+            echo "Error: PRs targeting 'develop' must come from 'beta' (sync-back), a release lane, or a 'feature/*'/'bugfix/*' branch (got '$SOURCE')"
             exit 1
           fi
 
-          if [[ "$TARGET" =~ ^v[0-9] && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
-            echo "Error: PRs targeting '$TARGET' must come from a 'feature/*' or 'bugfix/*' branch (got '$SOURCE')"
+          if [[ "$TARGET" =~ ^(v[0-9]|[0-9]) && "$SOURCE" != "develop" && ! "$SOURCE" =~ ^(feature|bugfix)/ ]]; then
+            echo "Error: PRs targeting '$TARGET' must come from 'develop' (sync-forward) or a 'feature/*'/'bugfix/*' branch (got '$SOURCE')"
             exit 1
           fi
 
-          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ && ! "$SOURCE" =~ ^v[0-9] ]]; then
-            echo "Error: PRs targeting 'beta' must come from 'develop', 'master' (sync-back), a 'bugfix/*' hotfix branch, or a version lane ('v*') (got '$SOURCE')"
+          if [[ "$TARGET" == "beta" && "$SOURCE" != "develop" && "$SOURCE" != "master" && ! "$SOURCE" =~ ^bugfix/ ]]; then
+            echo "Error: PRs targeting 'beta' must come from 'develop' or 'master' (sync-back), or a 'bugfix/*' hotfix branch (got '$SOURCE')"
             exit 1
           fi
 
@@ -38,3 +38,43 @@ jobs:
           fi
 
           echo "Source branch '$SOURCE' is allowed to merge into '$TARGET'"
+
+  check-release-notes:
+    name: Enforce release-notes entry
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Check for a release-notes entry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ github.base_ref }}"
+          SOURCE="${{ github.head_ref }}"
+          REQUIRES_NOTES=false
+
+          if [[ "$TARGET" == "develop" && "$SOURCE" =~ ^(v[0-9]|[0-9]) ]]; then
+            REQUIRES_NOTES=true
+            REASON="a release lane merging into develop"
+          fi
+
+          if [[ "$TARGET" == "beta" && "$SOURCE" =~ ^bugfix/ ]]; then
+            REQUIRES_NOTES=true
+            REASON="a hotfix merging directly into beta"
+          fi
+
+          if [[ "$REQUIRES_NOTES" != "true" ]]; then
+            echo "Release-notes entry not required for '$SOURCE' → '$TARGET'"
+            exit 0
+          fi
+
+          CHANGED_FILES=$(gh pr view "${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" \
+            --json files --jq '.files[].path')
+
+          if echo "$CHANGED_FILES" | grep -qx "frontend/src/data/releaseNotes.js"; then
+            echo "Release-notes entry found for $REASON ('$SOURCE' → '$TARGET')"
+          else
+            echo "Error: '$SOURCE' → '$TARGET' is $REASON and must include a new entry in frontend/src/data/releaseNotes.js"
+            exit 1
+          fi
