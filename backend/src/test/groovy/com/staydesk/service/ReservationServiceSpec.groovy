@@ -1481,7 +1481,7 @@ class ReservationServiceSpec extends Specification {
         def rooms = [new CreateMultiRoomReservationRequest.RoomLine(2, 2)]
         def checkInDate = LocalDate.of(2026, 8, 1)
         def checkOutDate = LocalDate.of(2026, 8, 4)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1512,8 +1512,8 @@ class ReservationServiceSpec extends Specification {
         def rooms = [new CreateMultiRoomReservationRequest.RoomLine(2, 1), new CreateMultiRoomReservationRequest.RoomLine(3, 1)]
         def checkInDate = LocalDate.of(2026, 8, 1)
         def checkOutDate = LocalDate.of(2026, 8, 2)
-        def queen = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
-        def double_ = new RoomType(3, "DOUBLE", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def queen = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
+        def double_ = new RoomType(3, "DOUBLE", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
 
@@ -1545,12 +1545,12 @@ class ReservationServiceSpec extends Specification {
         def rooms = [new CreateMultiRoomReservationRequest.RoomLine(2, 1)]
         def checkInDate = LocalDate.of(2026, 8, 1)
         def checkOutDate = LocalDate.of(2026, 8, 2)
-        def roomType = new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now())
+        def roomType = new RoomType(2, "QUEEN", 5, 0, false, LocalDateTime.now(), LocalDateTime.now())
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
         def savedFolio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
         // smsConsent is true here specifically to prove the skip is driven by the WALK_IN channel filter, not by consent
         def guest = new Guest(7, new EncryptedString("James"), new EncryptedString("Reece"), new EncryptedString("james@example.com"),
-                "hash", new EncryptedString("5551234567"), true, false, null, null, null, false,
+                "hash", new EncryptedString("5551234567"), "hash", true, false, null, null, null, false,
                 false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL, "", LocalDateTime.now(), LocalDateTime.now())
 
         roomTypeRepository.findById(2) >> Optional.of(roomType)
@@ -1588,9 +1588,9 @@ class ReservationServiceSpec extends Specification {
         given:
         def now = LocalDateTime.now()
         def res1 = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
-                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456")
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456", null)
         def res2 = new Reservation(2, 9, 7, 4, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
-                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123457")
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123457", null)
         def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(160), null, now, now)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), now, now)
 
@@ -1614,9 +1614,9 @@ class ReservationServiceSpec extends Specification {
         given:
         def now = LocalDateTime.now()
         def res1 = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
-                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456")
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456", null)
         def res2 = new Reservation(2, 9, 7, 4, 2, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 13),
-                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123457")
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123457", null)
         def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(160), null, now, now)
         def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), now, now)
         def device = new PosDevice(6, "dev-token-1", "Front Desk", null, now, now, now)
