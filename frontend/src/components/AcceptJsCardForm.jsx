@@ -190,7 +190,7 @@ function dispatchAcceptJs(secureData) {
     })
 }
 
-function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual = false, amount = null, label = 'Amount' }) {
+function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual = false, amount = null, label = 'Amount', disabled = false, children = null }) {
     const [ready, setReady] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState(null)
@@ -355,13 +355,15 @@ function AcceptJsCardForm({ onCapture, onCancel, submitLabel = 'Confirm', dual =
 
             {error && <p className="text-sm text-error">{error}</p>}
 
+            {children}
+
             <div className="flex justify-end gap-3 mt-2">
                 {onCancel && (
                     <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={submitting}>
                         Back
                     </button>
                 )}
-                <button type="submit" className="btn btn-primary" disabled={!ready || submitting}>
+                <button type="submit" className="btn btn-primary" disabled={!ready || submitting || disabled}>
                     {submitting ? 'Processing...' : submitLabel}
                 </button>
             </div>

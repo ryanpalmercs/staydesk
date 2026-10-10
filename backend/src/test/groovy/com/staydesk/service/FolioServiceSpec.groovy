@@ -34,16 +34,16 @@ class FolioServiceSpec extends Specification {
     private static Reservation reservationFor(LocalDate checkIn, LocalDate checkOut) {
         new Reservation(10, 1, 1, 1, 1, checkIn, checkOut, Reservation.ReservationStatus.CHECKED_IN, null, null,
                 com.staydesk.model.Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false,
-                LocalDateTime.now(), LocalDateTime.now(), null)
+                LocalDateTime.now(), LocalDateTime.now(), null, null)
     }
 
     private static Extra flatExtra() {
-        new Extra(1, "Late Checkout", BigDecimal.valueOf(20), true, Extra.BillingType.FLAT,
+        new Extra(1, "Late Checkout", null, BigDecimal.valueOf(20), true, Extra.BillingType.FLAT, false,
                 LocalDateTime.now(), LocalDateTime.now())
     }
 
     private static Extra perNightExtra() {
-        new Extra(2, "Pet Fee", BigDecimal.valueOf(25), true, Extra.BillingType.PER_NIGHT,
+        new Extra(2, "Pet Fee", null, BigDecimal.valueOf(25), true, Extra.BillingType.PER_NIGHT, false,
                 LocalDateTime.now(), LocalDateTime.now())
     }
 
@@ -129,7 +129,7 @@ class FolioServiceSpec extends Specification {
     def "addExtra throws ExtraNotFoundException for an inactive extra"() {
         given:
         folioRepository.findById(1) >> Optional.of(openFolio())
-        def inactive = new Extra(1, "Retired Extra", BigDecimal.TEN, false, Extra.BillingType.FLAT,
+        def inactive = new Extra(1, "Retired Extra", null, BigDecimal.TEN, false, Extra.BillingType.FLAT, false,
                 LocalDateTime.now(), LocalDateTime.now())
         extraRepository.findById(1) >> Optional.of(inactive)
 

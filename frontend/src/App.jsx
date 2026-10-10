@@ -22,7 +22,10 @@ import GuestProfilePage from './pages/GuestProfilePage'
 import GuestsPage from './pages/GuestsPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicy'
 import SmsTermsPage from './pages/SmsTermsPage'
+import TermsOfServicePage from './pages/TermsOfServicePage'
 import WelcomePage from './pages/WelcomePage'
+import BookingPage from './pages/BookingPage'
+import RemoteCheckInPage from './pages/RemoteCheckInPage'
 import PendingIncidentChargesPage from './pages/PendingIncidentChargesPage'
 import BacklogCheckInPage from './pages/BacklogCheckInPage'
 import CalendarPage from './pages/CalendarPage'
@@ -86,7 +89,10 @@ export default function App() {
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                                 <Route path="/sms-terms" element={<SmsTermsPage />} />
+                                <Route path="/terms" element={<TermsOfServicePage />} />
                                 <Route path="/welcome" element={<WelcomePage />} />
+                                <Route path="/book" element={<BookingPage />} />
+                                <Route path="/remote-check-in/:token" element={<RemoteCheckInPage />} />
                                 {isMarketingHost ? (
                                     <Route path="/" element={<WelcomePage />} />
                                 ) : (

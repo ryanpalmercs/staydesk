@@ -78,6 +78,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
 
+    @ExceptionHandler(PaymentDeclinedException.class)
+    public ResponseEntity<String> handlePaymentDeclinedException(PaymentDeclinedException ex) {
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(BookingBlockedException.class)
+    public ResponseEntity<String> handleBookingBlockedException(BookingBlockedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(RemoteCheckInTokenInvalidException.class)
+    public ResponseEntity<String> handleRemoteCheckInTokenInvalidException(RemoteCheckInTokenInvalidException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
     @ExceptionHandler(StayAlreadySettledException.class)
     public ResponseEntity<String> handleStayAlreadySettledException(StayAlreadySettledException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());

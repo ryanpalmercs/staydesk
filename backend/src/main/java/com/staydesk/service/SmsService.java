@@ -71,9 +71,14 @@ public class SmsService {
     }
 
     public void sendCheckInLink(Guest guest, Reservation reservation, String link) {
-        // NO OP
-        LOGGER.info("Check-in link SMS stub - reservation {}, link {}", reservation.id(), link);
-        throw new UnsupportedOperationException("Check-in link SMS stub -- not fully implemented");
+        String template = propertySettingsService.getProperty("sms_checkin_link_template").value();
+
+        Map<String, String> variables = Map.of(
+                "guestFirstName", guest.firstName().value(),
+                "link", link
+        );
+
+        sendSms(guest.phoneNumber().value(), interpolate(template, variables));
     }
 
     public void sendCheckInComplete(Guest guest, int roomNumber, String doorCode) {

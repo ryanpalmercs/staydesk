@@ -37,6 +37,7 @@ public class SecurityConfig {
                    .authorizeHttpRequests(auth -> auth
                            .requestMatchers("/auth/employee/login", "/error", "/stripe/connect/return", "/stripe/connect/refresh", "/quickbooks/connect/callback").permitAll()
                            .requestMatchers("/webhooks/sifely/**").permitAll()
+                           .requestMatchers("/public/**").permitAll()
                            .requestMatchers("/bridge/terminal").permitAll()
                            .requestMatchers("/actuator/health").permitAll()
                            .requestMatchers(HttpMethod.POST, "/guests/*/flag").hasAnyRole("ADMIN", "MANAGER")
@@ -48,6 +49,10 @@ public class SecurityConfig {
                            .requestMatchers(HttpMethod.DELETE, "/reservations/*").hasRole("ADMIN")
                            .requestMatchers(HttpMethod.GET, "/lock-passcodes/reservation/**").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers("/lock-passcodes/**").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
+                           .requestMatchers(HttpMethod.GET, "/extras/all").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.POST, "/extras").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.PUT, "/extras/*").hasAnyRole("ADMIN", "MANAGER")
+                           .requestMatchers(HttpMethod.DELETE, "/extras/*").hasAnyRole("ADMIN", "MANAGER")
                            .requestMatchers(HttpMethod.GET, "/pos-devices").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers(HttpMethod.GET, "/pos-devices/config").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers(HttpMethod.POST, "/pos-devices/*/health-check").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
