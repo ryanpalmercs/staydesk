@@ -12,7 +12,7 @@ export const releaseNotes = [
     {
         id: 7,
         title: "What's New",
-        version: 'v1.6.2',
+        version: 'v1.7.1',
         date: '2026-10-12',
         notes: [
             "Fixed a bug where a room couldn't be selected for a new reservation starting on the day its current guest is checking out, even though it's free from that day on."
