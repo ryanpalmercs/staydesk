@@ -3,6 +3,7 @@ import Modal from "./Modal"
 import DateNavHeader, { todayStr } from "./DateNavHeader"
 import { formatGuestName } from "../utils/guestName"
 import { useHasOverflow } from "../hooks/useHasOverflow"
+import { isExtendBlocked, EXTEND_BLOCKED_MESSAGE } from "../utils/reservationAvailability"
 
 function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, onCheckOut, onExtend }) {
     const [viewDate, setViewDate] = useState(todayStr)
@@ -26,6 +27,8 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
 
     const dayReservations = reservations.filter(r => r.checkOutDate === viewDate && r.status === 'CHECKED_IN')
     const listHasScrollbar = useHasOverflow(listRef, [dayReservations.length])
+    const selectedReservation = reservations.find(r => r.id === selectedId)
+    const extendBlocked = isExtendBlocked(selectedReservation, reservations)
 
     return (
         <Modal onClose={onClose} size="lg">
@@ -57,13 +60,18 @@ function CheckingOutTodayModal({ reservations, guestsMap, roomLabel, onClose, on
                 </ul>
             )}
 
+            {extendBlocked && (
+                <p className="text-sm text-error mt-2">{EXTEND_BLOCKED_MESSAGE}</p>
+            )}
+
             <div className="flex justify-end gap-3 mt-4">
                 <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>
                 <button
                     type="button"
                     onClick={() => onExtend(selectedId)}
                     className="btn btn-secondary"
-                    disabled={selectedId == null || submitting}
+                    disabled={selectedId == null || submitting || extendBlocked}
+                    title={extendBlocked ? EXTEND_BLOCKED_MESSAGE : undefined}
                 >
                     Extend Stay
                 </button>

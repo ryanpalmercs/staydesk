@@ -17,6 +17,7 @@ import ExtendStayModal from "../components/ExtendStayModal"
 import AssignRoomModal from "../components/AssignRoomModal"
 import MoveRoomModal from "../components/MoveRoomModal"
 import { StickyNote } from "lucide-react"
+import { isExtendBlocked, EXTEND_BLOCKED_MESSAGE } from "../utils/reservationAvailability"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -322,7 +323,14 @@ function ReservationsPage() {
                                         <button onClick={() => handleCheckOut(res.id)} className="text-sm font-medium text-green hover:text-black">Check Out</button>
                                     )}
                                     {res.status === 'CHECKED_IN' && (
-                                        <button onClick={() => setExtendTarget(res)} className="text-sm font-medium text-muted hover:text-green">Extend Stay</button>
+                                        <button
+                                            onClick={() => setExtendTarget(res)}
+                                            className="text-sm font-medium text-muted hover:text-green disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-muted"
+                                            disabled={isExtendBlocked(res, reservations)}
+                                            title={isExtendBlocked(res, reservations) ? EXTEND_BLOCKED_MESSAGE : undefined}
+                                        >
+                                            Extend Stay
+                                        </button>
                                     )}
                                     {res.status === 'CHECKED_IN' && (
                                         <button onClick={() => setMoveRoomTarget(res)} className="text-sm font-medium text-muted hover:text-green">Move Room</button>

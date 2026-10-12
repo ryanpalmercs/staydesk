@@ -1,12 +1,13 @@
 import StatusBadge from './StatusBadge'
 import Modal from './Modal'
 import { formatGuestName } from '../utils/guestName'
+import { EXTEND_BLOCKED_MESSAGE } from '../utils/reservationAvailability'
 
 function formatDate(str) {
     return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio, onExtend, onAssignRoom, onMoveRoom }) {
+function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onCheckOut, onCheckIn, onViewFolio, onExtend, onAssignRoom, onMoveRoom, canExtend = true }) {
     return (
         <Modal onClose={onClose} size="lg-xl">
             <div className="flex items-start justify-between mb-4">
@@ -42,12 +43,23 @@ function ReservationSummaryModal({ reservation, guest, roomLabel, onClose, onChe
                 {reservation.status === 'CHECKED_IN' && (
                     <>
                         <button onClick={onViewFolio} className="btn btn-secondary">View Folio</button>
-                        <button onClick={onExtend} className="btn btn-secondary">Extend Stay</button>
+                        <button
+                            onClick={onExtend}
+                            className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!canExtend}
+                            title={canExtend ? undefined : EXTEND_BLOCKED_MESSAGE}
+                        >
+                            Extend Stay
+                        </button>
                         <button onClick={onMoveRoom} className="btn btn-secondary">Move Room</button>
                         <button onClick={onCheckOut} className="btn btn-primary">Check Out</button>
                     </>
                 )}
             </div>
+
+            {reservation.status === 'CHECKED_IN' && !canExtend && (
+                <p className="text-sm text-error text-center mt-3">{EXTEND_BLOCKED_MESSAGE}</p>
+            )}
         </Modal>
     )
 }
