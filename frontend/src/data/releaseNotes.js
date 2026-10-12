@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 7,
+        title: "What's New",
+        version: 'v1.6.2',
+        date: '2026-10-12',
+        notes: [
+            "Fixed a bug where a room couldn't be selected for a new reservation starting on the day its current guest is checking out, even though it's free from that day on."
+        ]
+    },
+    {
         id: 6,
         title: "What's New",
         version: 'v1.7.0',
@@ -20,8 +29,7 @@ export const releaseNotes = [
             'Fixed an error where checking out a walk-in reservation could show a "Payment capture failed" message even though nothing was actually wrong.',
             "Guests can now have a note. Add or edit one from a guest's profile, and it'll show up when booking or extending their reservation, and on their folio.",
             'Fixed a same-day walk-in reservation sometimes not opening check-in automatically right after it was created.',
-            'Fixed a bug where booking a long stay (a couple of weeks or more) could incorrectly show no rooms of a type available, even when rooms were actually free the whole time.',
-            "Fixed a bug where a room couldn't be selected for a new reservation starting on the day its current guest is checking out, even though it's free from that day on."
+            'Fixed a bug where booking a long stay (a couple of weeks or more) could incorrectly show no rooms of a type available, even when rooms were actually free the whole time.'
         ]
     },
     {
