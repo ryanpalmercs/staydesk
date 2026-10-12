@@ -5,6 +5,7 @@ import Hotjar from '@hotjar/browser'
 import ProtectedRoute from './components/ProtectedRoute'
 import IdleTimeoutGuard from './components/IdleTimeoutGuard'
 import Layout from './components/Layout'
+import ReleaseBanner from './components/ReleaseBanner'
 import LoginPage from './pages/LoginPage'
 import RoomsPage from './pages/RoomsPage'
 import ReservationsPage from './pages/ReservationsPage'
@@ -73,6 +74,7 @@ export default function App() {
                     <TriangleAlert size={24} /> TEST SYSTEM — NOT THE LIVE PROPERTY SYSTEM <TriangleAlert size={24} />
                 </div>
             )}
+            <ReleaseBanner />
             {wakingUp && (
                 <div className="waking-up-banner">
                     Server waking up, please wait...
