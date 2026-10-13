@@ -64,6 +64,7 @@ public class SecurityConfig {
                            .requestMatchers(HttpMethod.GET, "/admin/settings/property/incidentals_hold_amount").hasAnyRole("ADMIN", "MANAGER", "FRONT_DESK")
                            .requestMatchers("/admin/**", "/reports/**")
                            .hasRole("ADMIN")
+                           .requestMatchers("/housekeeping/**").hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
                            .anyRequest().authenticated())
                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
                    .build();

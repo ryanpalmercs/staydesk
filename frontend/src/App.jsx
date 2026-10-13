@@ -104,7 +104,7 @@ export default function App() {
                                                 <Route path="/guests" element={<GuestsPage />} />
                                             </Route>
                                         </Route>
-                                        <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING']} />}>
+                                        <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING', 'ADMIN', 'MANAGER']} />}>
                                             <Route element={<Layout />}>
                                                 <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
                                             </Route>
