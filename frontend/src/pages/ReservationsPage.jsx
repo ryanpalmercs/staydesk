@@ -18,6 +18,9 @@ import AssignRoomModal from "../components/AssignRoomModal"
 import MoveRoomModal from "../components/MoveRoomModal"
 import { StickyNote } from "lucide-react"
 import { isExtendBlocked, EXTEND_BLOCKED_MESSAGE } from "../utils/reservationAvailability"
+import { getActivityVersion } from "../api/activityApi"
+import StaleDataBanner from "../components/StaleDataBanner"
+import useStaleness from "../hooks/useStaleness"
 
 function ReservationsPage() {
     const { role } = useAuth()
@@ -27,6 +30,8 @@ function ReservationsPage() {
     const [rooms, setRooms] = useState([])
     const [roomTypes, setRoomTypes] = useState([])
     const [guests, setGuests] = useState([])
+    const [asOf, setAsOf] = useState(null)
+    const freshness = useStaleness(asOf)
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedReservation, setSelectedReservation] = useState(null)
@@ -66,9 +71,10 @@ function ReservationsPage() {
 
     async function fetchReservations() {
         setLoading(true)
-        const [res, unsettledRes] = await Promise.all([getReservations(), getUnsettledReservations()])
+        const [res, unsettledRes, versionRes] = await Promise.all([getReservations(), getUnsettledReservations(), getActivityVersion()])
         setReservations(res.data)
         setUnsettledIds(new Set(unsettledRes.data.map(r => r.id)))
+        setAsOf(versionRes.data.asOf)
         setLoading(false)
     }
 
@@ -211,6 +217,8 @@ function ReservationsPage() {
                 <h1 className="section-title">Reservations</h1>
                 <button onClick={openCreate} className="btn btn-primary">New Reservation</button>
             </div>
+
+            <StaleDataBanner stale={freshness.stale} onRefresh={fetchReservations} onDismiss={freshness.dismiss} />
 
             <div className="filter-bar mb-6">
                 <div>
