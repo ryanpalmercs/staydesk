@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { getRooms, deleteRoom } from '../api/roomApi'
 import { getRoomTypes } from '../api/roomTypeApi'
+import { getActivityVersion } from '../api/activityApi'
 import RoomModal from '../components/RoomModal'
 import RoomAccessLogModal from '../components/RoomAccessLogModal'
 import StatusBadge from "../components/StatusBadge";
+import StaleDataBanner from '../components/StaleDataBanner'
+import useStaleness from '../hooks/useStaleness'
 import { useAuth } from "../contexts/AuthContext"
 import { StickyNote } from "lucide-react";
 
@@ -11,6 +14,8 @@ function RoomsPage() {
     const { role } = useAuth()
     const [rooms, setRooms] = useState([])
     const [roomTypes, setRoomTypes] = useState([])
+    const [asOf, setAsOf] = useState(null)
+    const freshness = useStaleness(asOf)
     const [loading, setLoading] = useState(true)
     const [modalOpen, setModalOpen] = useState(false)
     const [selectedRoom, setSelectedRoom] = useState(null)
@@ -28,8 +33,9 @@ function RoomsPage() {
 
     async function fetchRooms() {
         setLoading(true)
-        const response = await getRooms()
+        const [response, versionRes] = await Promise.all([getRooms(), getActivityVersion()])
         setRooms(response.data)
+        setAsOf(versionRes.data.asOf)
         setLoading(false)
     }
 
@@ -59,6 +65,8 @@ function RoomsPage() {
                 <h1 className="section-title">Rooms</h1>
                 <button onClick={openCreate} className="btn btn-primary">Add Room</button>
             </div>
+
+            <StaleDataBanner stale={freshness.stale} onRefresh={fetchRooms} onDismiss={freshness.dismiss} />
 
             {loading ? (
                 <p className="text-gray-500">Loading...</p>
