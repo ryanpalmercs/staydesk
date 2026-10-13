@@ -65,6 +65,9 @@ public class SecurityConfig {
                            .requestMatchers("/admin/**", "/reports/**")
                            .hasRole("ADMIN")
                            .requestMatchers("/housekeeping/**").hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
+                           .requestMatchers(HttpMethod.GET, "/inventory/items").hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
+                           .requestMatchers(HttpMethod.POST, "/inventory/items/*/usage").hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
+                           .requestMatchers("/inventory/**").hasAnyRole("ADMIN", "MANAGER")
                            .anyRequest().authenticated())
                    .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
                    .build();

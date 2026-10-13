@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2, Wrench, User, ClipboardList, Calendar, Sparkles } from 'lucide-react'
+import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2, Wrench, User, ClipboardList, Calendar, Sparkles, Package } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import DoorAccessToast from './DoorAccessToast'
+import LowStockToast from './LowStockToast'
 import './Layout.css'
 
 export default function Layout() {
@@ -17,12 +18,14 @@ export default function Layout() {
     const showReservations = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
     const showIncidentCharges = ['ADMIN', 'MANAGER'].includes(role)
     const showHousekeeping = ['ADMIN', 'MANAGER'].includes(role)
+    const showInventory = ['ADMIN', 'MANAGER', 'HOUSEKEEPING'].includes(role)
     const showTimesheet = !adminOnly
 
     return (
         <div className="layout">
 
             {showReservations && <DoorAccessToast />}
+            {['ADMIN', 'MANAGER'].includes(role) && <LowStockToast />}
 
             {/* Mobile top bar — hidden on desktop */}
             <div className="mobile-topbar">
@@ -72,6 +75,12 @@ export default function Layout() {
                         <NavLink to="/housekeeping" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <Sparkles size={18} />
                             <span>Housekeeping</span>
+                        </NavLink>
+                    )}
+                    {showInventory && (
+                        <NavLink to="/inventory" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                            <Package size={18} />
+                            <span>Inventory</span>
                         </NavLink>
                     )}
                     {showReservations && (
