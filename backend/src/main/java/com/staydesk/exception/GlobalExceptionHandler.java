@@ -142,4 +142,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleInvalidHousekeepingAssignmentException(InvalidHousekeepingAssignmentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
+
+    @ExceptionHandler(InventoryItemNotFoundException.class)
+    public ResponseEntity<String> handleInventoryItemNotFoundException(InventoryItemNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
 }

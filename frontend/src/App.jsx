@@ -12,6 +12,7 @@ import ReservationsPage from './pages/ReservationsPage'
 import PayrollPage from './pages/PayrollPage'
 import DashboardPage from './pages/DashboardPage'
 import HousekeepingDashboardPage from './pages/HousekeepingDashboardPage'
+import InventoryPage from './pages/InventoryPage'
 import SettingsPage from './pages/SettingsPage'
 import EmployeesPage from './pages/EmployeesPage'
 import { useEffect, useState } from 'react'
@@ -107,6 +108,7 @@ export default function App() {
                                         <Route element={<ProtectedRoute allowedRoles={['HOUSEKEEPING', 'ADMIN', 'MANAGER']} />}>
                                             <Route element={<Layout />}>
                                                 <Route path="/housekeeping" element={<HousekeepingDashboardPage />} />
+                                                <Route path="/inventory" element={<InventoryPage />} />
                                             </Route>
                                         </Route>
                                         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
