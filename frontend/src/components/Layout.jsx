@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2, Wrench, User, ClipboardList, Calendar } from 'lucide-react'
+import { Clock, BedDouble, CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, Settings, Users, UserSearch, BarChart2, Wrench, User, ClipboardList, Calendar, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import DoorAccessToast from './DoorAccessToast'
 import './Layout.css'
@@ -16,6 +16,7 @@ export default function Layout() {
     const showDashboard = ['ADMIN', 'MANAGER', 'FRONT_DESK', 'HOUSEKEEPING'].includes(role)
     const showReservations = ['ADMIN', 'MANAGER', 'FRONT_DESK'].includes(role)
     const showIncidentCharges = ['ADMIN', 'MANAGER'].includes(role)
+    const showHousekeeping = ['ADMIN', 'MANAGER'].includes(role)
     const showTimesheet = !adminOnly
 
     return (
@@ -65,6 +66,12 @@ export default function Layout() {
                         <NavLink to="/rooms" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
                             <BedDouble size={18} />
                             <span>Rooms</span>
+                        </NavLink>
+                    )}
+                    {showHousekeeping && (
+                        <NavLink to="/housekeeping" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeDrawer}>
+                            <Sparkles size={18} />
+                            <span>Housekeeping</span>
                         </NavLink>
                     )}
                     {showReservations && (
