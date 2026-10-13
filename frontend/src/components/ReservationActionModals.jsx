@@ -4,6 +4,7 @@ import ExtendStayModal from "./ExtendStayModal";
 import FolioModal from "./FolioModal";
 import MoveRoomModal from "./MoveRoomModal";
 import ReservationSummaryModal from "./ReservationSummaryModal";
+import { isExtendBlocked } from "../utils/reservationAvailability";
 
 function ReservationActionModals({
     reservations, guestsMap, roomLabel, fetchData,
@@ -23,6 +24,7 @@ function ReservationActionModals({
                     reservation={selectedEvent}
                     guest={guestsMap[selectedEvent.guestId]}
                     roomLabel={roomLabel(selectedEvent)}
+                    canExtend={!isExtendBlocked(reservations.find(r => r.id === selectedEvent.reservationId), reservations)}
                     onClose={() => setSelectedEvent(null)}
                     onCheckIn={() => setCheckInTarget(selectedEvent.reservationId)}
                     onCheckOut={handleCheckOut}

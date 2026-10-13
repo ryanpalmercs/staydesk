@@ -24,6 +24,14 @@ vi.mock('../api/posDeviceApi', () => ({
     getPosDeviceConfig: vi.fn(),
     checkPosDeviceHealth: vi.fn()
 }))
+// FolioModal looks up the guest (for name + notes) via reservationApi/guestApi, both of which
+// transitively import lib/supabase.js - same reason as posDeviceApi above.
+vi.mock('../api/reservationApi', () => ({
+    getReservation: vi.fn()
+}))
+vi.mock('../api/guestApi', () => ({
+    getGuest: vi.fn()
+}))
 
 import {
     getFolio, getFolioItems, addFolioItem, payFolio, getFolioIncidentCharges, getFolioPayments,
@@ -31,10 +39,13 @@ import {
 } from '../api/folioApi'
 import { getExtras } from '../api/extrasApi'
 import { getPosDevices, getPosDeviceConfig } from '../api/posDeviceApi'
+import { getReservation } from '../api/reservationApi'
+import { getGuest } from '../api/guestApi'
 
 const OPEN_FOLIO = { id: 1, status: 'OPEN', total: 100, paidAt: null }
 const ITEMS = [{ id: 1, description: 'Room charge', amount: 100 }]
 const EXTRAS = [{ id: 5, name: 'Late Checkout', price: 15, billingType: 'ONE_TIME' }]
+const GUEST = { id: 1, firstName: 'Test', lastName: 'Guest', notes: null }
 
 describe('FolioModal - open folio, adding extras', () => {
     beforeEach(() => {
@@ -43,6 +54,8 @@ describe('FolioModal - open folio, adding extras', () => {
         getExtras.mockResolvedValue({ data: EXTRAS })
         getPosDevices.mockResolvedValue({ data: [] })
         getPosDeviceConfig.mockResolvedValue({ data: { recordOnly: false } })
+        getReservation.mockResolvedValue({ data: { guestId: 1 } })
+        getGuest.mockResolvedValue({ data: GUEST })
     })
 
     afterEach(() => {
@@ -117,6 +130,8 @@ describe('FolioModal - closed folio', () => {
         getFolioPayments.mockResolvedValue({ data: [] })
         getExtras.mockResolvedValue({ data: EXTRAS })
         getFolioIncidentCharges.mockResolvedValue({ data: [{ id: 1, reason: 'Broken lamp', amount: 50, status: 'PENDING' }] })
+        getReservation.mockResolvedValue({ data: { guestId: 1 } })
+        getGuest.mockResolvedValue({ data: GUEST })
     })
 
     afterEach(() => {

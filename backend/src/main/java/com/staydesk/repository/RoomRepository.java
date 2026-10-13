@@ -11,12 +11,12 @@ import java.util.Optional;
 
 public interface RoomRepository extends ListCrudRepository<Room, Integer> {
 
-    // A room with a currently CHECKED_IN reservation is excluded outright, regardless of what the
-    // requested dates are - a guest physically still in the room (even on their own checkout day,
-    // before checkOut() has actually run) can't be handed a new guest's key. The date-range
-    // exclusion below additionally covers future date conflicts; in practice every reservation that
-    // has a room_id also passed through CHECKED_IN at some point, so the two overlap, but the
-    // CHECKED_IN check is the one that actually matters here and is kept unconditional on purpose.
+    // A room is excluded when an active reservation on it overlaps the requested dates - same-day
+    // turnover is allowed, so a room becomes available starting the day its current occupant checks
+    // out, even if that checkout hasn't actually been run yet. The one exception is a CHECKED_IN
+    // regular/long-term guest: their actual departure date is unknown (a renewal takes priority over
+    // a new booking that hasn't happened yet), so they block the room indefinitely regardless of the
+    // requested dates - same carve-out as the room-type-level availability math.
     // excludeReservationId lets a reservation that already holds this room (assigned ahead of
     // check-in via assignRoom) see that same room as available to itself - without it, the room's
     // own overlapping reservation row would make it look occupied by itself.
@@ -25,15 +25,11 @@ public interface RoomRepository extends ListCrudRepository<Room, Integer> {
             WHERE ro.room_type_id = :roomTypeId
               AND ro.status != 'MAINTENANCE'
               AND ro.id NOT IN (
-                  SELECT r.room_id FROM reservations r
-                  WHERE r.room_id IS NOT NULL AND r.status = 'CHECKED_IN'
-                    AND (:excludeReservationId::int IS NULL OR r.id != :excludeReservationId::int)
-              )
-              AND ro.id NOT IN (
-                  SELECT r.room_id FROM reservations r
+                  SELECT r.room_id FROM reservations r LEFT JOIN guests g ON g.id = r.guest_id
                   WHERE r.room_id IS NOT NULL
-                    AND r.check_in_date < :checkOut AND r.check_out_date > :checkIn
                     AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT')
+                    AND r.check_in_date < :checkOut
+                    AND (r.check_out_date > :checkIn OR (r.status = 'CHECKED_IN' AND COALESCE(g.regular_guest, false)))
                     AND (:excludeReservationId::int IS NULL OR r.id != :excludeReservationId::int)
               )
             """)
