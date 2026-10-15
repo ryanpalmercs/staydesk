@@ -76,7 +76,7 @@ public class RoomTypeAvailabilityRepository {
                     FROM reservations r
                     LEFT JOIN guests g ON g.id = r.guest_id
                     WHERE r.room_type_id = ?
-                      AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT')
+                      AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
                       AND (?::int IS NULL OR r.id != ?::int)
                 ),
                 bounds AS (
