@@ -127,4 +127,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleDateConflictException(DateConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
+
+    @ExceptionHandler(HousekeepingStatusAlreadySetException.class)
+    public ResponseEntity<String> handleHousekeepingStatusAlreadySetException(HousekeepingStatusAlreadySetException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidHousekeepingTransitionException.class)
+    public ResponseEntity<String> handleInvalidHousekeepingTransitionException(InvalidHousekeepingTransitionException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidHousekeepingAssignmentException.class)
+    public ResponseEntity<String> handleInvalidHousekeepingAssignmentException(InvalidHousekeepingAssignmentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InventoryItemNotFoundException.class)
+    public ResponseEntity<String> handleInventoryItemNotFoundException(InventoryItemNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
 }
