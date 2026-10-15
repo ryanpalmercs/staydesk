@@ -12,6 +12,7 @@ export const releaseNotes = [
     {
         id: 8,
         title: "What's New",
+        version: 'v1.8.0',
         date: '2026-10-15',
         notes: [
             'Added a Housekeeping module — track each room\'s clean/dirty/inspected status, assign rooms to staff, and see turnover times across the property.',
