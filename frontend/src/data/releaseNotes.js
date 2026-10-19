@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 8,
+        title: "What's New",
+        version: 'v1.7.2',
+        date: '2026-10-19',
+        notes: [
+            'The Guests page has a new "Flagged only" checkbox that shows just the flagged guests.'
+        ]
+    },
+    {
         id: 7,
         title: "What's New",
         version: 'v1.7.1',
