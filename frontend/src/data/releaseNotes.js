@@ -10,7 +10,7 @@
 // deploy.
 export const releaseNotes = [
     {
-        id: 8,
+        id: 9,
         title: "What's New",
         version: 'v1.8.0',
         date: '2026-10-15',
@@ -19,6 +19,15 @@ export const releaseNotes = [
             'Added an Inventory module — track stock levels for linens, toiletries, and supplies, set low-stock thresholds, and log restocks and usage.',
             'The dashboard, Rooms, and Reservations pages now show a banner when another staff member\'s changes may not be reflected yet, so you know to refresh.',
             'Fixed a bug where a no-show reservation could still make its room look unavailable, instead of freeing it back up.'
+        ]
+    },
+    {
+        id: 8,
+        title: "What's New",
+        version: 'v1.7.2',
+        date: '2026-10-19',
+        notes: [
+            'The Guests page has a new "Flagged only" checkbox that shows just the flagged guests.'
         ]
     },
     {
