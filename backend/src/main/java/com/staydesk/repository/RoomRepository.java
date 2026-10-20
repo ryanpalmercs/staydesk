@@ -27,7 +27,7 @@ public interface RoomRepository extends ListCrudRepository<Room, Integer> {
               AND ro.id NOT IN (
                   SELECT r.room_id FROM reservations r LEFT JOIN guests g ON g.id = r.guest_id
                   WHERE r.room_id IS NOT NULL
-                    AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT')
+                    AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
                     AND r.check_in_date < :checkOut
                     AND (r.check_out_date > :checkIn OR (r.status = 'CHECKED_IN' AND COALESCE(g.regular_guest, false)))
                     AND (:excludeReservationId::int IS NULL OR r.id != :excludeReservationId::int)

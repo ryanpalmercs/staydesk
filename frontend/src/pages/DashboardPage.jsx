@@ -8,6 +8,8 @@ import OccupancyModal from '../components/OccupancyModal'
 import RoomTypeAvailabilityGrid from '../components/RoomTypeAvailabilityGrid'
 import useReservationData from '../hooks/useReservationData'
 import useReservationActions from '../hooks/useReservationActions'
+import useStaleness from '../hooks/useStaleness'
+import StaleDataBanner from '../components/StaleDataBanner'
 import './DashboardPage.css'
 import ReservationActionModals from '../components/ReservationActionModals'
 
@@ -19,6 +21,7 @@ function DashboardPage() {
 
     const data = useReservationData()
     const actions = useReservationActions({ fetchData: data.fetchData })
+    const freshness = useStaleness(data.asOf)
 
     async function handleCheckOutFromModal(reservationId) {
         try {
@@ -42,6 +45,8 @@ function DashboardPage() {
             ) : (
                 <h1 className="section-title">Dashboard</h1>
             )}
+
+            <StaleDataBanner stale={freshness.stale} onRefresh={data.fetchData} onDismiss={freshness.dismiss} />
 
             <div className="dashboard-stats">
                 <button type="button" onClick={() => setShowOccupancyModal(true)} className="stat-card text-left">

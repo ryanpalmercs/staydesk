@@ -79,6 +79,7 @@ public class ReservationService {
     private final PaymentCredentialService paymentCredentialService;
     private final PiiCipher piiCipher;
     private final ReusablePaymentCredentialRepository reusablePaymentCredentialRepository;
+    private final HousekeepingService housekeepingService;
 
     private static final String BACKLOG_PLACEHOLDER_PHONE = "0000000000";
     private static final int STANDARD_CHECK_IN_HOUR = 15;
@@ -92,7 +93,8 @@ public class ReservationService {
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
                               PosDeviceRepository posDeviceRepository,
                               PaymentCredentialService paymentCredentialService, PiiCipher piiCipher,
-                              ReusablePaymentCredentialRepository reusablePaymentCredentialRepository) {
+                              ReusablePaymentCredentialRepository reusablePaymentCredentialRepository,
+                              HousekeepingService housekeepingService) {
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.roomTypeRepository = roomTypeRepository;
@@ -110,6 +112,7 @@ public class ReservationService {
         this.paymentCredentialService = paymentCredentialService;
         this.piiCipher = piiCipher;
         this.reusablePaymentCredentialRepository = reusablePaymentCredentialRepository;
+        this.housekeepingService = housekeepingService;
     }
 
     private static long getTotalNights(LocalDate checkInDate, LocalDate checkOutDate) {
@@ -916,6 +919,10 @@ public class ReservationService {
         }
 
         reservationRepository.updateReservationStatusToCheckedOut(id);
+
+        if (reservation.roomId() != null) {
+            housekeepingService.markDirty(reservation.roomId());
+        }
 
         lockPasscodeService.revokePasscodes(id);
 
