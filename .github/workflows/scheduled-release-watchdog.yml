@@ -1,0 +1,39 @@
+name: Scheduled Release Watchdog
+
+# Scheduled Release's own `schedule` trigger is best-effort per GitHub's docs - it can be delayed
+# or, as happened 2026-10-13, dropped entirely with no run and no notification. This runs a few
+# hours after that workflow's expected window (05:00/06:00 UTC, depending on DST) so a merely
+# delayed run still has time to land, then checks whether any run of it happened today at all -
+# schedule-triggered or a manual workflow_dispatch fallback, either counts as resolved. If neither
+# happened, it opens an alert issue.
+on:
+  schedule:
+    - cron: "0 11 * * 2"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check whether Scheduled Release ran today
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          COUNT=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow=scheduled-release.yml \
+            --json createdAt \
+            -q "[.[] | select(.createdAt | startswith(\"$TODAY\"))] | length")
+
+          if [ "$COUNT" -eq 0 ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Scheduled Release didn't fire today ($TODAY)" \
+              --label "infra" \
+              --assignee "ryanpalmercs" \
+              --body "No run of Scheduled Release (scheduled or manual) showed up today. This can happen if GitHub drops or heavily delays a cron trigger (most common at the top of the hour). Check whether today needed a release/reminder action and, if so, trigger it manually:
+
+          \`gh workflow run \"Scheduled Release\" -f override=auto -f dry_run=false\`"
+          else
+            echo "Found $COUNT run(s) of Scheduled Release today - all good."
+          fi
