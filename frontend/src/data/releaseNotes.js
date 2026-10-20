@@ -10,6 +10,18 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 9,
+        title: "What's New",
+        version: 'v1.8.0',
+        date: '2026-10-15',
+        notes: [
+            'Added a Housekeeping module — track each room\'s clean/dirty/inspected status, assign rooms to staff, and see turnover times across the property.',
+            'Added an Inventory module — track stock levels for linens, toiletries, and supplies, set low-stock thresholds, and log restocks and usage.',
+            'The dashboard, Rooms, and Reservations pages now show a banner when another staff member\'s changes may not be reflected yet, so you know to refresh.',
+            'Fixed a bug where a no-show reservation could still make its room look unavailable, instead of freeing it back up.'
+        ]
+    },
+    {
         id: 8,
         title: "What's New",
         version: 'v1.7.2',
