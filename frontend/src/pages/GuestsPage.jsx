@@ -15,6 +15,7 @@ function GuestsPage() {
     const [guests, setGuests] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [flaggedOnly, setFlaggedOnly] = useState(false)
     const [addModalOpen, setAddModalOpen] = useState(false)
 
     useEffect(() => {
@@ -32,6 +33,7 @@ function GuestsPage() {
     const digitQuery = query.replace(/\D/g, '')
 
     const filtered = guests
+        .filter(g => !flaggedOnly || g.flagged)
         .filter(g => {
             if (!query) return true
             if (g.name.toLowerCase().includes(query)) return true
@@ -59,6 +61,14 @@ function GuestsPage() {
                         className="filter-input"
                     />
                 </div>
+                <label className="flex items-center gap-2 text-sm self-end">
+                    <input
+                        type="checkbox"
+                        checked={flaggedOnly}
+                        onChange={e => setFlaggedOnly(e.target.checked)}
+                    />
+                    Flagged only
+                </label>
             </div>
 
             {loading ? (
