@@ -30,6 +30,15 @@ gusto:
   client-id: ${GUSTO_CLIENT_ID}
   client-secret: ${GUSTO_CLIENT_SECRET}
 
+# QuickBooks
+quickbooks:
+  token-url: ${QUICKBOOKS_TOKEN_URL:https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer}
+  authorize-url: ${QUICKBOOKS_AUTHORIZE_URL:https://appcenter.intuit.com/connect/oauth2}
+  api-base-url: ${QUICKBOOKS_API_BASE_URL:https://quickbooks.api.intuit.com}
+  client-id: ${QUICKBOOKS_CLIENT_ID:}
+  client-secret: ${QUICKBOOKS_CLIENT_SECRET:}
+  redirect-uri: ${QUICKBOOKS_REDIRECT_URI:${app.base-url}/quickbooks/connect/callback}
+
 supabase:
   url: https://dmishzzcabozbbbjzlsb.supabase.co
   service:
@@ -59,9 +68,19 @@ sifely:
   token-encryption-key: ${SIFELY_TOKEN_ENCRYPTION_KEY}
   webhook-secret: ${SIFELY_WEBHOOK_SECRET}
 
+sendgrid:
+  api-key: ${SENDGRID_API_KEY:}
+  from-email: ${SENDGRID_FROM_EMAIL:martinhousemotel@gmail.com}
+  from-name: ${SENDGRID_FROM_NAME:Martin House Motel}
+
 guest:
   pii-encryption-key: ${GUEST_PII_ENCRYPTION_KEY}
   pii-hash-key: ${GUEST_PII_HASH_KEY}
+
+# TEMPORARY: off by default until Sifely locks are installed in every room -- remote check-in
+# completion issues a door code, which can't work on a lockless room.
+remote-checkin:
+  enabled: ${REMOTE_CHECKIN_ENABLED:false}
 
 # Authorize.net
 authorizenet:

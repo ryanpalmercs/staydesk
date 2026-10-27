@@ -26,6 +26,7 @@ import com.staydesk.model.Reservation;
 import com.staydesk.model.Room;
 import com.staydesk.model.ReusablePaymentCredential;
 import com.staydesk.model.RoomType;
+import com.staydesk.model.dto.BillingAddress;
 import com.staydesk.model.dto.CheckInEstimateResponse;
 import com.staydesk.model.dto.CheckInResult;
 import com.staydesk.model.dto.ExtendStayResult;
@@ -73,6 +74,7 @@ public class ReservationService {
     private final FolioService folioService;
     private final GuestRepository guestRepository;
     private final SmsService smsService;
+    private final EmailService emailService;
     private final LockPasscodeService lockPasscodeService;
     private final ProviderFactory providerFactory;
     private final PosDeviceRepository posDeviceRepository;
@@ -89,7 +91,7 @@ public class ReservationService {
                               FolioRepository folioRepository,
                               RateRepository rateRepository, RateOverrideRepository rateOverrideRepository,
                               PaymentService paymentService, FolioService folioService,
-                              GuestRepository guestRepository, SmsService smsService,
+                              GuestRepository guestRepository, SmsService smsService, EmailService emailService,
                               LockPasscodeService lockPasscodeService, ProviderFactory providerFactory,
                               PosDeviceRepository posDeviceRepository,
                               PaymentCredentialService paymentCredentialService, PiiCipher piiCipher,
@@ -106,6 +108,7 @@ public class ReservationService {
         this.folioService = folioService;
         this.guestRepository = guestRepository;
         this.smsService = smsService;
+        this.emailService = emailService;
         this.lockPasscodeService = lockPasscodeService;
         this.providerFactory = providerFactory;
         this.posDeviceRepository = posDeviceRepository;
@@ -292,6 +295,11 @@ public class ReservationService {
 
     @Transactional
     public Reservation createReservation(Reservation reservation, String roomPaymentMethodId, List<FolioService.ExtraSelection> extras) {
+        return createReservation(reservation, roomPaymentMethodId, extras, null);
+    }
+
+    public Reservation createReservation(Reservation reservation, String roomPaymentMethodId, List<FolioService.ExtraSelection> extras,
+                                         BillingAddress billingAddress) {
         LocalDateTime now = LocalDateTime.now();
 
         Folio folio = folioRepository.save(new Folio(0, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now));
@@ -306,15 +314,22 @@ public class ReservationService {
             updatedFolio = folioService.addExtra(updatedFolio.id(), selection.extraId(), selection.quantity());
         }
 
-        if (savedReservation.channel().equals(Reservation.Channel.PHONE) && chargeRoomNow) {
+        boolean chargeableChannel = savedReservation.channel().equals(Reservation.Channel.PHONE)
+                || savedReservation.channel().equals(Reservation.Channel.ONLINE);
+
+        if (chargeableChannel && chargeRoomNow) {
             paymentService.chargeFullStay(updatedFolio, updatedFolio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
-                    resolveGuestEmail(savedReservation.guestId()));
+                    resolveGuestEmail(savedReservation.guestId()), billingAddress);
         }
 
         if (savedReservation.guestId() != null && savedReservation.channel() != Reservation.Channel.WALK_IN) {
-            guestRepository.findById(savedReservation.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendConfirmation(guest, savedReservation));
+            guestRepository.findById(savedReservation.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendConfirmation(guest, savedReservation);
+                }
+
+                emailService.sendConfirmation(guest, savedReservation);
+            });
         }
 
         return savedReservation;
@@ -340,7 +355,7 @@ public class ReservationService {
         for (CreateMultiRoomReservationRequest.RoomLine roomLine : rooms) {
             for (int i = 0; i < roomLine.quantity(); i++) {
                 Reservation draft = new Reservation(0, 0, guestId, null, roomLine.roomTypeId(), checkInDate, checkOutDate,
-                        Reservation.ReservationStatus.CONFIRMED, null, null, rateType, guestCount, channel, false, now, now, null);
+                        Reservation.ReservationStatus.CONFIRMED, null, null, rateType, guestCount, channel, false, now, now, null, null);
 
                 ReservationDraftResult result = createReservationOnFolio(folio, draft, true);
                 folio = result.folio();
@@ -388,7 +403,7 @@ public class ReservationService {
         Reservation savedReservation = reservationRepository.save(new Reservation(0, folio.id(), reservation.guestId(), null, roomType.id(),
                 reservation.checkInDate(), reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(), now, now,
-                confirmationCode));
+                confirmationCode, reservation.specialRequests()));
 
         long periodsToPost = postFullStay ? nights : 1;
 
@@ -517,7 +532,7 @@ public class ReservationService {
         Reservation updated = new Reservation(id, existing.folioId(), reservation.guestId(), existing.roomId(), reservation.roomTypeId(), reservation.checkInDate(),
                 reservation.checkOutDate(), reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
                 reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now(),
-                existing.confirmationCode());
+                existing.confirmationCode(), reservation.specialRequests());
 
         return reservationRepository.save(updated);
     }
@@ -619,9 +634,13 @@ public class ReservationService {
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
-            guestRepository.findById(checkedIn.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(checkedIn.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+                }
+
+                emailService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+            });
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
@@ -687,9 +706,13 @@ public class ReservationService {
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(checkedIn, room);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && checkedIn.guestId() != null) {
-            guestRepository.findById(checkedIn.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(checkedIn.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+                }
+
+                emailService.sendCheckInComplete(guest, room.roomNumber(), passcodeResult.passcode());
+            });
         }
 
         return new CheckInResult(checkedIn, passcodeResult.outcome());
@@ -830,7 +853,7 @@ public class ReservationService {
         Reservation savedReservation = reservationRepository.save(new Reservation(0, savedFolio.id(), guest.id(), room.id(), room.roomTypeId(),
                 request.checkInDate(), request.checkOutDate(), Reservation.ReservationStatus.CHECKED_IN,
                 request.checkInDate().atTime(STANDARD_CHECK_IN_HOUR, 0), null, rateType, guestCount,
-                Reservation.Channel.WALK_IN, false, now, now, confirmationCode));
+                Reservation.Channel.WALK_IN, false, now, now, confirmationCode, null));
 
         return savedReservation;
     }
@@ -899,7 +922,7 @@ public class ReservationService {
             LocalDateTime createdAt = LocalDateTime.now();
 
             return guestRepository.save(new Guest(0, new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
-                    new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), false,
+                    new EncryptedString(email), emailHash, new EncryptedString(phoneNumber), piiCipher.hash(phoneNumber), false,
                     false, null, null, null, false, false, null, Rate.RateType.NIGHTLY, false, Guest.GuestType.INDIVIDUAL,
                     "", createdAt, createdAt));
         });
@@ -997,9 +1020,13 @@ public class ReservationService {
         LockPasscodeService.PasscodeResult passcodeResult = lockPasscodeService.issuePasscode(moved, newRoom);
 
         if (passcodeResult.outcome() == LockPasscodeService.PasscodeResult.Outcome.ISSUED && moved.guestId() != null) {
-            guestRepository.findById(moved.guestId())
-                           .filter(Guest::smsConsent)
-                           .ifPresent(guest -> smsService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode()));
+            guestRepository.findById(moved.guestId()).ifPresent(guest -> {
+                if (guest.smsConsent()) {
+                    smsService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode());
+                }
+
+                emailService.sendCheckInComplete(guest, newRoom.roomNumber(), passcodeResult.passcode());
+            });
         }
 
         return moved;
@@ -1120,7 +1147,7 @@ public class ReservationService {
         Reservation extended = new Reservation(reservation.id(), reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), newCheckOutDate, reservation.status(), reservation.checkedInAt(), reservation.checkedOutAt(),
                 ctx.newTier(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), ctx.now(), reservation.confirmationCode());
+                reservation.createdAt(), ctx.now(), reservation.confirmationCode(), reservation.specialRequests());
 
         return reservationRepository.save(extended);
     }
@@ -1192,7 +1219,7 @@ public class ReservationService {
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.CANCELLED, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode()));
+                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode(), reservation.specialRequests()));
     }
 
     @Transactional
@@ -1200,7 +1227,7 @@ public class ReservationService {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
         if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)
-            || !reservation.channel().equals(Reservation.Channel.PHONE)) {
+            || (!reservation.channel().equals(Reservation.Channel.PHONE) && !reservation.channel().equals(Reservation.Channel.ONLINE))) {
             throw new InvalidReservationException();
         }
 
@@ -1219,7 +1246,7 @@ public class ReservationService {
         return reservationRepository.save(new Reservation(id, reservation.folioId(), reservation.guestId(), reservation.roomId(), reservation.roomTypeId(),
                 reservation.checkInDate(), reservation.checkOutDate(), Reservation.ReservationStatus.NO_SHOW, reservation.checkedInAt(),
                 reservation.checkedOutAt(), reservation.rateType(), reservation.guestCount(), reservation.channel(), reservation.legalHold(),
-                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode()));
+                reservation.createdAt(), LocalDateTime.now(), reservation.confirmationCode(), reservation.specialRequests()));
     }
 
     @Transactional

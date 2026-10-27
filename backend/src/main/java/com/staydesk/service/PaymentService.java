@@ -3,12 +3,14 @@ package com.staydesk.service;
 import com.staydesk.exception.CardPresentRecordOnlyDisabledException;
 import com.staydesk.exception.FolioPaymentNotFoundException;
 import com.staydesk.exception.NoReusableCredentialException;
+import com.staydesk.exception.PaymentDeclinedException;
 import com.staydesk.exception.PosDeviceNotFoundException;
 import com.staydesk.model.Folio;
 import com.staydesk.model.FolioPayment;
 import com.staydesk.model.FolioPayment.PaymentKind;
 import com.staydesk.model.FolioPayment.PaymentStatus;
 import com.staydesk.model.ReusablePaymentCredential;
+import com.staydesk.model.dto.BillingAddress;
 import com.staydesk.payment.AuthResult;
 import com.staydesk.payment.CaptureResult;
 import com.staydesk.payment.PaymentProvider;
@@ -162,7 +164,7 @@ public class PaymentService {
                                            .authorize(amount, paymentMethodId, kind + " hold for folio " + folio.id(), customerEmail, null);
 
         if (!result.success()) {
-            throw new RuntimeException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
+            throw new PaymentDeclinedException("Failed to create " + kind + " hold for folio " + folio.id() + ": " + result.message());
         }
 
         FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), reservationId, kind, providerName, result.transactionId(),
@@ -329,13 +331,19 @@ public class PaymentService {
     }
 
     public void chargeFullStay(Folio folio, BigDecimal amount, String providerName, String paymentMethodId, String customerEmail) {
+        chargeFullStay(folio, amount, providerName, paymentMethodId, customerEmail, null);
+    }
+
+    public void chargeFullStay(Folio folio, BigDecimal amount, String providerName, String paymentMethodId, String customerEmail,
+                               BillingAddress billingAddress) {
         LocalDateTime now = LocalDateTime.now();
 
         AuthResult result = providerFactory.getProvider(providerName)
-                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail, null);
+                                           .sale(amount, paymentMethodId, "Full stay charge for folio " + folio.id(), customerEmail, null,
+                                                   billingAddress);
 
         if (!result.success()) {
-            throw new RuntimeException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
+            throw new PaymentDeclinedException("Failed to charge full stay for folio " + folio.id() + ": " + result.message());
         }
 
         FolioPayment saved = folioPaymentRepository.save(new FolioPayment(0, folio.id(), null, PaymentKind.ROOM, providerName, result.transactionId(),
