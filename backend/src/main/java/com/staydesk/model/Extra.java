@@ -9,7 +9,8 @@ import java.time.LocalDateTime;
 
 @Table("extras")
 public record Extra(@Id int id, String name, @Nullable String description, BigDecimal price, boolean active,
-                    BillingType billingType, boolean petFriendlyOnly, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                    BillingType billingType, boolean petFriendlyOnly, boolean guestBookable, LocalDateTime createdAt,
+                    LocalDateTime updatedAt) {
 
     public enum BillingType {
         FLAT, PER_NIGHT

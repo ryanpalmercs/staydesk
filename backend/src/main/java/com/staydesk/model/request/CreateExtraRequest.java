@@ -10,5 +10,5 @@ import java.math.BigDecimal;
 
 public record CreateExtraRequest(@NotBlank String name, @Nullable String description,
                                  @NotNull @Positive BigDecimal price, @NotNull Extra.BillingType billingType,
-                                 boolean petFriendlyOnly) {
+                                 boolean petFriendlyOnly, boolean guestBookable) {
 }
