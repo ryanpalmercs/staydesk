@@ -34,18 +34,23 @@ import CalendarPage from './pages/CalendarPage'
 
 const HOTJAR_ID = import.meta.env.VITE_HOTJAR_ID
 const HOTJAR_VERSION = 6
-const MARKETING_HOSTNAMES = ['www.martinhousemotel.com', 'martinhousemotel.com']
+// Hosts whose root path shows the customer-facing WelcomePage rather than the staff dashboard.
+const MARKETING_HOSTNAMES = ['www.martinhousemotel.com', 'martinhousemotel.com', 'beta.martinhousemotel.com']
+// Only the real production marketing hosts, not beta.martinhousemotel.com -- beta is on
+// MARKETING_HOSTNAMES purely for routing and still needs the TEST SYSTEM banner below.
+const REAL_MARKETING_HOSTNAMES = ['www.martinhousemotel.com', 'martinhousemotel.com']
 const PRODUCTION_HOSTNAME = 'admin.martinhousemotel.com'
 
 
 export default function App() {
     const [wakingUp, setWakingUp] = useState(false)
     const isMarketingHost = MARKETING_HOSTNAMES.includes(window.location.hostname)
+    const isRealMarketingHost = REAL_MARKETING_HOSTNAMES.includes(window.location.hostname)
     // Whitelist production by exact hostname rather than blacklist beta/dev, so this defaults to
     // showing the warning (safer) on anything unexpected - a new preview URL, a renamed branch host.
     // The public marketing site is also real production, just not the admin tool - excluded too.
     const isTestSystem = import.meta.env.DEV
-        || (!isMarketingHost && window.location.hostname !== PRODUCTION_HOSTNAME)
+        || (!isRealMarketingHost && window.location.hostname !== PRODUCTION_HOSTNAME)
 
     useEffect(() => {
         if (HOTJAR_ID) {
