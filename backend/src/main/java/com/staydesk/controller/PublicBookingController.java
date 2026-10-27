@@ -1,5 +1,6 @@
 package com.staydesk.controller;
 
+import com.staydesk.exception.AddOnNotGuestBookableException;
 import com.staydesk.exception.BookingBlockedException;
 import com.staydesk.exception.PetFriendlyRequiredException;
 import com.staydesk.exception.RoomTypeNotFoundException;
@@ -106,6 +107,7 @@ public class PublicBookingController {
 
         return extraRepository.findAll().stream()
                               .filter(Extra::active)
+                              .filter(Extra::guestBookable)
                               .filter(extra -> !extra.petFriendlyOnly() || roomType.petFriendly())
                               .toList();
     }
@@ -168,6 +170,9 @@ public class PublicBookingController {
         List<Extra> extras = extraRepository.findAllById(addOnIds);
 
         for (Extra extra : extras) {
+            if (!extra.active() || !extra.guestBookable()) {
+                throw new AddOnNotGuestBookableException();
+            }
             if (extra.petFriendlyOnly() && !roomType.petFriendly()) {
                 throw new PetFriendlyRequiredException();
             }

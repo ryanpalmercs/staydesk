@@ -50,7 +50,7 @@ public class ExtraController {
 
         LocalDateTime now = LocalDateTime.now();
         return extraRepository.save(new Extra(0, request.name(), request.description(), request.price(),
-                true, request.billingType(), request.petFriendlyOnly(), now, now));
+                true, request.billingType(), request.petFriendlyOnly(), request.guestBookable(), now, now));
     }
 
     @PutMapping("{id}")
@@ -60,7 +60,7 @@ public class ExtraController {
         Extra existing = extraRepository.findById(id).orElseThrow(ExtraNotFoundException::new);
 
         Extra updated = new Extra(id, request.name(), request.description(), request.price(), request.active(),
-                request.billingType(), request.petFriendlyOnly(), existing.createdAt(), LocalDateTime.now());
+                request.billingType(), request.petFriendlyOnly(), request.guestBookable(), existing.createdAt(), LocalDateTime.now());
 
         return extraRepository.save(updated);
     }

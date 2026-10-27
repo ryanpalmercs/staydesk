@@ -41,7 +41,7 @@ function AddOnRow({ addOn, onChange, onDelete }) {
     const [focused, setFocused] = useState(false)
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_2fr_1fr_1fr_auto_auto_auto] items-center gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_2fr_1fr_1fr_auto_auto_auto_auto] items-center gap-2">
             <input
                 value={addOn.name}
                 onChange={e => onChange(addOn.id, { name: e.target.value })}
@@ -74,6 +74,10 @@ function AddOnRow({ addOn, onChange, onDelete }) {
             <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
                 <input type="checkbox" checked={addOn.petFriendlyOnly} onChange={e => onChange(addOn.id, { petFriendlyOnly: e.target.checked })} />
                 Pet rooms only
+            </label>
+            <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
+                <input type="checkbox" checked={addOn.guestBookable} onChange={e => onChange(addOn.id, { guestBookable: e.target.checked })} />
+                Bookable online
             </label>
             <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
                 <input type="checkbox" checked={addOn.active} onChange={e => onChange(addOn.id, { active: e.target.checked })} />
@@ -183,7 +187,7 @@ function SettingsPage() {
     const [addOns, setAddOns] = useState([])
     const [addOnsSaving, setAddOnsSaving] = useState(false)
     const [addOnsError, setAddOnsError] = useState(null)
-    const [newAddOnForm, setNewAddOnForm] = useState({ name: '', description: '', price: '', billingType: 'FLAT', petFriendlyOnly: false })
+    const [newAddOnForm, setNewAddOnForm] = useState({ name: '', description: '', price: '', billingType: 'FLAT', petFriendlyOnly: false, guestBookable: true })
     const [addingAddOn, setAddingAddOn] = useState(false)
     const [ratesSaving, setRatesSaving] = useState(false)
     const [rateOverrides, setRateOverrides] = useState([])
@@ -343,7 +347,8 @@ function SettingsPage() {
         const original = originalAddOns.current.find(o => o.id === addOn.id)
         return !original || addOn.name !== original.name || addOn.description !== original.description
             || addOn.price !== original.price || addOn.billingType !== original.billingType
-            || addOn.petFriendlyOnly !== original.petFriendlyOnly || addOn.active !== original.active
+            || addOn.petFriendlyOnly !== original.petFriendlyOnly || addOn.guestBookable !== original.guestBookable
+            || addOn.active !== original.active
     }
 
     const addOnsDirty = addOns.some(isAddOnDirty)
@@ -357,7 +362,7 @@ function SettingsPage() {
         try {
             const responses = await Promise.all(dirty.map(a => updateExtra(a.id, {
                 name: a.name, description: a.description, price: a.price, billingType: a.billingType,
-                petFriendlyOnly: a.petFriendlyOnly, active: a.active
+                petFriendlyOnly: a.petFriendlyOnly, guestBookable: a.guestBookable, active: a.active
             })))
             const updated = responses.map(r => r.data)
             setAddOns(prev => prev.map(a => updated.find(u => u.id === a.id) ?? a))
@@ -378,11 +383,11 @@ function SettingsPage() {
             const res = await createExtra({
                 name: newAddOnForm.name, description: newAddOnForm.description,
                 price: sanitizePrice(newAddOnForm.price), billingType: newAddOnForm.billingType,
-                petFriendlyOnly: newAddOnForm.petFriendlyOnly
+                petFriendlyOnly: newAddOnForm.petFriendlyOnly, guestBookable: newAddOnForm.guestBookable
             })
             setAddOns(prev => [...prev, res.data])
             originalAddOns.current = [...originalAddOns.current, res.data]
-            setNewAddOnForm({ name: '', description: '', price: '', billingType: 'FLAT', petFriendlyOnly: false })
+            setNewAddOnForm({ name: '', description: '', price: '', billingType: 'FLAT', petFriendlyOnly: false, guestBookable: true })
         } catch {
             setAddOnsError('Failed to create add-on.')
         }
@@ -936,7 +941,7 @@ function SettingsPage() {
                     <button className="btn-primary mt-4" onClick={handleSaveAddOns} disabled={!addOnsDirty || addOnsSaving}>
                         {addOnsSaving ? 'Saving...' : 'Save'}
                     </button>
-                    <form onSubmit={handleCreateAddOn} className="grid grid-cols-1 sm:grid-cols-[1.5fr_2fr_1fr_1fr_auto_auto] gap-2 mt-6 pt-6 border-t border-tan items-center">
+                    <form onSubmit={handleCreateAddOn} className="grid grid-cols-1 sm:grid-cols-[1.5fr_2fr_1fr_1fr_auto_auto_auto] gap-2 mt-6 pt-6 border-t border-tan items-center">
                         <input name="name" placeholder="Name" value={newAddOnForm.name} onChange={handleNewAddOnFieldChange} className="filter-input" required />
                         <input name="description" placeholder="Description (optional)" value={newAddOnForm.description} onChange={handleNewAddOnFieldChange} className="filter-input" />
                         <input name="price" placeholder="Price" value={newAddOnForm.price} onChange={handleNewAddOnFieldChange} className="filter-input" required />
@@ -948,6 +953,10 @@ function SettingsPage() {
                         <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
                             <input type="checkbox" name="petFriendlyOnly" checked={newAddOnForm.petFriendlyOnly} onChange={handleNewAddOnFieldChange} />
                             Pet rooms only
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-black whitespace-nowrap">
+                            <input type="checkbox" name="guestBookable" checked={newAddOnForm.guestBookable} onChange={handleNewAddOnFieldChange} />
+                            Bookable online
                         </label>
                         <button type="submit" className="btn-primary" disabled={addingAddOn}>
                             {addingAddOn ? 'Adding...' : 'Add'}
