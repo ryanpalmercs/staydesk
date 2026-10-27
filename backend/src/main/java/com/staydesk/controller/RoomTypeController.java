@@ -81,7 +81,7 @@ public class RoomTypeController {
                                   .<ResponseEntity<RoomType>>map(other -> ResponseEntity.status(HttpStatus.CONFLICT).build())
                                   .orElseGet(() -> {
                                       RoomType updated = new RoomType(id, request.name(), existing.availableCount(),
-                                              existing.unavailableCount(), existing.createdAt(), LocalDateTime.now());
+                                              existing.unavailableCount(), request.petFriendly(), existing.createdAt(), LocalDateTime.now());
                                       return ResponseEntity.ok(roomTypeRepository.save(updated));
                                   });
     }

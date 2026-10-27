@@ -1,5 +1,7 @@
 package com.staydesk.payment;
 
+import com.staydesk.model.dto.BillingAddress;
+
 import java.math.BigDecimal;
 
 public interface PaymentProvider {
@@ -15,6 +17,16 @@ public interface PaymentProvider {
     AuthResult authorize(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId);
 
     AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId);
+
+    /**
+     * Only Authorize.net acts on {@code billingAddress} (sent as AVS billTo data) -- the default
+     * here lets card-present providers (Elavon CPI), which have no billing-address concept, ignore
+     * it without implementing this overload.
+     */
+    default AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId,
+                            BillingAddress billingAddress) {
+        return sale(amount, token, description, customerEmail, folioPaymentId);
+    }
 
     CaptureResult capture(String authId, BigDecimal amount, Integer folioPaymentId);
 

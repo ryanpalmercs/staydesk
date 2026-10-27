@@ -97,7 +97,7 @@ public class ReservationController {
             Reservation savedReservation = reservationService.createReservation(
                     new Reservation(0, 0, request.guestId(), null, request.roomTypeId(), request.checkInDate(),
                             request.checkOutDate(), Reservation.ReservationStatus.CONFIRMED, null,
-                            null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null),
+                            null, request.rateType(), request.guestCount(), request.channel(), false, LocalDateTime.now(), LocalDateTime.now(), null, null),
                     request.roomPaymentMethodId(), request.extras());
             URI location = URI.create("/reservations/" + savedReservation.id());
             return ResponseEntity.created(location).body(savedReservation);
