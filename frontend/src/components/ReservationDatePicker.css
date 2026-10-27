@@ -1,3 +1,54 @@
+/* Brand palette (matches index.css's --color-* tokens) -- react-date-range ships a blue-toned
+   default theme, so its text/hover colors are overridden here to read like the rest of the site. */
+.rdrCalendarWrapper {
+    color: #1A1A1A;
+    background: #F0E7DE;
+}
+
 .rdrDayToday .rdrDayNumber span:after {
     background: #334428;
+}
+
+/* Hide the centered "September 2026" text between the nav arrows -- each month's own name
+   label (styled below) already shows this, so the shared one is redundant. Leaves the prev/next
+   arrows flanking the full width of the multi-month block, like Google Flights' date picker. */
+.rdrMonthAndYearPickers {
+    display: none;
+}
+
+.rdrNextPrevButton {
+    background: transparent;
+}
+
+.rdrNextPrevButton:hover {
+    background: #F0E0C8;
+}
+
+/* react-date-range's per-month name label, made to read like a real heading instead of its
+   small centered default. */
+.rdrMonthName {
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1A1A1A;
+    padding: 0 0 0.5rem 0;
+}
+
+.rdrWeekDay {
+    color: #8C6B50;
+}
+
+.rdrDayPassive .rdrDayNumber span {
+    color: #D9CFC0;
+}
+
+/* react-date-range's disabled-day background (rgb(248,248,248)) is a cool near-white that reads
+   lighter than our warm cream calendar background, so disabled dates pop instead of receding.
+   A muted tan reads as "unavailable" against cream the way the library's gray does against white. */
+.rdrDayDisabled {
+    background-color: #E4D9C7;
+}
+
+.rdrDayDisabled .rdrDayNumber span {
+    color: #B5A88F;
 }

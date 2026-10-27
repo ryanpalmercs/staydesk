@@ -6,16 +6,29 @@ name: Scheduled Release
 # year: the check below only honors the entry that matches Chicago's current UTC offset, so exactly
 # one run per Tuesday counts. It checks the day, not the hour, so a delayed GitHub scheduler run
 # (common at the top of the hour) still fires instead of being silently skipped.
+#
+# The release job auto-tags master from the newest frontend/src/data/releaseNotes.js entry before
+# deploying (if it isn't already tagged), which is also what makes the release-notes version
+# auto-resolve (see frontend/vite.config.js's resolveAppTag) actually work: the deploy build runs
+# from a commit that's now actually tagged, with that tag already fetched.
+#
+# A second pair of cron entries (19:00 UTC / 20:00 UTC, same CDT/CST split) fires at 2pm Chicago
+# time on the Monday before a scheduled release Tuesday, and checks whether beta has actually
+# been merged into master yet. If not, it opens a reminder issue -- a missed merge otherwise
+# surfaces as a silently skipped release the next morning, with no warning until it's too late to
+# still make that Tuesday.
 on:
   schedule:
     - cron: "0 5 * * 2"
     - cron: "0 6 * * 2"
+    - cron: "0 19 * * 1"
+    - cron: "0 20 * * 1"
   workflow_dispatch:
     inputs:
       override:
         description: "Force an action regardless of today's date (auto = follow the schedule)"
         type: choice
-        options: [auto, release, reminder]
+        options: [auto, release, reminder, promotion_check]
         default: auto
       dry_run:
         description: "Only print what would happen; skip the deploy / issue creation"
@@ -81,22 +94,106 @@ jobs:
     needs: determine-cycle
     if: needs.determine-cycle.outputs.action == 'release'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Dry run
         if: inputs.dry_run == true
         run: echo "Dry run - would trigger the Render deploy and the Vercel production deploy"
 
+      # fetch-tags so resolveAppTag() in vite.config.js (git describe --tags --exact-match) can
+      # actually find the tag that triggered this run, instead of always resolving to null.
       - uses: actions/checkout@v4
         if: inputs.dry_run != true
+        with:
+          ref: master
+          fetch-tags: true
+
+      # The only thing that's ever supposed to land on master is a beta -> master merge (branch
+      # protection enforces this), so master being fully caught up with beta is exactly the
+      # signal that a promotion PR has landed and there's something new to ship. If beta has
+      # commits master doesn't, that promotion hasn't happened yet this cycle -- skip the release
+      # rather than redeploying stale content or shipping an incomplete promotion.
+      - name: Check that beta has been fully promoted into master
+        if: inputs.dry_run != true
+        id: sync_check
+        run: |
+          git fetch origin beta --depth=1
+          if git merge-base --is-ancestor origin/beta HEAD; then
+            echo "beta is fully merged into master; proceeding with release"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "beta has commits not yet merged into master (the promotion PR hasn't landed this cycle) -- skipping this release"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag master from the newest release-notes entry, if not already tagged
+        if: inputs.dry_run != true && steps.sync_check.outputs.ready == 'true'
+        run: |
+          VERSION=$(grep -v '^//' frontend/src/data/releaseNotes.js | grep -m1 "version:" | sed -E "s/.*version: *'([^']+)'.*/\1/")
+
+          if [ -z "$VERSION" ]; then
+            echo "Could not find a version in the newest release-notes entry; skipping auto-tag"
+          elif git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "$VERSION is already tagged; nothing to do"
+          else
+            echo "Tagging $VERSION"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$VERSION" -m "$VERSION"
+            git push origin "$VERSION"
+          fi
 
       - name: Trigger Render deploy
-        if: inputs.dry_run != true
+        if: inputs.dry_run != true && steps.sync_check.outputs.ready == 'true'
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: curl -sS --fail-with-body -X POST "$RENDER_DEPLOY_HOOK_URL"
 
+      # The deploy hook itself doesn't report a deploy id to poll, so look up the service's most
+      # recent deploy right after triggering one -- that's the one we just kicked off. Vercel
+      # deploys only after this backend deploy actually finishes (not just after the hook
+      # accepted the request), so a release never puts a new frontend in front of an old backend.
+      - name: Wait for Render deploy to finish
+        if: inputs.dry_run != true && steps.sync_check.outputs.ready == 'true'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          DEPLOY_ID=$(curl -sS --fail-with-body -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=1" \
+            | jq -r '.[0].deploy.id // .[0].id')
+
+          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
+            echo "Could not look up the Render deploy that was just triggered"
+            exit 1
+          fi
+
+          echo "Waiting on Render deploy $DEPLOY_ID..."
+
+          for i in $(seq 1 60); do
+            DEPLOY=$(curl -sS --fail-with-body -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys/$DEPLOY_ID")
+            STATUS=$(echo "$DEPLOY" | jq -r '.deploy.status // .status')
+            echo "Status: $STATUS"
+
+            case "$STATUS" in
+              live)
+                echo "Render deploy succeeded"
+                exit 0 ;;
+              build_failed|update_failed|canceled|deactivated|pre_deploy_failed)
+                echo "Render deploy failed with status: $STATUS"
+                exit 1 ;;
+            esac
+
+            sleep 15
+          done
+
+          echo "Timed out after 15 minutes waiting for the Render deploy to finish"
+          exit 1
+
       - name: Set up Node 24
-        if: inputs.dry_run != true
+        if: inputs.dry_run != true && steps.sync_check.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -104,7 +201,7 @@ jobs:
       # Run from the repo root, not frontend/: the Vercel project's Root Directory setting is
       # already "frontend", so the CLI resolves that subdirectory itself.
       - name: Deploy frontend to Vercel
-        if: inputs.dry_run != true
+        if: inputs.dry_run != true && steps.sync_check.outputs.ready == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -134,3 +231,68 @@ jobs:
             --label "infra" \
             --assignee "ryanpalmercs" \
             --body "Two-week release cycle: today starts the beta testing week. Merge the current release lane into \`develop\`, then promote \`develop\` into \`beta\` when ready. Production release is scheduled for next Tuesday."
+
+  check-promotion-status:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      # Mirrors determine-cycle's own schedule-matching so this only ever does real work on the
+      # Monday-2pm cron entries (or a manual promotion_check dispatch), and only when tomorrow is
+      # actually a scheduled release Tuesday.
+      - name: Check whether beta still needs to be promoted into master
+        id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+          OVERRIDE: ${{ inputs.override }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$OVERRIDE" != "promotion_check" ]; then
+            echo "Not a promotion-check run; skipping"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            if [ "$(TZ=America/Chicago date +%Z)" = "CDT" ]; then EXPECTED="0 19 * * 1"; else EXPECTED="0 20 * * 1"; fi
+            if [ "$CRON" != "$EXPECTED" ]; then
+              echo "Cron '$CRON' is the off-season entry (expected '$EXPECTED'); skipping"
+              exit 0
+            fi
+          fi
+
+          TOMORROW=$(TZ=America/Chicago date -d "+1 day" +%Y-%m-%d)
+          DAYS_SINCE=$(( ( $(date -d "$TOMORROW" +%s) - $(date -d "$RELEASE_ANCHOR" +%s) ) / 86400 ))
+          MOD=$(( ((DAYS_SINCE % 14) + 14) % 14 ))
+
+          if [ "$MOD" -ne 0 ]; then
+            echo "Tomorrow isn't a scheduled release Tuesday; nothing to check"
+            exit 0
+          fi
+
+          git fetch origin beta --depth=1
+          if git merge-base --is-ancestor origin/beta HEAD; then
+            echo "beta is already merged into master; no reminder needed"
+            exit 0
+          fi
+
+          echo "beta has not been promoted into master, and tomorrow is a release Tuesday"
+          echo "should_remind=true" >> "$GITHUB_OUTPUT"
+
+      - name: Dry run
+        if: inputs.dry_run == true && steps.check.outputs.should_remind == 'true'
+        run: echo "Dry run - would open the promotion reminder issue assigned to ryanpalmercs"
+
+      - name: Open promotion reminder issue
+        if: inputs.dry_run != true && steps.check.outputs.should_remind == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Merge beta into master before tomorrow's release" \
+            --label "infra" \
+            --assignee "ryanpalmercs" \
+            --body "Tomorrow is a scheduled production release, but \`beta\` hasn't been merged into \`master\` yet. Merge the beta -> master PR today, or tomorrow's scheduled release will have nothing new to deploy and will skip itself."

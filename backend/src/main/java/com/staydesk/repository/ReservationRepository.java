@@ -18,8 +18,11 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW') ORDER BY check_in_date")
     List<Reservation> findActiveByRoomId(@Param("roomId") int roomId);
 
-    @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND channel = 'PHONE' AND check_in_date < :date")
+    @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND channel IN ('PHONE', 'ONLINE') AND check_in_date < :date")
     List<Reservation> findNoShowCandidates(@Param("date") LocalDate date);
+
+    @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND channel IN ('PHONE', 'ONLINE') AND check_in_date <= :date")
+    List<Reservation> findDueForRemoteCheckInLink(@Param("date") LocalDate date);
 
     @Modifying
     @Query("UPDATE reservations SET room_id = :roomId WHERE id = :id")

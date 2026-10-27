@@ -1,11 +1,13 @@
 package com.staydesk.payment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.staydesk.model.dto.BillingAddress;
 import net.authorize.api.contract.v1.CreateCustomerProfileFromTransactionRequest;
 import net.authorize.api.contract.v1.CreateCustomerProfileResponse;
 import net.authorize.api.contract.v1.CreateTransactionRequest;
 import net.authorize.api.contract.v1.CreateTransactionResponse;
 import net.authorize.api.contract.v1.CreditCardType;
+import net.authorize.api.contract.v1.CustomerAddressType;
 import net.authorize.api.contract.v1.CustomerDataType;
 import net.authorize.api.contract.v1.CustomerProfileBaseType;
 import net.authorize.api.contract.v1.CustomerProfilePaymentType;
@@ -87,6 +89,52 @@ public class AuthorizeNetPaymentProvider implements PaymentProvider {
         TransactionResponse transactionResponse = response.getTransactionResponse();
 
         return new AuthResult(true, transactionResponse.getTransId(), null, last4From(transactionResponse.getAccountNumber()));
+    }
+
+    @Override
+    public AuthResult sale(BigDecimal amount, String token, String description, String customerEmail, Integer folioPaymentId,
+                           BillingAddress billingAddress) {
+        PaymentType paymentType = new PaymentType();
+        paymentType.setOpaqueData(decodeOpaqueData(token));
+
+        TransactionRequestType transactionRequest = new TransactionRequestType();
+        transactionRequest.setTransactionType(TransactionTypeEnum.AUTH_CAPTURE_TRANSACTION.value());
+        transactionRequest.setAmount(amount);
+        transactionRequest.setPayment(paymentType);
+        setCustomerEmail(transactionRequest, customerEmail);
+
+        if (billingAddress != null) {
+            transactionRequest.setBillTo(toCustomerAddress(billingAddress));
+        }
+
+        OrderType order = new OrderType();
+        order.setDescription(description);
+        transactionRequest.setOrder(order);
+
+        CreateTransactionResponse response = execute(transactionRequest);
+
+        if (!isSuccessful(response)) {
+            return new AuthResult(false, null, errorMessage(response), null);
+        }
+
+        TransactionResponse transactionResponse = response.getTransactionResponse();
+
+        return new AuthResult(true, transactionResponse.getTransId(), null, last4From(transactionResponse.getAccountNumber()));
+    }
+
+    private CustomerAddressType toCustomerAddress(BillingAddress billingAddress) {
+        // Authorize.net's CustomerAddressType has a single address line -- fold street2 (unit/apt)
+        // into it since AVS only checks street number + zip anyway.
+        String street = billingAddress.street2() == null || billingAddress.street2().isBlank()
+                ? billingAddress.street()
+                : billingAddress.street() + ", " + billingAddress.street2();
+
+        CustomerAddressType customerAddress = new CustomerAddressType();
+        customerAddress.setAddress(street);
+        customerAddress.setCity(billingAddress.city());
+        customerAddress.setState(billingAddress.state());
+        customerAddress.setZip(billingAddress.zip());
+        return customerAddress;
     }
 
     @Override
