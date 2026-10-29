@@ -161,8 +161,10 @@ public class ReservationService {
             return tieredAmount;
         }
 
+        Rate.RateType rateType = Rate.RateType.valueOf(rate.rateType());
+
         return rateOverrideRepository.findActiveOverride(rate.rateType(), rate.guestCount(), nightDate)
-                                     .map(RateOverride::amount)
+                                     .map(override -> tieredAmount(override.amount(), rateType, nightIndex))
                                      .orElse(tieredAmount);
     }
 
