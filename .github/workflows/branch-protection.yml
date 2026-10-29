@@ -32,8 +32,8 @@ jobs:
             exit 1
           fi
 
-          if [[ "$TARGET" == "master" && "$SOURCE" != "beta" ]]; then
-            echo "Error: PRs targeting 'master' must come from 'beta' (got '$SOURCE')"
+          if [[ "$TARGET" == "master" && "$SOURCE" != "beta" && ! "$SOURCE" =~ ^bugfix/ ]]; then
+            echo "Error: PRs targeting 'master' must come from 'beta', or a 'bugfix/*' emergency hotfix branch (got '$SOURCE')"
             exit 1
           fi
 
@@ -62,6 +62,11 @@ jobs:
           if [[ "$TARGET" == "beta" && "$SOURCE" =~ ^bugfix/ ]]; then
             REQUIRES_NOTES=true
             REASON="a hotfix merging directly into beta"
+          fi
+
+          if [[ "$TARGET" == "master" && "$SOURCE" =~ ^bugfix/ ]]; then
+            REQUIRES_NOTES=true
+            REASON="an emergency hotfix merging directly into master"
           fi
 
           if [[ "$REQUIRES_NOTES" != "true" ]]; then

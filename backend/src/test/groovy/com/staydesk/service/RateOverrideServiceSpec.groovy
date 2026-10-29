@@ -63,7 +63,23 @@ class RateOverrideServiceSpec extends Specification {
         0 * rateOverrideRepository.save(_)
     }
 
-    def "throws InvalidRateOverrideException for a non-NIGHTLY rate type"() {
+    def "creates a rate override for a WEEKLY_5 or WEEKLY_7 rate type"() {
+        given:
+        def weeklyRequest = request(LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 31), rateType)
+        rateOverrideRepository.findOverlapping(rateType.name(), 2, weeklyRequest.startDate(), weeklyRequest.endDate(), null) >> []
+        rateOverrideRepository.save(_) >> { args -> args[0] }
+
+        when:
+        def result = rateOverrideService.createRateOverride(weeklyRequest)
+
+        then:
+        result.rateType() == rateType.name()
+
+        where:
+        rateType << [Rate.RateType.WEEKLY_5, Rate.RateType.WEEKLY_7]
+    }
+
+    def "an overlap check for a WEEKLY_5 override only looks at existing WEEKLY_5 overrides"() {
         given:
         def weeklyRequest = request(LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 31), Rate.RateType.WEEKLY_5)
 
@@ -71,8 +87,8 @@ class RateOverrideServiceSpec extends Specification {
         rateOverrideService.createRateOverride(weeklyRequest)
 
         then:
-        thrown(InvalidRateOverrideException)
-        0 * rateOverrideRepository.save(_)
+        1 * rateOverrideRepository.findOverlapping("WEEKLY_5", 2, weeklyRequest.startDate(), weeklyRequest.endDate(), null) >> []
+        1 * rateOverrideRepository.save(_) >> { args -> args[0] }
     }
 
     def "throws RateOverrideOverlapException when an existing override covers part of the same range"() {
