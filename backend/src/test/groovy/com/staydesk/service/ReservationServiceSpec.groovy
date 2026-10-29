@@ -1746,7 +1746,10 @@ class ReservationServiceSpec extends Specification {
         result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 
-    def "estimateTotal charges an active WEEKLY_7 rate override in place of the tiered share for the night it covers"() {
+    def "estimateTotal tiers an active WEEKLY_7 rate override's flat total the same way the base rate is tiered"() {
+        // The override's amount is a flat total for the WEEKLY_7 tier, same as rates.amount - it
+        // must be split across nights via tieredAmount(), not charged in full on every night it
+        // covers (that would price a weekly override as if it were a NIGHTLY one).
         given:
         def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), LocalDateTime.now(), LocalDateTime.now())
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
@@ -1755,7 +1758,7 @@ class ReservationServiceSpec extends Specification {
 
         // end_date is exclusive: Aug 1 -> Aug 2 covers exactly the first (Aug 1) night of the tier
         def override = new RateOverride(3, "WEEKLY_7", 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2),
-                BigDecimal.valueOf(100), "Holiday surge", LocalDateTime.now(), LocalDateTime.now())
+                BigDecimal.valueOf(420.00), "Holiday surge", LocalDateTime.now(), LocalDateTime.now())
 
         when:
         // Aug 1 -> Aug 8: exactly 7 nights, the 1st (Aug 1) covered by the override
@@ -1764,9 +1767,9 @@ class ReservationServiceSpec extends Specification {
         then:
         1 * rateOverrideRepository.findActiveOverride("WEEKLY_7", 1, LocalDate.of(2026, 8, 1)) >> Optional.of(override)
         6 * rateOverrideRepository.findActiveOverride("WEEKLY_7", 1, !LocalDate.of(2026, 8, 1)) >> Optional.empty()
-        // 362.70's tiered share of night 0 is 51.81 (362.70 * 1/7 rounded); the override replaces
-        // just that night, so the total is the override amount plus the remaining 310.89 tiered.
-        result.subtotal().compareTo(BigDecimal.valueOf(410.89)) == 0
+        // night 0's tiered share of the 420.00 override is 60.00 (420.00 * 1/7); the remaining
+        // 6 nights keep the base rate's tiered share, 310.89 (362.70 - its own night-0 share of 51.81).
+        result.subtotal().compareTo(BigDecimal.valueOf(370.89)) == 0
     }
 
     def "estimateTotal sums exactly to a WEEKLY_7 rate that doesn't divide evenly, over exactly 7 nights"() {
