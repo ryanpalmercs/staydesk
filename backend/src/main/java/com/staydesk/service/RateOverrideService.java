@@ -3,7 +3,6 @@ package com.staydesk.service;
 import com.staydesk.exception.InvalidRateOverrideException;
 import com.staydesk.exception.RateOverrideNotFoundException;
 import com.staydesk.exception.RateOverrideOverlapException;
-import com.staydesk.model.Rate;
 import com.staydesk.model.RateOverride;
 import com.staydesk.model.request.CreateRateOverrideRequest;
 import com.staydesk.repository.RateOverrideRepository;
@@ -29,10 +28,6 @@ public class RateOverrideService {
     private void validate(CreateRateOverrideRequest request, Integer excludeId) {
         if (!request.endDate().isAfter(request.startDate())) {
             throw new InvalidRateOverrideException();
-        }
-
-        if (request.rateType() != Rate.RateType.NIGHTLY) {
-            throw new InvalidRateOverrideException("Rate overrides are only supported for the NIGHTLY rate type.");
         }
 
         boolean overlaps = !rateOverrideRepository.findOverlapping(request.rateType().name(), request.guestCount(),
