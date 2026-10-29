@@ -1747,6 +1747,29 @@ class ReservationServiceSpec extends Specification {
         result.subtotal().compareTo(BigDecimal.valueOf(160)) == 0
     }
 
+    def "estimateTotal charges an active WEEKLY_7 rate override in place of the tiered share for the night it covers"() {
+        given:
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), LocalDateTime.now(), LocalDateTime.now())
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+
+        // end_date is exclusive: Aug 1 -> Aug 2 covers exactly the first (Aug 1) night of the tier
+        def override = new RateOverride(3, "WEEKLY_7", 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2),
+                BigDecimal.valueOf(100), "Holiday surge", LocalDateTime.now(), LocalDateTime.now())
+
+        when:
+        // Aug 1 -> Aug 8: exactly 7 nights, the 1st (Aug 1) covered by the override
+        def result = reservationService.estimateTotal(Rate.RateType.WEEKLY_7, 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 8), null)
+
+        then:
+        1 * rateOverrideRepository.findActiveOverride("WEEKLY_7", 1, LocalDate.of(2026, 8, 1)) >> Optional.of(override)
+        6 * rateOverrideRepository.findActiveOverride("WEEKLY_7", 1, !LocalDate.of(2026, 8, 1)) >> Optional.empty()
+        // 362.70's tiered share of night 0 is 51.81 (362.70 * 1/7 rounded); the override replaces
+        // just that night, so the total is the override amount plus the remaining 310.89 tiered.
+        result.subtotal().compareTo(BigDecimal.valueOf(410.89)) == 0
+    }
+
     def "estimateTotal sums exactly to a WEEKLY_7 rate that doesn't divide evenly, over exactly 7 nights"() {
         // 362.70 / 7 = 51.8142857... - rounding that per-night amount to 51.81 and multiplying by
         // 7 undershoots the flat rate by 3 cents (362.67). Cumulative rounding must land exactly

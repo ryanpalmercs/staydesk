@@ -164,7 +164,7 @@ public class ReservationService {
             return tieredAmount;
         }
 
-        return rateOverrideRepository.findActiveOverride(Rate.RateType.NIGHTLY.name(), rate.guestCount(), nightDate)
+        return rateOverrideRepository.findActiveOverride(rate.rateType(), rate.guestCount(), nightDate)
                                      .map(RateOverride::amount)
                                      .orElse(tieredAmount);
     }
