@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 10,
+        title: "What's New",
+        version: 'v1.8.1',
+        date: '2026-10-29',
+        notes: [
+            'Fixed a bug where surge pricing (rate overrides) could only be set for nightly rates — weekly (5-night and 7-night) rates can now have overrides too, priced correctly across the stay rather than per night.'
+        ]
+    },
+    {
         id: 9,
         title: "What's New",
         version: 'v1.8.0',

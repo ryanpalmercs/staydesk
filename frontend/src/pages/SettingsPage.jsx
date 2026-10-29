@@ -120,7 +120,7 @@ function RateOverrideRow({ rateOverride, onDelete, canManage }) {
     return (
         <div className="flex items-center gap-3">
             <span className="text-sm text-black flex-1">
-                {rateOverride.label} — {rateOverride.startDate} through {lastSurgedNight(rateOverride.endDate)} (back to normal {rateOverride.endDate}), {rateOverride.guestCount} guest{rateOverride.guestCount === 1 ? '' : 's'}
+                {rateOverride.label} ({RATE_TYPE_LABELS[rateOverride.rateType] ?? rateOverride.rateType}) — {rateOverride.startDate} through {lastSurgedNight(rateOverride.endDate)} (back to normal {rateOverride.endDate}), {rateOverride.guestCount} guest{rateOverride.guestCount === 1 ? '' : 's'}
             </span>
             <span className="text-sm text-black w-24">{displayPrice(rateOverride.amount)}</span>
             {canManage && (
@@ -191,7 +191,7 @@ function SettingsPage() {
     const [addingAddOn, setAddingAddOn] = useState(false)
     const [ratesSaving, setRatesSaving] = useState(false)
     const [rateOverrides, setRateOverrides] = useState([])
-    const [overrideForm, setOverrideForm] = useState({ guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
+    const [overrideForm, setOverrideForm] = useState({ rateType: 'NIGHTLY', guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
     const [overrideCreating, setOverrideCreating] = useState(false)
     const [overrideError, setOverrideError] = useState(null)
     const confirmationRef = useRef(null)
@@ -426,7 +426,7 @@ function SettingsPage() {
 
         try {
             const res = await createRateOverride({
-                rateType: 'NIGHTLY',
+                rateType: overrideForm.rateType,
                 guestCount: Number(overrideForm.guestCount),
                 startDate: overrideForm.startDate,
                 endDate: overrideForm.endDate,
@@ -434,7 +434,7 @@ function SettingsPage() {
                 label: overrideForm.label
             })
             setRateOverrides(prev => [...prev, res.data])
-            setOverrideForm({ guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
+            setOverrideForm({ rateType: 'NIGHTLY', guestCount: '1', startDate: '', endDate: '', amount: '', label: '' })
         } catch (err) {
             setOverrideError(err.response?.status === 409
                 ? 'This date range overlaps an existing override for that guest count.'
@@ -1021,7 +1021,7 @@ function SettingsPage() {
 
                 <div className="feat-card lg:col-span-2">
                     <h3>Rate Overrides</h3>
-                    <p>Set a different NIGHTLY rate for a date range — holidays, peak weekends, events.</p>
+                    <p>Set a different rate for a date range — holidays, peak weekends, events.</p>
 
                     <div className="flex flex-col gap-3 mt-4">
                         {sortedRateOverrides.map(rateOverride => (
@@ -1031,10 +1031,18 @@ function SettingsPage() {
                     </div>
 
                     {isAdmin && (
-                        <form onSubmit={handleCreateOverride} className="grid grid-cols-1 sm:grid-cols-5 gap-2 mt-4 items-end">
+                        <form onSubmit={handleCreateOverride} className="grid grid-cols-1 sm:grid-cols-6 gap-2 mt-4 items-end">
                             <div>
                                 <label className="block text-sm text-muted mb-1">Label</label>
                                 <input name="label" value={overrideForm.label} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-muted mb-1">Rate type</label>
+                                <select name="rateType" value={overrideForm.rateType} onChange={handleOverrideFieldChange} className="filter-input w-full">
+                                    {RATE_TYPE_ORDER.map(rateType => (
+                                        <option key={rateType} value={rateType}>{RATE_TYPE_LABELS[rateType]}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm text-muted mb-1">Guests</label>
@@ -1052,11 +1060,11 @@ function SettingsPage() {
                                 <label className="block text-sm text-muted mb-1">Amount</label>
                                 <input type="text" name="amount" value={overrideForm.amount} onChange={handleOverrideFieldChange} className="filter-input w-full" required />
                             </div>
-                            <p className="text-xs text-muted sm:col-span-5 -mt-1">
+                            <p className="text-xs text-muted sm:col-span-6 -mt-1">
                                 "Back to normal" is the checkout-style date pricing reverts on — that night itself is not surged.
                             </p>
-                            {overrideError && <p className="text-sm text-error sm:col-span-5">{overrideError}</p>}
-                            <button type="submit" className="btn-primary sm:col-span-5 justify-self-start" disabled={overrideCreating}>
+                            {overrideError && <p className="text-sm text-error sm:col-span-6">{overrideError}</p>}
+                            <button type="submit" className="btn-primary sm:col-span-6 justify-self-start" disabled={overrideCreating}>
                                 {overrideCreating ? 'Saving...' : 'Add Override'}
                             </button>
                         </form>
