@@ -119,19 +119,6 @@ public class ReservationService {
         return ChronoUnit.DAYS.between(checkInDate, checkOutDate);
     }
 
-    private static long getTotalPeriods(Rate.RateType rateType, LocalDate checkInDate, LocalDate checkOutDate) {
-        long totalPeriods = 0;
-
-        if (rateType.equals(Rate.RateType.NIGHTLY)) {
-            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
-        } else if (rateType.equals(Rate.RateType.WEEKLY_5)) {
-            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 5;
-        } else if (rateType.equals(Rate.RateType.WEEKLY_7)) {
-            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 7;
-        }
-        return totalPeriods;
-    }
-
     /**
      * A guest with legacy pricing enabled has their flat override amount substituted for the
      * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
@@ -207,6 +194,65 @@ public class ReservationService {
         }
 
         return total;
+    }
+
+    /**
+     * Recomputes what the first `postedNights` nights of a stay should cost under the given rate
+     * and guest state, compares it to what's actually posted as GUEST ROOM charges, and posts the
+     * delta as a single ADJUSTMENT if non-zero. Always reuses sumNightlyRateAmounts - never a
+     * second, divergent calculation.
+     */
+    private Folio reconcilePostedRoomCharges(Folio folio, Integer guestId, Rate rate, LocalDate checkInDate,
+                                             long postedNights, String description) {
+        if (postedNights <= 0) {
+            return folio;
+        }
+
+        BigDecimal correctAmount = sumNightlyRateAmounts(guestId, rate, checkInDate, postedNights, 0);
+        BigDecimal postedAmount = folioService.sumRoomChargesPosted(folio.id());
+        BigDecimal delta = correctAmount.subtract(postedAmount);
+
+        return folioService.postAdjustment(folio, description, delta);
+    }
+
+    /**
+     * Re-prices every already-posted GUEST ROOM charge on a reservation's folio against its
+     * current guestCount/rateType/guest-pricing-state/active overrides, posting a correcting
+     * ADJUSTMENT for any delta. Call this any time a reservation's or its guest's pricing-relevant
+     * state changes after charges may already be posted. No-op if nothing was posted yet, the
+     * folio isn't OPEN, or the reservation is past the point charges can still move.
+     */
+    @Transactional
+    public void reconcileRoomCharges(Reservation reservation) {
+        if (reservation.status() == Reservation.ReservationStatus.CANCELLED
+                || reservation.status() == Reservation.ReservationStatus.NO_SHOW
+                || reservation.status() == Reservation.ReservationStatus.CHECKED_OUT) {
+            return;
+        }
+
+        Folio folio = folioRepository.findById(reservation.folioId()).orElse(null);
+
+        if (folio == null || folio.status() != Folio.FolioStatus.OPEN) {
+            return;
+        }
+
+        long postedNights = folioService.countRoomChargesPosted(folio.id());
+
+        if (postedNights <= 0) {
+            return;
+        }
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount()).orElse(null);
+
+        if (rate == null) {
+            return;
+        }
+
+        long totalNights = getTotalNights(reservation.checkInDate(), reservation.checkOutDate());
+        long nightsToReconcile = Math.min(postedNights, totalNights);
+
+        reconcilePostedRoomCharges(folio, reservation.guestId(), rate, reservation.checkInDate(), nightsToReconcile,
+                "ROOM CHARGE RECONCILIATION");
     }
 
     private String resolveGuestEmail(Integer guestId) {
@@ -456,8 +502,10 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
-        return folioService.estimateWithTax(rate.amount()
-                                                .multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+        long nights = getTotalNights(reservation.checkInDate(), reservation.checkOutDate());
+        BigDecimal subtotal = sumNightlyRateAmounts(reservation.guestId(), rate, reservation.checkInDate(), nights, 0);
+
+        return folioService.estimateWithTax(subtotal);
     }
 
     public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate,
@@ -521,7 +569,10 @@ public class ReservationService {
                 reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now(),
                 existing.confirmationCode());
 
-        return reservationRepository.save(updated);
+        Reservation saved = reservationRepository.save(updated);
+        reconcileRoomCharges(saved);
+
+        return saved;
     }
 
     @Transactional
@@ -1097,6 +1148,9 @@ public class ReservationService {
 
         long originalNights = newTotalNights - additionalNights;
 
+        folio = reconcilePostedRoomCharges(folio, reservation.guestId(), rate, reservation.checkInDate(), originalNights,
+                "GUEST ROOM TIER RECONCILIATION");
+
         for (long i = 0; i < additionalNights; i++) {
             BigDecimal periodAmount = resolveNightlyRateAmount(reservation.guestId(), rate, reservation.checkOutDate().plusDays(i), originalNights + i);
             folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
@@ -1201,19 +1255,23 @@ public class ReservationService {
     public Reservation markNoShow(int id) {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
-        if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)
-            || !reservation.channel().equals(Reservation.Channel.PHONE)) {
+        if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
             throw new InvalidReservationException();
         }
 
-        BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
         boolean isLastActiveReservation = !reservationRepository.existsOtherActiveByFolioId(reservation.folioId(), id);
 
         folioRepository.findById(reservation.folioId())
                        .ifPresent(f -> {
-                           paymentService.refundReservationShare(f, estimateStayAmount(reservation), firstNightAmount);
+                           if (paymentService.isRoomPaymentSettled(f.id())) {
+                               BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
+                               paymentService.refundReservationShare(f, estimateStayAmount(reservation), firstNightAmount);
 
-                           if (isLastActiveReservation) {
+                               if (isLastActiveReservation) {
+                                   folioRepository.closeFolio(f.id());
+                               }
+                           } else if (isLastActiveReservation) {
+                               paymentService.cancelOpenHolds(f);
                                folioRepository.closeFolio(f.id());
                            }
                        });

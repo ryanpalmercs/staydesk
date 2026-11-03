@@ -194,4 +194,87 @@ class FolioServiceSpec extends Specification {
         1 * folioItemRepository.save({ it.type() == com.staydesk.model.FolioItem.FolioItemType.CHARGE && it.extraId() == 2 && it.quantity() == 1 })
         1 * folioItemRepository.save({ it.type() == com.staydesk.model.FolioItem.FolioItemType.TAX && it.extraId() == null && it.quantity() == null })
     }
+
+    def "postAdjustment posts an ADJUSTMENT item plus tax and adds both to the folio total, for a positive delta"() {
+        // Uses its own locally-scoped mocks/service (rather than the shared propertySettingsService
+        // field) so a non-zero tax rate can be stubbed without fighting setup()'s global "0" stub.
+        given:
+        def localFolioItemRepository = Mock(com.staydesk.repository.FolioItemRepository)
+        def localFolioRepository = Mock(com.staydesk.repository.FolioRepository)
+        def localPropertySettingsService = Mock(PropertySettingsService)
+        def localService = new FolioService(localFolioRepository, localFolioItemRepository, extraRepository,
+                reservationRepository, localPropertySettingsService)
+
+        localPropertySettingsService.getProperty("lodging_tax_rate") >> new PropertySetting("lodging_tax_rate", "0.1", LocalDateTime.now(), LocalDateTime.now())
+        localFolioItemRepository.save(_) >> { it[0] }
+        localFolioRepository.save(_) >> { it[0] }
+
+        when:
+        def result = localService.postAdjustment(openFolio(), "ROOM CHARGE RECONCILIATION", BigDecimal.valueOf(10))
+
+        then:
+        1 * localFolioItemRepository.save({ it.type() == com.staydesk.model.FolioItem.FolioItemType.ADJUSTMENT &&
+                it.description() == "ROOM CHARGE RECONCILIATION" && it.amount().compareTo(BigDecimal.valueOf(10)) == 0 })
+        1 * localFolioItemRepository.save({ it.type() == com.staydesk.model.FolioItem.FolioItemType.TAX &&
+                it.description() == "ROOM CHARGE RECONCILIATION TAX" && it.amount().compareTo(BigDecimal.valueOf(1)) == 0 })
+        result.total().compareTo(BigDecimal.valueOf(11)) == 0
+    }
+
+    def "postAdjustment posts a negative ADJUSTMENT and tax, reducing the folio total, for a negative delta"() {
+        given:
+        def localFolioItemRepository = Mock(com.staydesk.repository.FolioItemRepository)
+        def localFolioRepository = Mock(com.staydesk.repository.FolioRepository)
+        def localPropertySettingsService = Mock(PropertySettingsService)
+        def localService = new FolioService(localFolioRepository, localFolioItemRepository, extraRepository,
+                reservationRepository, localPropertySettingsService)
+
+        localPropertySettingsService.getProperty("lodging_tax_rate") >> new PropertySetting("lodging_tax_rate", "0.1", LocalDateTime.now(), LocalDateTime.now())
+        localFolioItemRepository.save(_) >> { it[0] }
+        localFolioRepository.save(_) >> { it[0] }
+        def folio = new Folio(1, Folio.FolioStatus.OPEN, BigDecimal.valueOf(110), null, LocalDateTime.now(), LocalDateTime.now())
+
+        when:
+        def result = localService.postAdjustment(folio, "ROOM CHARGE RECONCILIATION", BigDecimal.valueOf(-10))
+
+        then:
+        1 * localFolioItemRepository.save({ it.type() == com.staydesk.model.FolioItem.FolioItemType.ADJUSTMENT &&
+                it.amount().compareTo(BigDecimal.valueOf(-10)) == 0 })
+        1 * localFolioItemRepository.save({ it.type() == com.staydesk.model.FolioItem.FolioItemType.TAX &&
+                it.amount().compareTo(BigDecimal.valueOf(-1)) == 0 })
+        result.total().compareTo(BigDecimal.valueOf(99)) == 0
+    }
+
+    def "postAdjustment is a no-op for a zero delta"() {
+        given:
+        def folio = openFolio()
+
+        when:
+        def result = service.postAdjustment(folio, "ROOM CHARGE RECONCILIATION", BigDecimal.ZERO)
+
+        then:
+        0 * folioItemRepository.save(_)
+        0 * folioRepository.save(_)
+        result.is(folio)
+    }
+
+    def "sumRoomChargesPosted sums only CHARGE items described GUEST ROOM, ignoring TAX/PAYMENT/ADJUSTMENT and other descriptions"() {
+        given:
+        def roomCharge1 = new com.staydesk.model.FolioItem(1, 1, "GUEST ROOM", BigDecimal.valueOf(80),
+                com.staydesk.model.FolioItem.FolioItemType.CHARGE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def roomCharge2 = new com.staydesk.model.FolioItem(2, 1, "GUEST ROOM", BigDecimal.valueOf(80),
+                com.staydesk.model.FolioItem.FolioItemType.CHARGE, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def roomTax = new com.staydesk.model.FolioItem(3, 1, "GUEST ROOM TAX", BigDecimal.valueOf(8),
+                com.staydesk.model.FolioItem.FolioItemType.TAX, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def extraCharge = new com.staydesk.model.FolioItem(4, 1, "PET FEE", BigDecimal.valueOf(25),
+                com.staydesk.model.FolioItem.FolioItemType.CHARGE, 2, 1, LocalDateTime.now(), LocalDateTime.now())
+        def adjustment = new com.staydesk.model.FolioItem(5, 1, "ROOM CHARGE RECONCILIATION", BigDecimal.valueOf(5),
+                com.staydesk.model.FolioItem.FolioItemType.ADJUSTMENT, null, null, LocalDateTime.now(), LocalDateTime.now())
+        def payment = new com.staydesk.model.FolioItem(6, 1, "PAYMENT", BigDecimal.valueOf(160),
+                com.staydesk.model.FolioItem.FolioItemType.PAYMENT, null, null, LocalDateTime.now(), LocalDateTime.now())
+
+        folioItemRepository.findByFolioId(1) >> [roomCharge1, roomCharge2, roomTax, extraCharge, adjustment, payment]
+
+        expect:
+        service.sumRoomChargesPosted(1).compareTo(BigDecimal.valueOf(160)) == 0
+    }
 }

@@ -18,7 +18,7 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("SELECT * FROM reservations WHERE room_id = :roomId AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW') ORDER BY check_in_date")
     List<Reservation> findActiveByRoomId(@Param("roomId") int roomId);
 
-    @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND channel = 'PHONE' AND check_in_date < :date")
+    @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND check_in_date < :date")
     List<Reservation> findNoShowCandidates(@Param("date") LocalDate date);
 
     @Modifying
