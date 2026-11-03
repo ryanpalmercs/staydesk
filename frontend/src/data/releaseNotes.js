@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 11,
+        title: "What's New",
+        version: 'v1.8.2',
+        date: '2026-11-02',
+        notes: [
+            'Fixed walk-in/terminal payment settlement and no-show refund amounts so they use the same pricing rules as everywhere else — guest discounts, surge pricing, and correct tiering for longer stays.'
+        ]
+    },
+    {
         id: 10,
         title: "What's New",
         version: 'v1.8.1',
