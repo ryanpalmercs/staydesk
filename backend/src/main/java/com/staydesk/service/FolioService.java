@@ -82,6 +82,34 @@ public class FolioService {
         return folioRepository.save(new Folio(folio.id(), folio.status(), newTotal, folio.paidAt(), folio.createdAt(), now));
     }
 
+    @Transactional
+    public Folio postAdjustment(Folio folio, String description, BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) == 0) {
+            return folio;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        folioItemRepository.save(new FolioItem(0, folio.id(), description, amount, FolioItem.FolioItemType.ADJUSTMENT, null, null, now, now));
+
+        BigDecimal tax = taxOn(amount);
+        if (tax.compareTo(BigDecimal.ZERO) != 0) {
+            folioItemRepository.save(new FolioItem(0, folio.id(), description + " TAX", tax, FolioItem.FolioItemType.TAX, null, null, now, now));
+        }
+
+        BigDecimal newTotal = folio.total().add(amount).add(tax);
+
+        return folioRepository.save(new Folio(folio.id(), folio.status(), newTotal, folio.paidAt(), folio.createdAt(), now));
+    }
+
+    public BigDecimal sumRoomChargesPosted(int folioId) {
+        return folioItemRepository.findByFolioId(folioId).stream()
+                .filter(item -> item.type() == FolioItem.FolioItemType.CHARGE)
+                .filter(item -> "GUEST ROOM".equals(item.description()))
+                .map(FolioItem::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     public record PerNightExtraCharge(int extraId, String extraName, BigDecimal unitPrice, int quantity) {
     }
 

@@ -196,6 +196,65 @@ public class ReservationService {
         return total;
     }
 
+    /**
+     * Recomputes what the first `postedNights` nights of a stay should cost under the given rate
+     * and guest state, compares it to what's actually posted as GUEST ROOM charges, and posts the
+     * delta as a single ADJUSTMENT if non-zero. Always reuses sumNightlyRateAmounts - never a
+     * second, divergent calculation.
+     */
+    private Folio reconcilePostedRoomCharges(Folio folio, Integer guestId, Rate rate, LocalDate checkInDate,
+                                             long postedNights, String description) {
+        if (postedNights <= 0) {
+            return folio;
+        }
+
+        BigDecimal correctAmount = sumNightlyRateAmounts(guestId, rate, checkInDate, postedNights, 0);
+        BigDecimal postedAmount = folioService.sumRoomChargesPosted(folio.id());
+        BigDecimal delta = correctAmount.subtract(postedAmount);
+
+        return folioService.postAdjustment(folio, description, delta);
+    }
+
+    /**
+     * Re-prices every already-posted GUEST ROOM charge on a reservation's folio against its
+     * current guestCount/rateType/guest-pricing-state/active overrides, posting a correcting
+     * ADJUSTMENT for any delta. Call this any time a reservation's or its guest's pricing-relevant
+     * state changes after charges may already be posted. No-op if nothing was posted yet, the
+     * folio isn't OPEN, or the reservation is past the point charges can still move.
+     */
+    @Transactional
+    public void reconcileRoomCharges(Reservation reservation) {
+        if (reservation.status() == Reservation.ReservationStatus.CANCELLED
+                || reservation.status() == Reservation.ReservationStatus.NO_SHOW
+                || reservation.status() == Reservation.ReservationStatus.CHECKED_OUT) {
+            return;
+        }
+
+        Folio folio = folioRepository.findById(reservation.folioId()).orElse(null);
+
+        if (folio == null || folio.status() != Folio.FolioStatus.OPEN) {
+            return;
+        }
+
+        long postedNights = folioService.countRoomChargesPosted(folio.id());
+
+        if (postedNights <= 0) {
+            return;
+        }
+
+        Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount()).orElse(null);
+
+        if (rate == null) {
+            return;
+        }
+
+        long totalNights = getTotalNights(reservation.checkInDate(), reservation.checkOutDate());
+        long nightsToReconcile = Math.min(postedNights, totalNights);
+
+        reconcilePostedRoomCharges(folio, reservation.guestId(), rate, reservation.checkInDate(), nightsToReconcile,
+                "ROOM CHARGE RECONCILIATION");
+    }
+
     private String resolveGuestEmail(Integer guestId) {
         if (guestId == null) {
             return null;

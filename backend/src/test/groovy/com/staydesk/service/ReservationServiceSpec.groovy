@@ -567,6 +567,97 @@ class ReservationServiceSpec extends Specification {
                 false, null, expiresAt, LocalDateTime.now(), LocalDateTime.now())
     }
 
+    def "reconcileRoomCharges posts a positive adjustment when an already-posted night was priced at a lower guest count"() {
+        // Direct regression test for the original bug: 1 night posted at creation under guestCount=1
+        // ($51.81, WEEKLY_7), then the reservation's guestCount was corrected to 2 before check-in
+        // ($55.00/night at the correct rate). Reconciling should post the $3.19 shortfall.
+        given:
+        def res = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 9),
+                Reservation.ReservationStatus.CHECKED_IN, null, null, Rate.RateType.WEEKLY_7, 2, Reservation.Channel.WALK_IN, false,
+                LocalDateTime.now(), LocalDateTime.now(), "123456")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(51.81), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "WEEKLY_7", 2, BigDecimal.valueOf(385), LocalDateTime.now(), LocalDateTime.now())
+
+        folioRepository.findById(9) >> Optional.of(folio)
+        folioService.countRoomChargesPosted(9) >> 1
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 2) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(51.81)
+
+        when:
+        reservationService.reconcileRoomCharges(res)
+
+        then:
+        1 * folioService.postAdjustment(folio, "ROOM CHARGE RECONCILIATION", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(3.19)) == 0 })
+    }
+
+    def "reconcileRoomCharges posts a negative adjustment when the guest's current state now resolves a cheaper rate"() {
+        given:
+        def res = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                Reservation.ReservationStatus.CHECKED_IN, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false,
+                LocalDateTime.now(), LocalDateTime.now(), "123456")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(200), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+
+        folioRepository.findById(9) >> Optional.of(folio)
+        folioService.countRoomChargesPosted(9) >> 1
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        // guest is now flagged Regular Guest, so it short-circuits past the (now-stale) override
+        guestRepository.findById(7) >> Optional.of(regularGuest())
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(200)
+
+        when:
+        reservationService.reconcileRoomCharges(res)
+
+        then:
+        1 * folioService.postAdjustment(folio, "ROOM CHARGE RECONCILIATION", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(-120)) == 0 })
+    }
+
+    def "reconcileRoomCharges does nothing when no nights have been posted yet"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN)
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+        folioRepository.findById(9) >> Optional.of(folio)
+        folioService.countRoomChargesPosted(9) >> 0
+
+        when:
+        reservationService.reconcileRoomCharges(res)
+
+        then:
+        0 * folioService.sumRoomChargesPosted(_)
+        0 * folioService.postAdjustment(*_)
+    }
+
+    def "reconcileRoomCharges does nothing for a #status reservation"() {
+        given:
+        def res = reservation(status, Reservation.Channel.WALK_IN)
+
+        when:
+        reservationService.reconcileRoomCharges(res)
+
+        then:
+        0 * folioRepository.findById(_)
+        0 * folioService.postAdjustment(*_)
+
+        where:
+        status << [Reservation.ReservationStatus.CANCELLED, Reservation.ReservationStatus.NO_SHOW, Reservation.ReservationStatus.CHECKED_OUT]
+    }
+
+    def "reconcileRoomCharges does nothing when the folio is CLOSED"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN)
+        def closedFolio = new Folio(9, Folio.FolioStatus.CLOSED, BigDecimal.valueOf(240), LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now())
+        folioRepository.findById(9) >> Optional.of(closedFolio)
+
+        when:
+        reservationService.reconcileRoomCharges(res)
+
+        then:
+        0 * folioService.countRoomChargesPosted(_)
+        0 * folioService.postAdjustment(*_)
+    }
+
     def "extendStay charges the stored credential per added night, priced at the same tier, and updates checkOutDate"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
