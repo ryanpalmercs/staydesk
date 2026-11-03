@@ -1255,19 +1255,23 @@ public class ReservationService {
     public Reservation markNoShow(int id) {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationNotFoundException::new);
 
-        if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)
-            || !reservation.channel().equals(Reservation.Channel.PHONE)) {
+        if (!reservation.status().equals(Reservation.ReservationStatus.CONFIRMED)) {
             throw new InvalidReservationException();
         }
 
-        BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
         boolean isLastActiveReservation = !reservationRepository.existsOtherActiveByFolioId(reservation.folioId(), id);
 
         folioRepository.findById(reservation.folioId())
                        .ifPresent(f -> {
-                           paymentService.refundReservationShare(f, estimateStayAmount(reservation), firstNightAmount);
+                           if (paymentService.isRoomPaymentSettled(f.id())) {
+                               BigDecimal firstNightAmount = computeFirstNightAmount(reservation);
+                               paymentService.refundReservationShare(f, estimateStayAmount(reservation), firstNightAmount);
 
-                           if (isLastActiveReservation) {
+                               if (isLastActiveReservation) {
+                                   folioRepository.closeFolio(f.id());
+                               }
+                           } else if (isLastActiveReservation) {
+                               paymentService.cancelOpenHolds(f);
                                folioRepository.closeFolio(f.id());
                            }
                        });
