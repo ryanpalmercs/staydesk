@@ -31,20 +31,17 @@ public class EmployeeService {
     private final JdbcAggregateTemplate jdbcAggregateTemplate;
     private final StaffDoorAccessService staffDoorAccessService;
     private final PiiCipher piiCipher;
-    private final QuickBooksEmployeeSyncService quickBooksEmployeeSyncService;
 
     public EmployeeService(EmployeeRepository employeeRepository,
                            EmployeeTypeRepository employeeTypeRepository,
                            SupabaseAdminClient supabaseAdminClient, JdbcAggregateTemplate jdbcAggregateTemplate,
-                           StaffDoorAccessService staffDoorAccessService, PiiCipher piiCipher,
-                           QuickBooksEmployeeSyncService quickBooksEmployeeSyncService) {
+                           StaffDoorAccessService staffDoorAccessService, PiiCipher piiCipher) {
         this.employeeRepository = employeeRepository;
         this.employeeTypeRepository = employeeTypeRepository;
         this.supabaseAdminClient = supabaseAdminClient;
         this.jdbcAggregateTemplate = jdbcAggregateTemplate;
         this.staffDoorAccessService = staffDoorAccessService;
         this.piiCipher = piiCipher;
-        this.quickBooksEmployeeSyncService = quickBooksEmployeeSyncService;
     }
 
     public Employee createEmployee(CreateEmployeeRequest createEmployeeRequest) {
@@ -90,13 +87,11 @@ public class EmployeeService {
                 new EncryptedString(createEmployeeRequest.lastName()), new EncryptedString(createEmployeeRequest.email()), emailHash,
                 createEmployeeRequest.username(), createEmployeeRequest.employeeTypeId(), createEmployeeRequest.payRate(),
                 createEmployeeRequest.hireDate(), true, createEmployeeRequest.contactInfo(), createEmployeeRequest.payRateType(),
-                createEmployeeRequest.grantDoorAccess(), now, now, null, null));
+                createEmployeeRequest.grantDoorAccess(), now, now, null));
 
         if (createEmployeeRequest.grantDoorAccess()) {
             staffDoorAccessService.grantAccess(saved, createEmployeeRequest.pin());
         }
-
-        quickBooksEmployeeSyncService.syncOne(saved);
 
         return saved;
     }
@@ -136,8 +131,6 @@ public class EmployeeService {
         staffDoorAccessService.revokeAccess(employee);
         employeeRepository.updateDoorAccessEnabled(id, false);
         employeeRepository.deactivate(id);
-
-        quickBooksEmployeeSyncService.syncActiveStatus(employee.quickbooksEmployeeId(), false);
     }
 
     public void activateEmployee(UUID id) {
@@ -154,8 +147,7 @@ public class EmployeeService {
         Employee updated = new Employee(existing.id(), new EncryptedString(request.firstName()), new EncryptedString(request.lastName()),
                 existing.email(), existing.emailHash(), existing.username(), existing.employeeTypeId(), request.payRate(),
                 request.hireDate(), existing.active(), request.contactInfo(), request.payRateType(),
-                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now(), existing.lastSeenReleaseNotesId(),
-                existing.quickbooksEmployeeId());
+                existing.doorAccessEnabled(), existing.createdAt(), LocalDateTime.now(), existing.lastSeenReleaseNotesId());
 
         employeeRepository.save(updated);
     }
