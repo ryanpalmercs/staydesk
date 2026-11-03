@@ -183,6 +183,8 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.save(_) >> { Reservation r -> r }
         // a sibling multi-room reservation on the same folio is still CONFIRMED
         reservationRepository.existsOtherActiveByFolioId(9, 1) >> true
+        guestRepository.findById(_) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
 
         when:
         def result = reservationService.cancelReservation(1)
@@ -1623,6 +1625,7 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         guestRepository.findById(7) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
 
         when:
         def result = reservationService.settleWalkInStay(9, "token-1")
@@ -1651,6 +1654,7 @@ class ReservationServiceSpec extends Specification {
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         guestRepository.findById(7) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
 
         when:
         def result = reservationService.settleWalkInStayTerminal(9, 6)
@@ -1658,6 +1662,59 @@ class ReservationServiceSpec extends Specification {
         then:
         1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(480)) == 0 }, _, "dev-token-1", null)
         result.id() == 9
+    }
+
+    def "settleWalkInStay prices an 11-night WEEKLY_7 stay via cumulative-rounding tiering, not a flat per-period multiply"() {
+        // Regression test for #472: estimateStayAmount used to multiply the base rate by
+        // nights/7 via integer division (11/7 = 1 period -> $362.70), instead of correctly tiering
+        // via sumNightlyRateAmounts (-> $569.96, same figure the estimateTotal preview already got
+        // right). This proves settlement now uses the same correct calculation as every other path.
+        given:
+        def now = LocalDateTime.now()
+        def res = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 12),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.WEEKLY_7, 1, Reservation.Channel.WALK_IN, false, now, now, "123456")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now)
+        def rate = new Rate(1, "WEEKLY_7", 1, BigDecimal.valueOf(362.70), now, now)
+
+        folioRepository.findById(9) >> Optional.of(folio)
+        reservationRepository.findByFolioId(9) >> [res]
+        paymentService.isRoomPaymentSettled(9) >> false
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 1) >> Optional.of(rate)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        guestRepository.findById(7) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+
+        when:
+        reservationService.settleWalkInStay(9, "token-1")
+
+        then:
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(569.96)) == 0 }, _, "token-1", null)
+    }
+
+    def "settleWalkInStay charges a Regular Guest the tiered base rate, ignoring an active seasonal override"() {
+        given:
+        def now = LocalDateTime.now()
+        def res = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                Reservation.ReservationStatus.CONFIRMED, null, null, Rate.RateType.NIGHTLY, 1, Reservation.Channel.WALK_IN, false, now, now, "123456")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, now, now)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), now, now)
+        def override = new RateOverride(3, "NIGHTLY", 1, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
+                BigDecimal.valueOf(200), "Surge weekend", now, now)
+
+        folioRepository.findById(9) >> Optional.of(folio)
+        reservationRepository.findByFolioId(9) >> [res]
+        paymentService.isRoomPaymentSettled(9) >> false
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        guestRepository.findById(7) >> Optional.of(regularGuest())
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.of(override)
+
+        when:
+        reservationService.settleWalkInStay(9, "token-1")
+
+        then:
+        // 2 nights at the plain $80 base rate, not the $200 override
+        1 * paymentService.chargeFullStay({ it.id() == 9 }, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(160)) == 0 }, _, "token-1", "james@example.com")
     }
 
     def "estimateTotal uses the guest's legacy price when legacy pricing is enabled"() {
