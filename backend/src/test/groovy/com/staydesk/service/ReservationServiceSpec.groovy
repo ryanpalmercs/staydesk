@@ -77,6 +77,7 @@ class ReservationServiceSpec extends Specification {
         guestRepository.findById(7) >> Optional.empty()
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }
         folioRepository.findById(9) >> Optional.of(folio)
+        paymentService.isRoomPaymentSettled(9) >> true
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -90,18 +91,79 @@ class ReservationServiceSpec extends Specification {
         result.roomId() == res.roomId()
     }
 
-    def "throws InvalidReservationException for a WALK_IN reservation"() {
+    @Unroll
+    def "marks a CONFIRMED #channel reservation with a captured ROOM payment as NO_SHOW and refunds all but first night"() {
         given:
-        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN)
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, channel)
+        def rate = new Rate(1, "NIGHTLY", 1, BigDecimal.valueOf(80), LocalDateTime.now(), LocalDateTime.now())
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(240), null, LocalDateTime.now(), LocalDateTime.now())
+
         reservationRepository.findById(1) >> Optional.of(res)
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        guestRepository.findById(7) >> Optional.empty()
+        folioService.estimateWithTax(_) >> { BigDecimal base -> base }
+        folioRepository.findById(9) >> Optional.of(folio)
+        paymentService.isRoomPaymentSettled(9) >> true
+        reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
-        reservationService.markNoShow(1)
+        def result = reservationService.markNoShow(1)
 
         then:
-        thrown(InvalidReservationException)
+        1 * paymentService.refundReservationShare(folio, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(240)) == 0 },
+                { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 })
+        0 * paymentService.cancelOpenHolds(_)
+        1 * folioRepository.closeFolio(9)
+        result.status() == Reservation.ReservationStatus.NO_SHOW
+
+        where:
+        channel << [Reservation.Channel.WALK_IN, Reservation.Channel.PHONE]
+    }
+
+    @Unroll
+    def "marks a CONFIRMED #channel reservation with no captured payment as NO_SHOW, cancels open holds, and attempts no refund"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, channel)
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        folioRepository.findById(9) >> Optional.of(folio)
+        paymentService.isRoomPaymentSettled(9) >> false
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.markNoShow(1)
+
+        then:
         0 * paymentService.refundReservationShare(_, _, _)
+        1 * paymentService.cancelOpenHolds(folio)
+        1 * folioRepository.closeFolio(9)
+        result.status() == Reservation.ReservationStatus.NO_SHOW
+
+        where:
+        channel << [Reservation.Channel.WALK_IN, Reservation.Channel.PHONE]
+    }
+
+    def "does not cancel open holds for a no-payment no-show when a sibling reservation on the same folio is still active"() {
+        given:
+        def res = reservation(Reservation.ReservationStatus.CONFIRMED, Reservation.Channel.WALK_IN)
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(res)
+        folioRepository.findById(9) >> Optional.of(folio)
+        paymentService.isRoomPaymentSettled(9) >> false
+        reservationRepository.existsOtherActiveByFolioId(9, 1) >> true
+        reservationRepository.save(_) >> { Reservation r -> r }
+
+        when:
+        def result = reservationService.markNoShow(1)
+
+        then:
+        0 * paymentService.refundReservationShare(_, _, _)
+        0 * paymentService.cancelOpenHolds(_)
         0 * folioRepository.closeFolio(_)
+        result.status() == Reservation.ReservationStatus.NO_SHOW
     }
 
     @Unroll
@@ -154,6 +216,7 @@ class ReservationServiceSpec extends Specification {
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         folioRepository.findById(9) >> Optional.of(folio)
         guestRepository.findById(7) >> Optional.empty()
+        paymentService.isRoomPaymentSettled(9) >> true
         reservationRepository.save(_) >> { Reservation r -> r }
         folioService.estimateWithTax(_) >> { BigDecimal base -> base }   // identity: isolates division math from tax logic
 

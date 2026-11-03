@@ -401,7 +401,7 @@ function ReservationModal({ reservation, onSaved, onClose }) {
         }
 
         const multiRoom = multiRoomBookingEnabled && isMultiRoom(roomLines)
-        const channel = isFutureWalkIn ? 'PHONE' : form.channel
+        const channel = form.channel
 
         const basePayload = {
             guestId: form.guestId,
