@@ -17,7 +17,8 @@ export const releaseNotes = [
         notes: [
             'Fixed walk-in/terminal payment settlement and no-show refund amounts so they use the same pricing rules as everywhere else — guest discounts, surge pricing, and correct tiering for longer stays.',
             'Fixed a bug where editing a guest\'s contact information could silently clear their regular-guest or legacy pricing status.',
-            'Added the ability for the system to automatically correct a reservation\'s room charges with an itemized adjustment, instead of needing a manual fix.'
+            'Added the ability for the system to automatically correct a reservation\'s room charges with an itemized adjustment, instead of needing a manual fix.',
+            'Fixed a bug where editing a reservation\'s guest count, rate type, or dates — or extending a stay into a longer pricing tier — could leave already-charged nights priced incorrectly. Charges are now corrected automatically.'
         ]
     },
     {
