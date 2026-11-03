@@ -3,6 +3,7 @@ package com.staydesk.service;
 import com.staydesk.exception.GuestNotFoundException;
 import com.staydesk.model.Guest;
 import com.staydesk.repository.GuestRepository;
+import com.staydesk.repository.ReservationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,9 +13,23 @@ import java.util.UUID;
 public class GuestService {
 
     private final GuestRepository guestRepository;
+    private final ReservationRepository reservationRepository;
+    private final ReservationService reservationService;
 
-    public GuestService(GuestRepository guestRepository) {
+    public GuestService(GuestRepository guestRepository, ReservationRepository reservationRepository,
+                        ReservationService reservationService) {
         this.guestRepository = guestRepository;
+        this.reservationRepository = reservationRepository;
+        this.reservationService = reservationService;
+    }
+
+    @Transactional
+    public Guest updateGuest(Guest updatedGuest) {
+        Guest saved = guestRepository.save(updatedGuest);
+
+        reservationRepository.findByGuestId(saved.id()).forEach(reservationService::reconcileRoomCharges);
+
+        return saved;
     }
 
     @Transactional

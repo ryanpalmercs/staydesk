@@ -115,7 +115,7 @@ public class GuestController {
                 defaultRateType(request.legacyRateType()), request.regularGuest(), request.guestType(), existing.notes(),
                 existing.createdAt(), LocalDateTime.now());
 
-        return ResponseEntity.ok(guestRepository.save(updatedGuest));
+        return ResponseEntity.ok(guestService.updateGuest(updatedGuest));
     }
 
     private String hashEmail(String email) {
