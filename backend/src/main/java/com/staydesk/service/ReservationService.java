@@ -119,19 +119,6 @@ public class ReservationService {
         return ChronoUnit.DAYS.between(checkInDate, checkOutDate);
     }
 
-    private static long getTotalPeriods(Rate.RateType rateType, LocalDate checkInDate, LocalDate checkOutDate) {
-        long totalPeriods = 0;
-
-        if (rateType.equals(Rate.RateType.NIGHTLY)) {
-            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
-        } else if (rateType.equals(Rate.RateType.WEEKLY_5)) {
-            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 5;
-        } else if (rateType.equals(Rate.RateType.WEEKLY_7)) {
-            totalPeriods = ChronoUnit.DAYS.between(checkInDate, checkOutDate) / 7;
-        }
-        return totalPeriods;
-    }
-
     /**
      * A guest with legacy pricing enabled has their flat override amount substituted for the
      * normal rate lookup, no matter which tier they're booked under - it wins outright, ahead of
@@ -456,8 +443,10 @@ public class ReservationService {
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount())
                                   .orElseThrow(RateNotFoundException::new);
 
-        return folioService.estimateWithTax(rate.amount()
-                                                .multiply(BigDecimal.valueOf(getTotalPeriods(reservation.rateType(), reservation.checkInDate(), reservation.checkOutDate()))));
+        long nights = getTotalNights(reservation.checkInDate(), reservation.checkOutDate());
+        BigDecimal subtotal = sumNightlyRateAmounts(reservation.guestId(), rate, reservation.checkInDate(), nights, 0);
+
+        return folioService.estimateWithTax(subtotal);
     }
 
     public ReservationEstimateResponse estimateTotal(Rate.RateType rateType, int guestCount, LocalDate checkInDate,
