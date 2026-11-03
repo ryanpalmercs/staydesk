@@ -569,7 +569,10 @@ public class ReservationService {
                 reservation.rateType(), reservation.guestCount(), existing.channel(), existing.legalHold(), reservation.createdAt(), LocalDateTime.now(),
                 existing.confirmationCode());
 
-        return reservationRepository.save(updated);
+        Reservation saved = reservationRepository.save(updated);
+        reconcileRoomCharges(saved);
+
+        return saved;
     }
 
     @Transactional
@@ -1144,6 +1147,9 @@ public class ReservationService {
                                   .orElseThrow(RateNotFoundException::new);
 
         long originalNights = newTotalNights - additionalNights;
+
+        folio = reconcilePostedRoomCharges(folio, reservation.guestId(), rate, reservation.checkInDate(), originalNights,
+                "GUEST ROOM TIER RECONCILIATION");
 
         for (long i = 0; i < additionalNights; i++) {
             BigDecimal periodAmount = resolveNightlyRateAmount(reservation.guestId(), rate, reservation.checkOutDate().plusDays(i), originalNights + i);

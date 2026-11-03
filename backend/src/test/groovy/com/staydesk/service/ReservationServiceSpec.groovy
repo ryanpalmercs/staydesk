@@ -658,6 +658,32 @@ class ReservationServiceSpec extends Specification {
         0 * folioService.postAdjustment(*_)
     }
 
+    def "updateReservation reconciles already-posted room charges against the newly-saved guestCount"() {
+        given:
+        def existing = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
+        def incoming = new Reservation(1, 9, 7, 3, 2, LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 9),
+                Reservation.ReservationStatus.CHECKED_IN, null, null, Rate.RateType.WEEKLY_7, 2, Reservation.Channel.WALK_IN, false,
+                LocalDateTime.now(), LocalDateTime.now(), "123456")
+        def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(51.81), null, LocalDateTime.now(), LocalDateTime.now())
+        def rate = new Rate(1, "WEEKLY_7", 2, BigDecimal.valueOf(385), LocalDateTime.now(), LocalDateTime.now())
+
+        reservationRepository.findById(1) >> Optional.of(existing)
+        reservationRepository.findOverlapping(3, incoming.checkOutDate(), incoming.checkInDate()) >> []
+        reservationRepository.save(_) >> { Reservation r -> r }
+        folioRepository.findById(9) >> Optional.of(folio)
+        folioService.countRoomChargesPosted(9) >> 1
+        rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_7, 2) >> Optional.of(rate)
+        guestRepository.findById(7) >> Optional.empty()
+        rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(51.81)
+
+        when:
+        reservationService.updateReservation(1, incoming)
+
+        then:
+        1 * folioService.postAdjustment(folio, "ROOM CHARGE RECONCILIATION", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(3.19)) == 0 })
+    }
+
     def "extendStay charges the stored credential per added night, priced at the same tier, and updates checkOutDate"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.WEEKLY_7)
@@ -676,6 +702,9 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(50)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        // the 3 original nights were already posted at exactly what WEEKLY_7 tiers them to - no drift
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(150)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -710,6 +739,8 @@ class ReservationServiceSpec extends Specification {
         folioService.distinctPerNightExtras(9) >> [new FolioService.PerNightExtraCharge(2, "Pet Fee", BigDecimal.valueOf(25), 1)]
         folioService.postCharge(_, "PET FEE", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(25)) == 0 }, 2, 1) >>
                 { Folio f, String d, BigDecimal amt, Integer extraId, Integer qty -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -786,7 +817,7 @@ class ReservationServiceSpec extends Specification {
         0 * paymentService.chargeStoredCredential(*_)
     }
 
-    def "extendStay re-tiers only the newly added nights when the extension crosses into a longer-stay tier"() {
+    def "extendStay reconciles the original nights into the new tier, not just the newly added nights, when the extension crosses into a longer-stay tier"() {
         given:
         def res = reservation(Reservation.ReservationStatus.CHECKED_IN, Reservation.Channel.WALK_IN, Rate.RateType.NIGHTLY)
         def folio = new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.ZERO, null, LocalDateTime.now(), LocalDateTime.now())
@@ -797,8 +828,10 @@ class ReservationServiceSpec extends Specification {
         roomTypeRepository.findById(2) >> Optional.of(new RoomType(2, "QUEEN", 5, 0, LocalDateTime.now(), LocalDateTime.now()))
         roomTypeAvailabilityRepository.isAvailableForRange(2, _, _, 1) >> true
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
-        // original 3 nights were already posted at NIGHTLY - only the 3 added nights (total stay = 6)
-        // should price at the WEEKLY_5 tier, not the reservation's original NIGHTLY rate type
+        // original 3 nights were already posted at NIGHTLY (80/night = 240 total); the 3 added nights
+        // (total stay = 6) bring the whole stay into the WEEKLY_5 tier (325/5 = 65/night), and the
+        // reconciliation should retroactively re-price the original 3 nights into that tier too
+        // (325 * 3/5 = 195), crediting the 45 difference rather than leaving them stale at NIGHTLY.
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.WEEKLY_5, 1) >> Optional.of(weekly5Rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
@@ -806,16 +839,19 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(65)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, "GUEST ROOM TIER RECONCILIATION", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(-45)) == 0 }) >>
+                { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
         def result = reservationService.extendStay(1, LocalDate.of(2026, 7, 16))
 
         then:
-        // 3 added nights at the WEEKLY_5 tier's per-night rate (325 / 5 = 65)
-        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(195)) == 0 }, _, _)
+        // 3 added nights at 65/night (195) plus the -45 retroactive credit on the original nights = 150
+        1 * paymentService.chargeStoredCredential({ it.id() == 9 }, _, { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(150)) == 0 }, _, _)
         result.reservation().rateType() == Rate.RateType.WEEKLY_5
-        result.amountCharged().compareTo(BigDecimal.valueOf(195)) == 0
+        result.amountCharged().compareTo(BigDecimal.valueOf(150)) == 0
     }
 
     def "extendStay charges per added night when the extension stays within the reservation's current tier"() {
@@ -836,6 +872,8 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -901,6 +939,8 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -932,6 +972,8 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", _) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
 
         when:
         reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
@@ -962,6 +1004,8 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", _) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
 
         when:
         reservationService.extendStay(1, LocalDate.of(2026, 7, 14))
@@ -992,6 +1036,8 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
@@ -1035,6 +1081,8 @@ class ReservationServiceSpec extends Specification {
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         folioService.distinctPerNightExtras(9) >> []
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.valueOf(240)
+        folioService.postAdjustment(_, _, _) >> { it[0] }
         reservationRepository.save(_) >> { Reservation r -> r }
 
         when:
