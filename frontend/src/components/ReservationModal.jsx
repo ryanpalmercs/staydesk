@@ -292,7 +292,11 @@ function ReservationModal({ reservation, onSaved, onClose }) {
             email: selectedGuest.email ?? '',
             phoneNumber: selectedGuest.phoneNumber,
             smsConsent: selectedGuest.smsConsent,
-            guestType: selectedGuest.guestType ?? 'INDIVIDUAL'
+            guestType: selectedGuest.guestType ?? 'INDIVIDUAL',
+            legacyPricing: selectedGuest.legacyPricing ?? false,
+            legacyPricingAmount: selectedGuest.legacyPricingAmount ?? '',
+            legacyRateType: selectedGuest.legacyRateType ?? 'NIGHTLY',
+            regularGuest: selectedGuest.regularGuest ?? false
         })
         setGuestFormError(null)
         setEditingGuestInfo(true)
