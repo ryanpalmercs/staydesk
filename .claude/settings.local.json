@@ -9,9 +9,7 @@
       "Bash(git ls-tree *)",
       "Bash(git log *)",
       "Bash(grep -i \"\\\\.java$\")",
-      "Bash(python3 *)",
-      "Bash(gh pr *)",
-      "Bash(git fetch *)"
+      "Bash(python3 *)"
     ]
   }
 }

@@ -1,11 +1,10 @@
 package com.staydesk.payment.elavon
 
-import com.staydesk.payment.elavon.dto.CpiSafetyFields
-import com.staydesk.payment.elavon.dto.CpiToken
-import com.staydesk.payment.elavon.dto.CpiTransaction
 import com.sun.net.httpserver.HttpServer
 import spock.lang.Specification
 
+import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.nio.charset.StandardCharsets
 
 class ElavonCpiClientSpec extends Specification {
@@ -45,7 +44,6 @@ class ElavonCpiClientSpec extends Specification {
         server.createContext("/devices/device-1/message") { exchange ->
             def bytes = responseBody.getBytes(StandardCharsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.responseHeaders.add("Connection", "close")
             exchange.sendResponseHeaders(200, bytes.length)
             exchange.responseBody.write(bytes)
             exchange.responseBody.close()
@@ -94,7 +92,6 @@ class ElavonCpiClientSpec extends Specification {
         server.createContext("/devices/device-1/message") { exchange ->
             def bytes = responseBody.getBytes(StandardCharsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.responseHeaders.add("Connection", "close")
             exchange.sendResponseHeaders(200, bytes.length)
             exchange.responseBody.write(bytes)
             exchange.responseBody.close()
@@ -130,7 +127,6 @@ class ElavonCpiClientSpec extends Specification {
         server.createContext("/gateways/message") { exchange ->
             def bytes = responseBody.getBytes(StandardCharsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.responseHeaders.add("Connection", "close")
             exchange.sendResponseHeaders(200, bytes.length)
             exchange.responseBody.write(bytes)
             exchange.responseBody.close()
@@ -138,8 +134,10 @@ class ElavonCpiClientSpec extends Specification {
         server.start()
 
         def client = clientPointedAt("http://localhost:${server.address.port}")
-        def request = new CpiTransaction("10234583", "SALE", "150", null, null,
-                new CpiSafetyFields(new CpiToken("stored-token-1")),
+        def request = new com.staydesk.payment.elavon.dto.CpiTransaction(
+                "10234583", "SALE", "150", null, null,
+                new com.staydesk.payment.elavon.dto.CpiSafetyFields(
+                        new com.staydesk.payment.elavon.dto.CpiToken("stored-token-1")),
                 null, null, "M206")
 
         when:
