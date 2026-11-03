@@ -76,7 +76,7 @@ vi.mock('./ReservationDatePicker', () => ({
 import { createReservation } from '../api/reservationApi'
 import { getReservationEstimateWithExtras } from '../api/reservationApi'
 import { getRoomTypes, getUnavailableRoomTypeIds } from '../api/roomTypeApi'
-import { getGuests } from '../api/guestApi'
+import { getGuests, updateGuest } from '../api/guestApi'
 import { getFeatureFlags } from '../api/featureFlagsApi'
 import { getExtras } from '../api/extrasApi'
 import { getPropertySetting } from '../api/settingsApi'
@@ -141,5 +141,32 @@ describe('ReservationModal - new walk-in reservation', () => {
         await waitFor(() => expect(createReservation).toHaveBeenCalledTimes(1))
         expect(screen.queryByText('Please select a room type for each room.')).not.toBeInTheDocument()
         expect(screen.queryByText('Please select a room type.')).not.toBeInTheDocument()
+    })
+
+    it('round-trips regularGuest/legacyPricing fields when editing contact info, instead of silently clearing them', async () => {
+        const legacyRegularGuest = {
+            id: 7, name: 'Jane Doe', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phoneNumber: '5551234567',
+            flagged: false, guestType: 'INDIVIDUAL', regularGuest: true, legacyPricing: true, legacyPricingAmount: 50, legacyRateType: 'NIGHTLY'
+        }
+        getGuests.mockResolvedValue({ data: [legacyRegularGuest] })
+        updateGuest.mockResolvedValue({ data: legacyRegularGuest })
+
+        const user = userEvent.setup()
+        render(<ReservationModal reservation={null} onSaved={vi.fn()} onClose={vi.fn()} />)
+
+        await user.click(await screen.findByRole('button', { name: 'Returning Guest' }))
+        await user.click(await screen.findByText('JANE DOE'))
+
+        await user.click(await screen.findByRole('button', { name: 'Edit Information' }))
+        await user.click(await screen.findByRole('button', { name: 'Save' }))
+
+        await waitFor(() => expect(updateGuest).toHaveBeenCalledTimes(1))
+
+        const [id, payload] = updateGuest.mock.calls[0]
+        expect(id).toBe(7)
+        expect(payload.regularGuest).toBe(true)
+        expect(payload.legacyPricing).toBe(true)
+        expect(payload.legacyPricingAmount).toBe(50)
+        expect(payload.legacyRateType).toBe('NIGHTLY')
     })
 })
