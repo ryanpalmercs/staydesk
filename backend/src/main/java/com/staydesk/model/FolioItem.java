@@ -13,6 +13,6 @@ public record FolioItem(@Id int id, int folioId, String description, BigDecimal 
                         LocalDateTime createdAt, LocalDateTime updatedAt) {
 
     public enum FolioItemType {
-        CHARGE, TAX, PAYMENT
+        CHARGE, TAX, PAYMENT, ADJUSTMENT
     }
 }
