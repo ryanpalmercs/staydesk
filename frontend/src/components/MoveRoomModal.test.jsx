@@ -69,6 +69,22 @@ describe('MoveRoomModal', () => {
         expect(moveRoom).not.toHaveBeenCalled()
     })
 
+    it('checks availability from the check-in date, not today, for a not-yet-checked-in reservation', async () => {
+        const reservation = { id: 1, roomTypeId: 1, roomId: 11, checkInDate: '2026-11-13', checkOutDate: '2026-11-15', status: 'CONFIRMED' }
+        render(<MoveRoomModal reservation={reservation} onSaved={vi.fn()} onClose={vi.fn()} />)
+
+        await screen.findByRole('button', { name: 'Move Room' })
+        expect(getAvailableRooms).toHaveBeenCalledWith(1, '2026-11-13', '2026-11-15')
+    })
+
+    it('checks availability from today for a checked-in guest', async () => {
+        const reservation = { id: 1, roomTypeId: 1, roomId: 11, checkInDate: '2026-09-01', checkOutDate: '2026-09-26', status: 'CHECKED_IN' }
+        render(<MoveRoomModal reservation={reservation} onSaved={vi.fn()} onClose={vi.fn()} />)
+
+        await screen.findByRole('button', { name: 'Move Room' })
+        expect(getAvailableRooms).toHaveBeenCalledWith(1, '2026-09-21', '2026-09-26')
+    })
+
     it('shows a conflict-specific error on a 409', async () => {
         const user = userEvent.setup()
         moveRoom.mockRejectedValue({ response: { status: 409 } })

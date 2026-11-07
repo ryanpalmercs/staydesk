@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 12,
+        title: "What's New",
+        version: 'v1.8.3',
+        date: '2026-11-07',
+        notes: [
+            "Fixed a bug where moving a confirmed (not yet checked-in) reservation to a different room type or room could show no rooms available anywhere, even when rooms were actually free for the reservation's dates."
+        ]
+    },
+    {
         id: 11,
         title: "What's New",
         version: 'v1.8.2',
