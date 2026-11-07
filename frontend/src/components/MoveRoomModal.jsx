@@ -24,7 +24,8 @@ function MoveRoomModal({ reservation, onSaved, onClose }) {
 
     useEffect(() => {
         setRoomId('')
-        getAvailableRooms(roomTypeId, todayStr(), reservation.checkOutDate)
+        const startDate = reservation.status === 'CHECKED_IN' ? todayStr() : reservation.checkInDate
+        getAvailableRooms(roomTypeId, startDate, reservation.checkOutDate)
             .then(res => setRooms((res.data ?? []).filter(room => room.id !== reservation.roomId)))
             .catch(() => setRooms([]))
     }, [roomTypeId, reservation.checkOutDate, reservation.roomId])
