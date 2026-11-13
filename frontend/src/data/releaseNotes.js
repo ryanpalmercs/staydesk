@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 14,
+        title: "What's New",
+        version: 'v1.8.5',
+        date: '2026-11-13',
+        notes: [
+            "Check-in now double-checks the stay's charges against any active rate override before the card or terminal is charged, so a mismatch gets caught and corrected right there instead of after the fact."
+        ]
+    },
+    {
         id: 13,
         title: "What's New",
         version: 'v1.8.4',
