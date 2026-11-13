@@ -6,7 +6,9 @@ import com.staydesk.exception.RateOverrideOverlapException
 import com.staydesk.model.Rate
 import com.staydesk.model.RateOverride
 import com.staydesk.model.request.CreateRateOverrideRequest
+import com.staydesk.model.Reservation
 import com.staydesk.repository.RateOverrideRepository
+import com.staydesk.repository.ReservationRepository
 import spock.lang.Specification
 
 import java.time.LocalDate
@@ -15,8 +17,20 @@ import java.time.LocalDateTime
 class RateOverrideServiceSpec extends Specification {
 
     RateOverrideRepository rateOverrideRepository = Mock()
+    ReservationRepository reservationRepository = Mock()
+    ReservationService reservationService = Mock()
 
-    RateOverrideService rateOverrideService = new RateOverrideService(rateOverrideRepository)
+    RateOverrideService rateOverrideService = new RateOverrideService(rateOverrideRepository, reservationRepository, reservationService)
+
+    def setup() {
+        reservationRepository.findActiveByRateTypeAndGuestCountOverlapping(_, _, _, _) >> []
+    }
+
+    private static Reservation reservation(int id) {
+        new Reservation(id, 9, 7, 3, 2, LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 25),
+                Reservation.ReservationStatus.CHECKED_IN, LocalDateTime.now(), null, Rate.RateType.NIGHTLY, 2,
+                Reservation.Channel.WALK_IN, false, LocalDateTime.now(), LocalDateTime.now(), "123456")
+    }
 
     private static CreateRateOverrideRequest request(LocalDate start = LocalDate.of(2026, 12, 20),
                                                       LocalDate end = LocalDate.of(2026, 12, 31),
@@ -157,5 +171,60 @@ class RateOverrideServiceSpec extends Specification {
 
         then:
         1 * rateOverrideRepository.deleteById(5)
+    }
+
+    def "createRateOverride reconciles already-posted charges on reservations the new override covers"() {
+        given:
+        def affected = reservation(1)
+        rateOverrideRepository.findOverlapping(_, _, _, _, _) >> []
+        rateOverrideRepository.save(_) >> { args -> args[0] }
+
+        when:
+        rateOverrideService.createRateOverride(request())
+
+        then:
+        1 * reservationRepository.findActiveByRateTypeAndGuestCountOverlapping("NIGHTLY", 2, request().startDate(), request().endDate()) >> [affected]
+        1 * reservationService.reconcileRoomCharges(affected)
+    }
+
+    def "updateRateOverride reconciles reservations under both the old and the new range"() {
+        given:
+        def existing = new RateOverride(5, "NIGHTLY", 2, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 10),
+                BigDecimal.valueOf(140), "Old label", LocalDateTime.now(), LocalDateTime.now())
+        def oldRangeReservation = reservation(1)
+        def newRangeReservation = reservation(2)
+        rateOverrideRepository.findById(5) >> Optional.of(existing)
+        rateOverrideRepository.findOverlapping(_, _, _, _, _) >> []
+        rateOverrideRepository.save(_) >> { args -> args[0] }
+
+        when:
+        rateOverrideService.updateRateOverride(5, request())
+
+        then:
+        1 * reservationRepository.findActiveByRateTypeAndGuestCountOverlapping("NIGHTLY", 2,
+                existing.startDate(), existing.endDate()) >> [oldRangeReservation]
+        1 * reservationRepository.findActiveByRateTypeAndGuestCountOverlapping("NIGHTLY", 2,
+                request().startDate(), request().endDate()) >> [newRangeReservation]
+        1 * reservationService.reconcileRoomCharges(oldRangeReservation)
+        1 * reservationService.reconcileRoomCharges(newRangeReservation)
+    }
+
+    def "deleteRateOverride reconciles affected reservations after the override is gone"() {
+        given:
+        def existing = new RateOverride(5, "NIGHTLY", 2, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 10),
+                BigDecimal.valueOf(140), "Old label", LocalDateTime.now(), LocalDateTime.now())
+        def affected = reservation(1)
+        rateOverrideRepository.findById(5) >> Optional.of(existing)
+
+        when:
+        rateOverrideService.deleteRateOverride(5)
+
+        then:
+        1 * rateOverrideRepository.deleteById(5)
+
+        then:
+        1 * reservationRepository.findActiveByRateTypeAndGuestCountOverlapping("NIGHTLY", 2,
+                existing.startDate(), existing.endDate()) >> [affected]
+        1 * reservationService.reconcileRoomCharges(affected)
     }
 }
