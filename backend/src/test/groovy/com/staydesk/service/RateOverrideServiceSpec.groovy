@@ -227,4 +227,27 @@ class RateOverrideServiceSpec extends Specification {
                 existing.startDate(), existing.endDate()) >> [affected]
         1 * reservationService.reconcileRoomCharges(affected)
     }
+
+    def "reconcileAllActiveOverrides reconciles affected reservations for every existing override and returns the count checked"() {
+        given:
+        def override1 = new RateOverride(1, "NIGHTLY", 2, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 10),
+                BigDecimal.valueOf(140), "Holiday", LocalDateTime.now(), LocalDateTime.now())
+        def override2 = new RateOverride(2, "WEEKLY_5", 4, LocalDate.of(2027, 1, 1), LocalDate.of(2027, 1, 10),
+                BigDecimal.valueOf(600), "New Year", LocalDateTime.now(), LocalDateTime.now())
+        def reservationA = reservation(1)
+        def reservationB = reservation(2)
+        rateOverrideRepository.findAll() >> [override1, override2]
+
+        when:
+        def checked = rateOverrideService.reconcileAllActiveOverrides()
+
+        then:
+        1 * reservationRepository.findActiveByRateTypeAndGuestCountOverlapping("NIGHTLY", 2,
+                override1.startDate(), override1.endDate()) >> [reservationA]
+        1 * reservationRepository.findActiveByRateTypeAndGuestCountOverlapping("WEEKLY_5", 4,
+                override2.startDate(), override2.endDate()) >> [reservationB]
+        1 * reservationService.reconcileRoomCharges(reservationA)
+        1 * reservationService.reconcileRoomCharges(reservationB)
+        checked == 2
+    }
 }

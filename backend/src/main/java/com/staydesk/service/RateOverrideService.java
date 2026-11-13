@@ -4,6 +4,7 @@ import com.staydesk.exception.InvalidRateOverrideException;
 import com.staydesk.exception.RateOverrideNotFoundException;
 import com.staydesk.exception.RateOverrideOverlapException;
 import com.staydesk.model.RateOverride;
+import com.staydesk.model.Reservation;
 import com.staydesk.model.request.CreateRateOverrideRequest;
 import com.staydesk.repository.RateOverrideRepository;
 import com.staydesk.repository.ReservationRepository;
@@ -89,8 +90,32 @@ public class RateOverrideService {
         reconcileAffectedReservations(existing.rateType(), existing.guestCount(), existing.startDate(), existing.endDate());
     }
 
-    private void reconcileAffectedReservations(String rateType, int guestCount, LocalDate startDate, LocalDate endDate) {
-        reservationRepository.findActiveByRateTypeAndGuestCountOverlapping(rateType, guestCount, startDate, endDate)
-                             .forEach(reservationService::reconcileRoomCharges);
+    /**
+     * One-time-use backfill for reservations affected by overrides created/changed before this
+     * reconciliation wiring existed (createRateOverride/updateRateOverride/deleteRateOverride
+     * only reconcile at the moment *they're* called - an override already sitting in the table
+     * from before this existed never got its affected reservations reconciled). Safe to call
+     * repeatedly: reconcileRoomCharges() always recomputes from current state and only posts a
+     * correction when there's an actual delta.
+     */
+    @Transactional
+    public int reconcileAllActiveOverrides() {
+        int checked = 0;
+
+        for (RateOverride override : rateOverrideRepository.findAll()) {
+            checked += reconcileAffectedReservations(override.rateType(), override.guestCount(),
+                    override.startDate(), override.endDate());
+        }
+
+        return checked;
+    }
+
+    private int reconcileAffectedReservations(String rateType, int guestCount, LocalDate startDate, LocalDate endDate) {
+        List<Reservation> candidates = reservationRepository
+                .findActiveByRateTypeAndGuestCountOverlapping(rateType, guestCount, startDate, endDate);
+
+        candidates.forEach(reservationService::reconcileRoomCharges);
+
+        return candidates.size();
     }
 }
