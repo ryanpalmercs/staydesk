@@ -21,6 +21,21 @@ public interface ReservationRepository extends ListCrudRepository<Reservation, I
     @Query("SELECT * FROM reservations WHERE status = 'CONFIRMED' AND check_in_date < :date")
     List<Reservation> findNoShowCandidates(@Param("date") LocalDate date);
 
+    // Candidates whose room-charge reconciliation may need to change after a rate override for
+    // this rateType/guestCount is created, updated, or deleted over [startDate, endDate) -
+    // reconcileRoomCharges() itself is a no-op for anything CANCELLED/CHECKED_OUT/NO_SHOW or with
+    // nothing posted yet, so this only needs to narrow down to plausible candidates, not be exact.
+    @Query("""
+            SELECT * FROM reservations
+            WHERE rate_type = :rateType AND guest_count = :guestCount
+              AND check_in_date < :endDate AND check_out_date > :startDate
+              AND status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
+            """)
+    List<Reservation> findActiveByRateTypeAndGuestCountOverlapping(@Param("rateType") String rateType,
+                                                                    @Param("guestCount") int guestCount,
+                                                                    @Param("startDate") LocalDate startDate,
+                                                                    @Param("endDate") LocalDate endDate);
+
     @Modifying
     @Query("UPDATE reservations SET room_id = :roomId WHERE id = :id")
     void assignRoom(@Param("id") Integer id, @Param("roomId") Integer roomId);
