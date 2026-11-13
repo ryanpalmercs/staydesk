@@ -10,6 +10,15 @@
 // deploy.
 export const releaseNotes = [
     {
+        id: 13,
+        title: "What's New",
+        version: 'v1.8.4',
+        date: '2026-11-13',
+        notes: [
+            "Fixed a bug where creating, changing, or removing a rate override (surge pricing) didn't correct charges already posted on reservations it affects — the first night of an already-checked-in stay could stay priced at the old rate indefinitely."
+        ]
+    },
+    {
         id: 12,
         title: "What's New",
         version: 'v1.8.3',
