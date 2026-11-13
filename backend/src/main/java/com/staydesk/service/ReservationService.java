@@ -220,38 +220,40 @@ public class ReservationService {
      * current guestCount/rateType/guest-pricing-state/active overrides, posting a correcting
      * ADJUSTMENT for any delta. Call this any time a reservation's or its guest's pricing-relevant
      * state changes after charges may already be posted. No-op if nothing was posted yet, the
-     * folio isn't OPEN, or the reservation is past the point charges can still move.
+     * folio isn't OPEN, or the reservation is past the point charges can still move. Returns the
+     * folio's current state either way (adjusted or not), so a caller can use it immediately
+     * instead of re-fetching - null only if the reservation's folio row doesn't exist at all.
      */
     @Transactional
-    public void reconcileRoomCharges(Reservation reservation) {
+    public Folio reconcileRoomCharges(Reservation reservation) {
         if (reservation.status() == Reservation.ReservationStatus.CANCELLED
                 || reservation.status() == Reservation.ReservationStatus.NO_SHOW
                 || reservation.status() == Reservation.ReservationStatus.CHECKED_OUT) {
-            return;
+            return null;
         }
 
         Folio folio = folioRepository.findById(reservation.folioId()).orElse(null);
 
         if (folio == null || folio.status() != Folio.FolioStatus.OPEN) {
-            return;
+            return folio;
         }
 
         long postedNights = folioService.countRoomChargesPosted(folio.id());
 
         if (postedNights <= 0) {
-            return;
+            return folio;
         }
 
         Rate rate = rateRepository.findByRateTypeAndGuestCount(reservation.rateType(), reservation.guestCount()).orElse(null);
 
         if (rate == null) {
-            return;
+            return folio;
         }
 
         long totalNights = getTotalNights(reservation.checkInDate(), reservation.checkOutDate());
         long nightsToReconcile = Math.min(postedNights, totalNights);
 
-        reconcilePostedRoomCharges(folio, reservation.guestId(), rate, reservation.checkInDate(), nightsToReconcile,
+        return reconcilePostedRoomCharges(folio, reservation.guestId(), rate, reservation.checkInDate(), nightsToReconcile,
                 "ROOM CHARGE RECONCILIATION");
     }
 
@@ -659,6 +661,12 @@ public class ReservationService {
             folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
         }
 
+        // Belt-and-suspenders: confirms what was just posted still matches whatever rate override
+        // is active right now, and corrects it before the card is charged if not (e.g. an override
+        // created in the gap between this reservation being booked and checked in). No-op in the
+        // normal case, since the posting loop above already used the same rate resolution.
+        folio = reconcileRoomCharges(reservation);
+
         if (remainingPeriods > 0) {
             paymentService.chargeFullStay(folio, folio.total(), providerFactory.getPaymentProviderName(), roomPaymentMethodId,
                     resolveGuestEmail(reservation.guestId()));
@@ -726,6 +734,12 @@ public class ReservationService {
                     reservation.checkInDate().plusDays(alreadyPosted + i), alreadyPosted + i);
             folio = folioService.postCharge(folio, "GUEST ROOM", periodAmount);
         }
+
+        // Belt-and-suspenders: confirms what was just posted still matches whatever rate override
+        // is active right now, and corrects it before the terminal charges if not (e.g. an override
+        // created in the gap between this reservation being booked and checked in). No-op in the
+        // normal case, since the posting loop above already used the same rate resolution.
+        folio = reconcileRoomCharges(reservation);
 
         if (remainingPeriods > 0) {
             paymentService.chargeFullStay(folio, folio.total(), providerFactory.getCardPresentProviderName(), paymentMethodToken,

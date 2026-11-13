@@ -1188,6 +1188,9 @@ class ReservationServiceSpec extends Specification {
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.ZERO
+        folioService.postAdjustment(_, _, _) >> { args -> args[0] }
+        folioRepository.findById(9) >> Optional.of(new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(315), null, LocalDateTime.now(), LocalDateTime.now()))
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
@@ -1209,10 +1212,13 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.ZERO
+        folioService.postAdjustment(_, _, _) >> { args -> args[0] }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
 
         when:
@@ -1239,6 +1245,9 @@ class ReservationServiceSpec extends Specification {
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.ZERO
+        folioService.postAdjustment(_, _, _) >> { args -> args[0] }
+        folioRepository.findById(9) >> Optional.of(new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(315), null, LocalDateTime.now(), LocalDateTime.now()))
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
@@ -1262,10 +1271,13 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.ZERO
+        folioService.postAdjustment(_, _, _) >> { args -> args[0] }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
 
         when:
@@ -1290,6 +1302,9 @@ class ReservationServiceSpec extends Specification {
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 1
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.ZERO
+        folioService.postAdjustment(_, _, _) >> { args -> args[0] }
+        folioRepository.findById(9) >> Optional.of(new Folio(9, Folio.FolioStatus.OPEN, BigDecimal.valueOf(160), null, LocalDateTime.now(), LocalDateTime.now()))
         folioService.postCharge(_, "GUEST ROOM", { BigDecimal amt -> amt.compareTo(BigDecimal.valueOf(80)) == 0 }) >>
                 { Folio f, String d, BigDecimal amt -> new Folio(f.id(), f.status(), f.total().add(amt), f.paidAt(), f.createdAt(), LocalDateTime.now()) }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
@@ -1313,10 +1328,13 @@ class ReservationServiceSpec extends Specification {
         reservationRepository.findById(1) >> Optional.of(res)
         roomRepository.findAvailableOfType(2, LocalDate.of(2026, 7, 13), LocalDate.of(2026, 7, 10), 1) >> [room]
         folioRepository.getFolioByReservationId(1) >> Optional.of(folio)
+        folioRepository.findById(9) >> Optional.of(folio)
         rateRepository.findByRateTypeAndGuestCount(Rate.RateType.NIGHTLY, 1) >> Optional.of(rate)
         rateOverrideRepository.findActiveOverride(_, _, _) >> Optional.empty()
         guestRepository.findById(7) >> Optional.empty()
         folioService.countRoomChargesPosted(9) >> 3
+        folioService.sumRoomChargesPosted(9) >> BigDecimal.ZERO
+        folioService.postAdjustment(_, _, _) >> { args -> args[0] }
         lockPasscodeService.issuePasscode(_, room) >> new LockPasscodeService.PasscodeResult(LockPasscodeService.PasscodeResult.Outcome.NO_LOCK_ASSIGNED, null)
 
         when:
